@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Typefree — 隱私優先、更懂中文的 AI 語音輸入</title>
-<meta name="description" content="Typefree 是一個隱私優先的 AI 語音輸入工具。按住快捷鍵說話，自動識別、去掉口水詞、理順句子，把整理好的文字直接落到游標處。錄音、資料、API 憑證都在你自己手裡。新用戶 7 天免費試用（我們買單），之後每週 1 萬字免費或一次買斷無限輸入。">
+<title>Typefree — 開源、隱私優先、更懂中文的 AI 語音輸入</title>
+<meta name="description" content="Typefree 是開源、隱私優先的 AI 語音輸入工具。按住快捷鍵說話，自動辨識、去掉口水詞、理順句子，把整理好的文字直接落到游標處。新用戶 7 天免費試用；自帶 API Key 永久免費、不限字數；不想設定 Key 可以開通會員。">
 <script>try{history.scrollRestoration='manual';}catch(e){}</script>
 <script>/* 按系統語言/記憶自動跳轉語言版本 */(function(){var P="zh-Hant";try{var s=localStorage.getItem("tf_lang");var w=s;if(!w){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}if(w!==P){var m={"zh-Hans":"index.html","zh-Hant":"index.zh-Hant.html","en":"index.en.html"};var t=m[w];var cur=location.pathname.split("/").pop()||"index.html";if(t&&t!==cur){location.replace(t);}}}catch(e){}})();</script>
 <style>
@@ -281,6 +281,12 @@
   .pcard li b{color:var(--ink);font-weight:650;}
   .pcard li svg{width:17px;height:17px;color:var(--ok);flex:none;margin-top:2px;}
   .pcard .btn{width:100%;}
+  /* 3.0：定价区开源说明条 + 会员卡里的「一次性买一年」次级链接 */
+  .pay-cn.oss{margin:0 auto 26px;max-width:720px;}
+  .pay-cn.oss a{color:var(--ink);font-weight:650;white-space:nowrap;}
+  .pcard .plink{display:block;text-align:center;margin-top:12px;color:var(--ink2);font-size:14px;font-weight:550;}
+  .pcard .plink:hover{color:var(--ink);}
+  .sec-head p,.pay-cn div,.pcard li span{text-wrap:pretty;}   /* 少出现单字、单个箭头掉到下一行 */
   .pay-cn{max-width:560px;margin:26px auto 0;display:flex;gap:12px;align-items:flex-start;
     padding:15px 18px;border:1px solid var(--ok);border-radius:13px;background:var(--ok-soft);
     color:var(--ink2);font-size:14.5px;line-height:1.55;text-align:left;}
@@ -357,6 +363,7 @@
       <a href="#security">安全</a>
       <a href="#pricing">價格</a>
       <a href="setup-guide.zh-Hant.html">配置教程</a>
+      <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">開源</a>
     </div>
     <div class="nav-cta">
       <div class="langsw" id="langsw">
@@ -374,9 +381,9 @@
 <!-- ===================== Hero ===================== -->
 <header class="hero">
   <div class="wrap hero-inner">
-    <div class="eyebrow"><span class="dot"></span><b>隱私優先</b> · 本地儲存 · 自帶 API Key</div>
+    <div class="eyebrow"><span class="dot"></span><b>開源免費</b> · 隱私優先 · 自帶 API Key</div>
     <h1>更懂中文的 AI 語音輸入，<br class="hb">把口語變成<span class="grey">能直接用的</span>文字。</h1>
-    <p class="sub">按住快捷鍵說話，鬆手即自動識別、去掉口水詞、理順句子，整理好的結果直接落到游標處。錄音、資料、API 憑證，全都在你自己手裡。</p>
+    <p class="sub">按住快捷鍵說話，鬆手即自動識別、去掉口水詞、理順句子，整理好的結果直接落到游標處。程式碼開源，你的話去了哪裡，每一步都查得到。</p>
     <div class="cta">
       <a class="btn primary lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>免費下載 Mac 版</a>
       <a class="btn lg" href="#pricing">檢視價格 →</a>
@@ -384,7 +391,7 @@
     <div class="trust">
       <span><i class="g"></i>macOS 12+</span>
       <span><i class="g"></i>已簽名 · 已公證</span>
-      <span><i class="g"></i>一次買斷 · 不訂閱</span>
+      <span><i class="g"></i>開源 · GPL-3.0</span>
     </div>
 
     <!-- 產品演示卡 -->
@@ -426,18 +433,18 @@
   <div class="wrap">
     <div class="sec-head center reveal">
       <span class="kicker">為什麼選 Typefree</span>
-      <h2>和訂閱制工具一樣好用，<br>但資料和憑證，都在你自己手裡。</h2>
+      <h2>和付費工具一樣好用，<br>但程式碼開源，資料去哪你說了算。</h2>
     </div>
     <div class="values">
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
-        <h3>誠實透明</h3>
-        <p>錄音、識別、整理、回填——每一步資料去了哪裡都講清楚，不誇大、不藏著。</p>
+        <h3>開源透明</h3>
+        <p>程式碼全部公開（GPL-3.0）。錄音、辨識、整理、回填，每一步資料去了哪裡都查得到，也可以自己編譯。</p>
       </div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
         <h3>資料本地優先</h3>
-        <p>錄音、歷史記錄、API 憑證預設都儲存在你自己的裝置上，不經過我們的任何中轉伺服器。</p>
+        <p>錄音、歷史記錄、API 憑證預設儲存在你自己的裝置上；用自己的 Key 時，請求直達服務商，不經過我們。</p>
       </div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
@@ -583,7 +590,7 @@
     <div class="sec-head reveal">
       <span class="kicker">安全</span>
       <h2>你的話去了哪裡，<br>寫得清清楚楚。</h2>
-      <p>錄音、歷史、API Key 都存在你自己的裝置上；請求直達你配置的服務商，不經過我們。</p>
+      <p>歷史和 API Key 都存在你自己的裝置上。用自己的 Key 時，請求直達你設定的服務商；免費試用和會員期間，經我們的伺服器轉發，只轉發、不保存。</p>
     </div>
     <div class="sflow reveal">
       <div class="sstep">
@@ -592,7 +599,7 @@
       </div>
       <div class="sstep">
         <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
-        <b>直達你的服務商</b><p>請求直接發給你配置的 ASR 和大模型，不經過我們的中轉伺服器。</p>
+        <b>去向清楚</b><p>自帶 Key 時直達你設定的服務商；試用和會員經我們的伺服器轉發，不保存錄音和文字。</p>
       </div>
       <div class="sstep">
         <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 7.8 8 9 4.6-1.2 8-4 8-9V5Z"/></svg></span>
@@ -663,56 +670,61 @@
   <div class="wrap">
     <div class="sec-head center reveal">
       <span class="kicker">價格</span>
-      <h2>三種用法，按需選擇。</h2>
-      <p>新用戶 7 天免費試用，費用我們承擔；到期後填入自己的 Key 永久免費，或一次買斷解鎖無限輸入——都不是訂閱。</p>
+      <h2>軟體開源免費，<br>會員買的是省心。</h2>
+      <p>先免費試用 7 天；之後自帶 API Key 永久免費，不想折騰就開會員。</p>
+    </div>
+    <div class="pay-cn oss reveal">
+      <span class="flag">🔓</span>
+      <div><b>Typefree 是開源軟體</b>程式碼全部公開在 GitHub（GPL-3.0），可以自己編譯使用。<br>會員費用於辨識和潤色的伺服器與模型開銷。 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">查看原始碼 →</a></div>
     </div>
     <div class="pricing reveal">
       <div class="pcard">
         <span class="ptag">新用戶</span>
         <div class="price"><span class="amt">免費</span><span class="per">· 7 天試用</span></div>
-        <p class="pdesc">下載即用，零設定，新用戶專屬。</p>
+        <p class="pdesc">下載即用，零設定，新用戶專享。</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>7 天共 8000 字輸入</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>識別 + AI 潤色，<b>費用由我們承擔</b></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>不用填任何 Key，按一下就出字</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>7 天到期後可轉下面兩種繼續用</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>7 天共 8000 字輸入</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>辨識 + AI 潤色，<b>費用由我們承擔</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>不用填任何 Key，按一下就出字</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>到期後開會員，或填自己的 Key</span></li>
         </ul>
         <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">免費下載 Mac 版</a>
       </div>
       <div class="pcard feat">
-        <div class="ptags"><span class="ptag">買斷版</span><span class="ptag">自帶 Key</span></div>
-        <div class="price"><span class="amt">$29</span><span class="was">$69</span><span class="off">限時 -58%</span><span class="per">一次性 · 永久</span></div>
-        <p class="pdesc">解鎖無限輸入，一次付費永久使用，不是訂閱。</p>
+        <div class="ptags"><span class="ptag">會員</span><span class="ptag">免設定</span></div>
+        <div class="price"><span class="amt">¥188</span><span class="per">/ 年</span></div>
+        <p class="pdesc">不用申請任何 API Key，裝好就能用。</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><b>無限輸入</b>，不再有字數限制</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>同樣用你自己的 Key，零中轉</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>一個啟用碼授權 1 臺 Mac</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>30 天內不滿意可全額退款</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>辨識 + AI 潤色 + 問 AI，<b>全部包含</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>合理使用範圍內<b>不限字數</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>銀行卡按年自動續費，隨時可取消</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>到期後仍可填自己的 Key，永久免費</span></li>
         </ul>
-        <a class="btn primary lg tf-buy" href="#pricing">購買買斷版 · $29</a>
+        <a class="btn primary lg tf-buy" href="#pricing" data-price="pri_01m2fpzfg8ejvhbgcjmdtx311r">開通會員 · ¥188/年</a>
+        <a class="plink tf-buy" href="#pricing" data-price="pri_01m2fq07sfsdnk49jzfs013pcc">用微信買一年（不自動續費）→</a>
       </div>
       <div class="pcard">
         <span class="ptag">永久免費</span>
         <div class="price"><span class="amt">免費</span><span class="per">· 不限時間</span></div>
         <p class="pdesc">填入你自己的 API Key，長期免費用。</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>每週 10,000 字輸入（週一重置）</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>完整識別 + AI 整理 + 術語糾正</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>費用走你自己的 Key，我們不中轉、不計費</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>多識別 / 潤色服務商自由切換</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>不限字數</b>，永久免費</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>完整辨識 + AI 整理 + 術語糾正</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>用量由服務商計費，我們不中轉</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>多辨識 / 潤色服務商自由切換</span></li>
         </ul>
         <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">免費下載 Mac 版</a>
       </div>
     </div>
     <div class="pay-cn">
       <span class="flag">🇨🇳</span>
-      <div><b>想用微信付款？</b>付款頁沒看到的話，把「國家 / 地區」改成「中國」，微信支付就會出現。</div>
+      <div><b>想用微信付款？</b>微信只能按年一次性購買：點會員卡片裡的「用微信買一年」。付款頁沒看到微信的話，把「國家 / 地區」改成「中國」。</div>
     </div>
     <div class="pay-cn">
       <span class="flag">⏳</span>
-      <div><b>付完款後請別擔心：</b>微信付款會跳轉，付完可能跳回首頁、頁面看起來沒變化，都是正常的。啟用碼約 5 分鐘內會自動寄到你付款時填寫的信箱（記得翻垃圾郵件匣），請不要重複付款。</div>
+      <div><b>付完款後請別擔心：</b>微信付款會跳轉，付完可能跳回首頁、頁面看起來沒變化，都是正常的。授權碼約 5 分鐘內會自動寄到你付款時填寫的信箱（記得翻垃圾郵件匣），請不要重複付款。</div>
     </div>
-    <p class="pnote">支援 微信 / 銀行卡 付款，由 Paddle 安全結算。</p>
+    <p class="pnote">支援 微信 / 銀行卡 付款，由 Paddle 安全結算。會員需要 Typefree 3.0 或更新版本。</p>
   </div>
 </section>
 
@@ -728,7 +740,7 @@
       <div class="scard reveal">
         <div class="sn">STEP 01</div>
         <h3>下載並安裝</h3>
-        <p>下載已簽名、已公證的 DMG，拖進"應用程式"即可。新用戶 7 天免費試用、零設定，到期後每週 1 萬字免費或買斷無限。</p>
+        <p>下載已簽名、已公證的 DMG，拖進"應用程式"即可。新用戶 7 天免費試用、零設定，到期後開通會員，或填自己的 Key 永久免費。</p>
         <div class="links">
           <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>下載 Mac 版 DMG</a>
         </div>
@@ -736,7 +748,7 @@
       <div class="scard reveal">
         <div class="sn">STEP 02</div>
         <h3>配置服務商憑證</h3>
-        <p>填入識別和潤色的 API Key——你自己在火山引擎和通義申請，Typefree 不中轉、不計費。<b>第一次不會弄？跟著圖文教程一步步來，5 分鐘搞定。</b></p>
+        <p>填入辨識和潤色的 API Key——你自己在火山引擎和通義申請，Typefree 不中轉、不計費；開通會員的可以跳過這步。<b>第一次不會弄？跟著圖文教程，5 分鐘搞定。</b></p>
         <div class="links">
           <a href="setup-guide.zh-Hant.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>手把手圖文教程 · 5 分鐘拿到 API Key</a>
           <a href="https://console.volcengine.com/speech/new/overview?projectName=default" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>火山引擎 · 語音識別</a>
@@ -764,11 +776,12 @@
     </div>
     <div class="faq">
       <details open class="reveal"><summary>和系統自帶的聽寫有什麼區別？<span class="plus"></span></summary><p>系統聽寫更像逐字轉錄，"嗯、那個"也會照打。Typefree 會在識別後整理語言——去口水詞、理順句子、規範數字標點，讓輸出可以直接傳送或當作 Prompt。</p></details>
-      <details class="reveal"><summary>它是完全離線的嗎？<span class="plus"></span></summary><p>不是。當前主要路徑會呼叫你配置的雲端識別和大模型服務。它強調的是本地優先、不走我們自建的中轉——而不是"斷網也能用"。</p></details>
+      <details class="reveal"><summary>Typefree 是開源的嗎？<span class="plus"></span></summary><p>是。Mac 版程式碼以 GPL-3.0 協議公開在 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a>，每一步資料去了哪裡都能自己核對，也可以自己編譯使用（自己編譯的版本需要填自己的 API Key）。「Typefree」名稱和圖示不在開源授權範圍內。</p></details>
+      <details class="reveal"><summary>怎麼收費？可以先免費試用嗎？<span class="plus"></span></summary><p>可以。新用戶有 7 天免費試用，零設定、費用我們承擔（7 天共 8000 字，每天最多 5000）。之後兩種選擇：填入你自己的 API Key，永久免費、不限字數；或開通會員（¥188/年），不用設定任何 Key。銀行卡開通每年自動續費、隨時可取消；微信付款是一次性買一年，不會自動扣費。</p></details>
+      <details class="reveal"><summary>它是完全離線的嗎？<span class="plus"></span></summary><p>不是。辨識和整理需要呼叫雲端的語音辨識和大模型服務。Typefree 強調的是本地優先、程式碼開源、資料去向透明——而不是"斷網也能用"。</p></details>
       <details class="reveal"><summary>支援哪些服務商和模型？<span class="plus"></span></summary><p>識別用火山引擎 BigASR；潤色支援通義千問、智譜 GLM、豆包，可隨時切換，也可以選擇"不潤色、直接輸出原文"。</p></details>
-      <details class="reveal"><summary>怎麼收費？可以先免費試用嗎？<span class="plus"></span></summary><p>可以。新用戶有 7 天免費試用，零設定、費用我們承擔，7 天內共 8000 字（每天最多 5000）；到期後填入你自己的 Key 仍可每週 1 萬字永久免費（週一重置）；需要無限輸入再一次性買斷 $29，永久使用、不是訂閱。買斷後 30 天內不滿意可全額退款。</p></details>
-      <details class="reveal"><summary>不太會配 API 的人能用嗎？<span class="plus"></span></summary><p>目前更適合願意配置服務商憑證的使用者。引導裡有申請入口和填寫說明（5 分鐘圖文教程）；如果你只想先看看效果，可以直接看這頁的演示。</p></details>
-      <details class="reveal"><summary>我的錄音和資料安全嗎？<span class="plus"></span></summary><p>錄音、歷史和 API 憑證預設存在你自己的裝置上（macOS 在 <code>~/.config/voicepolish/</code>）。請求只發往你配置的服務商，不經過我們。歷史保留時長也可以自己設。</p></details>
+      <details class="reveal"><summary>不太會配 API 的人能用嗎？<span class="plus"></span></summary><p>能。開通會員就不用設定任何 Key，裝好就能說話；想自己設定，也有 5 分鐘圖文教程。</p></details>
+      <details class="reveal"><summary>我的錄音和資料安全嗎？<span class="plus"></span></summary><p>歷史記錄和 API 憑證預設存在你自己的裝置上（macOS 在 <code>~/.config/voicepolish/</code>）。用自己的 Key 時，請求只發往你設定的服務商，不經過我們；免費試用和會員期間，經我們的伺服器轉發，只轉發、不保存錄音和文字。程式碼開源，可以自己核對。</p></details>
     </div>
   </div>
 </section>
@@ -778,7 +791,7 @@
   <div class="wrap">
     <div class="final-box reveal">
       <h2>把語音輸入，變成你可信賴的日常工具。</h2>
-      <p>適合在意資料邊界、又想一次買斷、不被訂閱綁住的人。免費版先用著，需要更多再升級。</p>
+      <p>適合在意資料邊界的人：程式碼開源，先免費用著；嫌設定麻煩，再開會員。</p>
       <div class="cta">
         <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>免費下載 Mac 版</a>
         <a class="btn ghost lg" href="#pricing">檢視價格 →</a>
@@ -794,7 +807,8 @@
     <div class="fl">
       <a href="#pricing">價格</a>
       <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下載</a>
-      <a href="recover.zh-Hant.html">找回啟用碼</a>
+      <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">原始碼</a>
+      <a href="recover.zh-Hant.html">找回授權碼</a>
       <a href="refund.zh-Hant.html">退款政策</a>
       <a href="privacy.zh-Hant.html">隱私政策</a>
       <a href="terms.zh-Hant.html">服務條款</a>
@@ -843,7 +857,7 @@
         // email 或 id（付款前拿不到），只傳 address 會當場拋錯、結帳框彈不出來（2026-06-11 實測）。
         Paddle.Checkout.open({
           settings: { successUrl: "https://typefree.app/thanks.zh-Hant.html" },
-          items:[{ priceId:"pri_01ktpracbxxhfm2n9dvfs0rd70", quantity:1 }] });
+          items:[{ priceId: b.dataset.price, quantity:1 }] });
       });
     });
   }catch(err){ console.error("Paddle init failed", err); }

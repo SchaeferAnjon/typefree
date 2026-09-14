@@ -52,40 +52,41 @@
 
 <main><div class="wrap">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: June 24, 2026</p>
+  <p class="updated">Last updated: September 14, 2026</p>
 
-  <h2>In one sentence</h2>
-  <p>Typefree <strong>runs locally on your own device</strong>. Your recordings, transcribed text, history and API credentials are <strong>stored on your device by default</strong> — we operate no servers that store this content, and we do not collect it. (During the free 7-day trial for new users, a small amount of necessary information is collected — see <strong>"Data handling during the free 7-day trial"</strong> below.)</p>
+  <h2>In short</h2>
+  <p>Typefree <strong>runs locally on your device, and its code is open source</strong>. Your recordings, transcribed text, history and API credentials are <strong>stored on your device by default</strong> — we have no servers that store this content. (During the free trial and membership, recognition and clean-up requests are relayed by our server; see <strong>"Data processing during the free trial and membership"</strong> below.)</p>
 
   <h2>Who we are</h2>
-  <p>Typefree is a voice-input tool built by Rui Wang, an independent developer. For privacy questions, contact <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
+  <p>Typefree is a voice-input tool developed by independent developer Rui Wang. For privacy questions, contact <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
 
-  <h2>How your voice and text are handled</h2>
+  <h2>How your voice and text are processed</h2>
   <ul>
-    <li><strong>Recording is local</strong>: audio is captured on your device while you hold the shortcut, and only enters processing after you release it.</li>
-    <li><strong>Recognition and clean-up run through third-party providers</strong>: speech recognition and AI clean-up are handled by third-party services (e.g. Volcengine, Alibaba Cloud Bailian). <strong>Once you enter your own API key</strong>, requests are sent <strong>directly from your device to those providers — they do not pass through Typefree's servers</strong>; <strong>the free 7-day trial for new users works differently, see the dedicated section below</strong>. That content is governed by each provider's own privacy policy, which we recommend you review.</li>
-    <li><strong>History and credentials stay local</strong>: recognition history, optional original audio, and API credentials are stored in a local folder on your device (on macOS, <code>~/.config/voicepolish/</code>). Whether and how long to keep them is up to you.</li>
+    <li><strong>Recording happens locally</strong>: audio is recorded on your device while you hold the shortcut and is processed only after you release it.</li>
+    <li><strong>Recognition and clean-up are done by third-party providers</strong> (e.g. Volcengine, Alibaba Cloud Model Studio). <strong>With your own API key</strong>, requests go <strong>directly from your device to these providers, never through Typefree's servers</strong>; during the free trial and membership it works differently, as described below. That processing is subject to each provider's privacy policy.</li>
+    <li><strong>History and credentials stay local</strong>: recognition history, optional original audio and API credentials are stored locally (on macOS in <code>~/.config/voicepolish/</code>). You decide whether and how long to keep them.</li>
   </ul>
 
-  <h2>Data handling during the free 7-day trial</h2>
-  <p>So that new users can try Typefree with zero setup, <strong>during the free 7-day trial for new users</strong>, speech-recognition and AI clean-up requests are forwarded to the third-party providers above <strong>through a relay server we operate</strong>, with the cost covered by us. In this mode:</p>
+  <h2>Data processing during the free trial and membership</h2>
+  <p>So that you can use Typefree without any setup, <strong>during the 7-day free trial</strong> and <strong>while your membership is active</strong>, speech-recognition and AI clean-up requests (including Ask AI) are relayed by <strong>a server we operate</strong> to the providers above. In this mode:</p>
   <ul>
-    <li>We record only the <strong>minimum information</strong> needed to prevent abuse: a randomly generated device identifier (which does not contain your real identity), IP address, the character count and timestamp of each request, and your app and OS version — used for quota accounting and abuse prevention, and retained only as long as needed for those purposes.</li>
-    <li>We <strong>do not store, read, or analyze your recordings, recognized text, or cleaned-up text</strong> — that content is only relayed in real time and discarded once processed.</li>
-    <li>After the trial, once you enter your own API key, requests revert to going <strong>directly to the providers, not through us</strong>.</li>
+    <li>We record only the <strong>minimum information</strong> needed for limits, fair use and abuse prevention: a randomly generated device identifier (not your real identity), IP address, the audio duration, character count and time of each request, and app and OS versions; for members, also a one-way hash of the license code (which cannot be reversed) to count usage per membership. We keep it only as long as needed for these purposes.</li>
+    <li>We <strong>do not store, view or analyze your recordings, transcribed text or cleaned-up text</strong> — they are relayed in real time and discarded after processing.</li>
+    <li>When the app contacts the trial service, it may include <strong>aggregate counts</strong> (characters and number of requests) from when you used your own keys — numbers only, never content — to understand active usage.</li>
+    <li>After the trial ends or your membership expires, entering your own API key switches requests back to <strong>"straight to your providers, never through us"</strong>.</li>
   </ul>
 
-  <h2>Purchase and activation</h2>
-  <p>Purchases are handled by our payment provider <strong>Paddle</strong> (Paddle.com Market Ltd, acting as Merchant of Record / reseller). Your payment information is collected and processed by Paddle under its own privacy policy; we never receive your full card details. When you activate the paid version, the app sends to our activation server (api.typefree.app, hosted on Cloudflare): <strong>your license code, a one-way hashed device identifier (irreversible), your Mac model and macOS version</strong> — used solely to enforce the one-Mac license limit and for support (<a href="recover.en.html">license recovery / device transfer</a>). We never collect your computer name, voice, text or usage statistics; after activation, the app does not contact our servers during normal use.</p>
+  <h2>Purchases and licenses</h2>
+  <p>Purchases are handled by our payment provider <strong>Paddle</strong> (Paddle.com Market Ltd, acting as Merchant of Record / reseller). Your payment information is collected and processed by Paddle under its privacy policy; we never see your full card details. When you activate a license code, the app sends our license server (api.typefree.app, hosted on Cloudflare) <strong>the license code, a device fingerprint (a one-way hash of a hardware identifier that cannot be reversed), your Mac model and macOS version</strong>, to enforce one Mac per code, check membership validity and provide support (<a href="recover.en.html">recover a code / reset activation</a>). After activation, the app checks its license status with the server every few days, sending only the license code and device fingerprint. We don't collect your computer's name.</p>
 
   <h2>This website</h2>
-  <p>typefree.app is a static site hosted on GitHub Pages / Cloudflare. It sets <strong>no tracking cookies and includes no third-party advertising or behavioral analytics</strong>. Hosting providers may retain standard server access logs (such as IP address and timestamp) under their own policies for security and operations.</p>
+  <p>typefree.app is a static site hosted on GitHub Pages / Cloudflare. It <strong>sets no tracking cookies and includes no third-party advertising or behavioral analytics</strong>. The hosts may keep standard server access logs (such as IP and access time) for security and operations under their own policies.</p>
 
   <h2>Your rights</h2>
-  <p>Because we hold almost none of your personal data, you have full control over the data on your device and can delete it at any time. For purchase-related data, contact us or Paddle. Send any privacy request to <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
+  <p>Because we hold very little personal data, you have full control over the data on your device and can delete it at any time. For purchase-related data, contact us or Paddle. Send any privacy request to <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
 
-  <h2>Changes</h2>
-  <p>If this policy changes, we will post the update on this page and revise the date at the top.</p>
+  <h2>Changes to this policy</h2>
+  <p>We'll post any updates on this page and change the date at the top.</p>
 </div></main>
 
 <footer><div class="wrap">

@@ -52,40 +52,41 @@
 
 <main><div class="wrap">
   <h1>隱私政策</h1>
-  <p class="updated">最後更新：2026 年 6 月 24 日</p>
+  <p class="updated">最後更新：2026 年 9 月 14 日</p>
 
   <h2>一句話總結</h2>
-  <p>Typefree <strong>在你自己的裝置上本地執行</strong>。你的錄音、轉寫文字、歷史記錄和 API 憑證，<strong>預設都儲存在你的裝置上</strong>——我們沒有用於儲存你這些內容的伺服器，也不會收集它們。（新用戶 7 天免費試用期間會有少量必要資訊的收集，詳見下方<strong>「7 天免費試用期間的資料處理」</strong>。）</p>
+  <p>Typefree <strong>在你自己的裝置上本地執行，程式碼開源</strong>。你的錄音、轉寫文字、歷史記錄和 API 憑證<strong>預設都儲存在你的裝置上</strong>——我們沒有儲存這些內容的伺服器。（免費試用和會員期間，辨識與整理請求會經過我們的伺服器轉發，詳見下方<strong>「免費試用與會員期間的資料處理」</strong>。）</p>
 
   <h2>我們是誰</h2>
   <p>Typefree 是由獨立開發者 Rui Wang（王瑞）開發的語音輸入工具。如有隱私相關問題，可聯絡 <a href="mailto:ray@typefree.app">ray@typefree.app</a>。</p>
 
   <h2>你的語音和文字如何被處理</h2>
   <ul>
-    <li><strong>錄音在本地採集</strong>：按住快捷鍵時音訊在你的裝置上錄製，鬆手後才進入處理。</li>
-    <li><strong>識別與整理由第三方服務商完成</strong>：語音識別和 AI 整理由第三方服務（如火山引擎、阿里雲百鍊等）處理。<strong>當你填入自己的 API Key 後</strong>，請求由你的裝置<strong>直接發往這些服務商，不經過 Typefree 的伺服器</strong>；<strong>新用戶 7 天免費試用期間的處理方式不同，詳見下方專門說明</strong>。這部分內容的處理受對應服務商各自隱私政策約束，建議你一併查閱。</li>
-    <li><strong>歷史與憑證留在本地</strong>：識別歷史、原始音訊（可選保留）和 API 憑證預設儲存在你裝置的本地目錄（macOS 位於 <code>~/.config/voicepolish/</code>）。是否保留、保留多久由你設定。</li>
+    <li><strong>錄音在本地採集</strong>：按住快捷鍵時音訊在你的裝置上錄製，放開後才進入處理。</li>
+    <li><strong>辨識與整理由第三方服務商完成</strong>：語音辨識和 AI 整理由第三方服務（如火山引擎、阿里雲百鍊等）處理。<strong>用你自己的 API Key 時</strong>，請求由你的裝置<strong>直接發往這些服務商，不經過 Typefree 的伺服器</strong>；免費試用和會員期間的處理方式不同，詳見下方說明。這部分內容的處理受對應服務商各自隱私政策約束，建議你一併查閱。</li>
+    <li><strong>歷史與憑證留在本地</strong>：辨識歷史、原始音訊（可選保留）和 API 憑證預設儲存在你裝置的本地目錄（macOS 位於 <code>~/.config/voicepolish/</code>）。是否保留、保留多久由你設定。</li>
   </ul>
 
-  <h2>7 天免費試用期間的資料處理</h2>
-  <p>為了讓新用戶無需任何設定即可體驗，<strong>新用戶 7 天免費試用期間</strong>，語音識別和 AI 整理的請求會經過<strong>我們運營的中轉伺服器</strong>轉發給上述第三方服務商，相關費用由我們承擔。在這一模式下：</p>
+  <h2>免費試用與會員期間的資料處理</h2>
+  <p>為了讓你無需任何設定即可使用，<strong>新用戶 7 天免費試用期間</strong>和<strong>會員有效期內</strong>，語音辨識和 AI 整理（含問 AI）的請求會經過<strong>我們營運的伺服器</strong>轉發給上述第三方服務商。在這一模式下：</p>
   <ul>
-    <li>我們只記錄防止濫用所必需的<strong>最少資訊</strong>：隨機產生的裝置標識（不含你的真實身份）、IP 位址、每次請求的字數與時間，以及 App 與系統版本號；用於額度計算與反濫用，並在實現上述目的所需的期限內保留。</li>
-    <li>我們<strong>不儲存、不查看、也不分析你的錄音、識別文字或整理後的文字</strong>——這些內容僅被即時轉發，處理完即丟棄。</li>
-    <li>試用結束後，當你填入自己的 API Key，請求即恢復為<strong>「直達服務商、不經過我們」</strong>。</li>
+    <li>我們只記錄額度計算、合理使用與反濫用所必需的<strong>最少資訊</strong>：隨機產生的裝置標識（不含你的真實身分）、IP 位址、每次請求的音訊時長、字數與時間，以及 App 與系統版本號；會員還會記錄授權碼的單向雜湊（無法還原），用於按會員統計用量。這些資訊只在實現上述目的所需的期限內保留。</li>
+    <li>我們<strong>不儲存、不查看、也不分析你的錄音、辨識文字或整理後的文字</strong>——這些內容僅被即時轉發，處理完即丟棄。</li>
+    <li>App 與試用服務通訊時，可能附帶回報此前用自己 Key 時的<strong>字數與次數彙總</strong>（只有數字，不含任何內容），用於了解活躍度。</li>
+    <li>試用結束或會員到期後，填入自己的 API Key，請求即恢復為<strong>「直達服務商、不經過我們」</strong>。</li>
   </ul>
 
-  <h2>購買與啟用</h2>
-  <p>購買透過我們的支付服務商 <strong>Paddle</strong>（Paddle.com Market Ltd，作為 Merchant of Record / 經銷商）處理。你的支付資訊由 Paddle 按其隱私政策收集與處理，我們不接觸你的完整支付卡資訊。啟用買斷版時，App 會向我們的啟用伺服器（api.typefree.app，託管於 Cloudflare）發送：<strong>啟用碼、裝置指紋（硬體標識的單向雜湊，無法還原）、Mac 機型與 macOS 版本號</strong>，僅用於執行「一碼一台 Mac」的授權限制與售後支援（<a href="recover.zh-Hant.html">找回啟用碼 / 換機重置</a>）。我們不收集你的電腦名稱、語音、文字或使用統計；啟用完成後，App 的日常使用不與我們的伺服器通訊。</p>
+  <h2>購買與授權</h2>
+  <p>購買透過我們的支付服務商 <strong>Paddle</strong>（Paddle.com Market Ltd，作為 Merchant of Record / 經銷商）處理。你的支付資訊由 Paddle 按其隱私政策收集與處理，我們不接觸你的完整支付卡資訊。啟用授權碼時，App 會向我們的授權伺服器（api.typefree.app，託管於 Cloudflare）發送：<strong>授權碼、裝置指紋（硬體標識的單向雜湊，無法還原）、Mac 機型與 macOS 版本號</strong>，用於執行「一碼一臺 Mac」的授權限制、校驗會員有效期和售後支援（<a href="recover.zh-Hant.html">找回授權碼 / 換機重置</a>）。啟用後，App 會每隔幾天向授權伺服器確認一次授權狀態（只發送授權碼和裝置指紋）。我們不收集你的電腦名稱。</p>
 
   <h2>本網站</h2>
   <p>typefree.app 是託管在 GitHub Pages / Cloudflare 上的靜態網站，<strong>不設定追蹤型 Cookie、不接入第三方廣告或行為分析</strong>。託管方可能按其各自政策保留標準的伺服器訪問日誌（如 IP、訪問時間）用於安全與運維。</p>
 
   <h2>你的權利</h2>
-  <p>由於我們基本不持有你的個人資料，你對裝置上的資料擁有完全控制權，可隨時刪除。涉及購買的資料可聯絡我們或 Paddle 處理。任何隱私請求，郵件至 <a href="mailto:ray@typefree.app">ray@typefree.app</a>。</p>
+  <p>由於我們基本不持有你的個人資料，你對裝置上的資料擁有完全控制權，可隨時刪除。涉及購買的資料可聯絡我們或 Paddle 處理。任何隱私請求，請寄信至 <a href="mailto:ray@typefree.app">ray@typefree.app</a>。</p>
 
   <h2>政策變更</h2>
-  <p>本政策如有更新，會在本頁釋出並更新頂部日期。</p>
+  <p>本政策如有更新，會在本頁發布並更新頂部日期。</p>
 </div></main>
 
 <footer><div class="wrap">

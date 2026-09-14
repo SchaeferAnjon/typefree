@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>找回激活码 · Typefree</title>
-<meta name="description" content="输入购买时使用的邮箱，Typefree 激活码会重新发送到该邮箱，并附带换机重置链接。">
+<title>找回授权码 · Typefree</title>
+<meta name="description" content="输入购买时使用的邮箱，Typefree 授权码会重新发送到该邮箱，并附带换机重置链接。">
 <style>
  :root{--bg:#FCFCFD;--alt:#F5F5F7;--ink:#1D1D1F;--ink2:#515154;--ink3:#86868B;--line:rgba(0,0,0,.09);--line2:rgba(0,0,0,.06);--ok:#2E8762;--sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;--maxw:760px;}
  *{box-sizing:border-box;}
@@ -50,11 +50,11 @@
 </div></nav>
 
 <main><div class="wrap">
-  <h1>找回激活码</h1>
-  <p>输入<strong>购买时使用的邮箱</strong>，激活码会重新发送到该邮箱。邮件里还附带「<strong>重置激活</strong>」链接——换新 Mac、旧电脑坏了或重装了系统，点它释放名额后即可在新设备上激活。</p>
+  <h1>找回授权码</h1>
+  <p>输入<strong>购买时使用的邮箱</strong>，授权码会重新发送到该邮箱。邮件里还附带「<strong>重置激活</strong>」链接——换新 Mac、旧电脑坏了或重装了系统，点它释放名额后即可在新设备上激活。</p>
   <form id="f">
     <input id="email" type="email" required placeholder="you@example.com" autocomplete="email">
-    <button id="btn" type="submit">发送激活码</button>
+    <button id="btn" type="submit">发送授权码</button>
   </form>
   <div class="msg" id="msg">✅ 如果该邮箱有购买记录，邮件已发出（几分钟内送达，记得查看垃圾箱）。<br><br>没收到？联系 <a href="mailto:ray@typefree.app"><strong>ray@typefree.app</strong></a>，附上购买时的邮箱即可。</div>
 </div></main>
@@ -77,7 +77,7 @@ document.getElementById('f').addEventListener('submit', async function (e) {
     });
   } catch (_) {}
   document.getElementById('msg').style.display = 'block';
-  btn.disabled = false; btn.textContent = '发送激活码';
+  btn.disabled = false; btn.textContent = '发送授权码';
 });
 </script>
 </body>

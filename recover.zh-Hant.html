@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>找回啟用碼 · Typefree</title>
-<meta name="description" content="輸入購買時使用的信箱，Typefree 啟用碼會重新發送到該信箱，並附帶換機重置連結。">
+<title>找回授權碼 · Typefree</title>
+<meta name="description" content="輸入購買時使用的信箱，Typefree 授權碼會重新發送到該信箱，並附帶換機重置連結。">
 <style>
  :root{--bg:#FCFCFD;--alt:#F5F5F7;--ink:#1D1D1F;--ink2:#515154;--ink3:#86868B;--line:rgba(0,0,0,.09);--line2:rgba(0,0,0,.06);--ok:#2E8762;--sans:-apple-system,BlinkMacSystemFont,"PingFang TC","PingFang SC","Segoe UI",sans-serif;--maxw:760px;}
  *{box-sizing:border-box;}
@@ -50,11 +50,11 @@
 </div></nav>
 
 <main><div class="wrap">
-  <h1>找回啟用碼</h1>
-  <p>輸入<strong>購買時使用的信箱</strong>，啟用碼會重新發送到該信箱。郵件裡還附帶「<strong>重置啟用</strong>」連結——換新 Mac、舊電腦壞了或重裝了系統，點它釋放名額後即可在新裝置上啟用。</p>
+  <h1>找回授權碼</h1>
+  <p>輸入<strong>購買時使用的信箱</strong>，授權碼會重新發送到該信箱。郵件裡還附帶「<strong>重置啟用</strong>」連結——換新 Mac、舊電腦壞了或重裝了系統，點它釋放名額後即可在新裝置上啟用。</p>
   <form id="f">
     <input id="email" type="email" required placeholder="you@example.com" autocomplete="email">
-    <button id="btn" type="submit">發送啟用碼</button>
+    <button id="btn" type="submit">發送授權碼</button>
   </form>
   <div class="msg" id="msg">✅ 如果該信箱有購買記錄，郵件已發出（幾分鐘內送達，記得查看垃圾郵件）。<br><br>沒收到？聯絡 <a href="mailto:ray@typefree.app"><strong>ray@typefree.app</strong></a>，附上購買時的信箱即可。</div>
 </div></main>
@@ -77,7 +77,7 @@ document.getElementById('f').addEventListener('submit', async function (e) {
     });
   } catch (_) {}
   document.getElementById('msg').style.display = 'block';
-  btn.disabled = false; btn.textContent = '發送啟用碼';
+  btn.disabled = false; btn.textContent = '發送授權碼';
 });
 </script>
 </body>

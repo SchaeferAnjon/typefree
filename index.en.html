@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Typefree — Privacy-first AI voice input</title>
-<meta name="description" content="Typefree is a privacy-first AI voice-input tool. Hold a shortcut and speak; it transcribes, removes filler words, smooths your sentences, and drops the polished text right at your cursor. Your recordings, data and API credentials stay in your own hands. New users get a free 7-day trial (on us); after that, 10,000 characters a week for free with your own key, or buy once for unlimited input.">
+<title>Typefree — Open-source, privacy-first AI voice input</title>
+<meta name="description" content="Typefree is an open-source, privacy-first AI voice-input tool for Mac. Hold a shortcut and speak — it transcribes, removes filler words, smooths your sentences and types the cleaned-up text at your cursor. 7-day free trial; free forever with your own API key; or skip the setup with a membership.">
 <script>try{history.scrollRestoration='manual';}catch(e){}</script>
 <script>/* 按系统语言/记忆自动跳转语言版本 */(function(){var P="en";try{var s=localStorage.getItem("tf_lang");var w=s;if(!w){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}if(w!==P){var m={"zh-Hans":"index.html","zh-Hant":"index.zh-Hant.html","en":"index.en.html"};var t=m[w];var cur=location.pathname.split("/").pop()||"index.html";if(t&&t!==cur){location.replace(t);}}}catch(e){}})();</script>
 <style>
@@ -281,6 +281,17 @@
   .pcard li b{color:var(--ink);font-weight:650;}
   .pcard li svg{width:17px;height:17px;color:var(--ok);flex:none;margin-top:2px;}
   .pcard .btn{width:100%;}
+  .pay-cn{max-width:560px;margin:26px auto 0;display:flex;gap:12px;align-items:flex-start;
+    padding:15px 18px;border:1px solid var(--ok);border-radius:13px;background:var(--ok-soft);
+    color:var(--ink2);font-size:14.5px;line-height:1.55;text-align:left;}
+  .pay-cn .flag{font-size:20px;line-height:1.45;flex:none;}
+  .pay-cn b{display:block;margin-bottom:2px;color:var(--ink);font-weight:700;}
+  /* 3.0：定价区开源说明条 + 会员卡里的「一次性买一年」次级链接 */
+  .pay-cn.oss{margin:0 auto 26px;max-width:720px;}
+  .pay-cn.oss a{color:var(--ink);font-weight:650;white-space:nowrap;}
+  .pcard .plink{display:block;text-align:center;margin-top:12px;color:var(--ink2);font-size:14px;font-weight:550;}
+  .pcard .plink:hover{color:var(--ink);}
+  .sec-head p,.pay-cn div,.pcard li span{text-wrap:pretty;}   /* 少出现单字、单个箭头掉到下一行 */
   .pnote{text-align:center;color:var(--ink3);font-size:13.5px;margin-top:24px;}
 
   /* ===== Footer ===== */
@@ -352,6 +363,7 @@
       <a href="#security">Security</a>
       <a href="#pricing">Pricing</a>
       <a href="setup-guide.en.html">Setup guide</a>
+      <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">Open source</a>
     </div>
     <div class="nav-cta">
       <div class="langsw" id="langsw">
@@ -369,9 +381,9 @@
 <!-- ===================== Hero ===================== -->
 <header class="hero">
   <div class="wrap hero-inner">
-    <div class="eyebrow"><span class="dot"></span><b>Privacy-first</b> · Stored on your device · Bring your own API key</div>
+    <div class="eyebrow"><span class="dot"></span><b>Open source</b> · Privacy-first · Bring your own API key</div>
     <h1>Turn speech into text<br class="hb">you can <span class="grey">use right away</span>.</h1>
-    <p class="sub">Hold a shortcut and speak. Let go, and it transcribes, removes filler words, smooths the sentences, and drops the polished result right at your cursor. Your recordings, data and API credentials all stay in your own hands.</p>
+    <p class="sub">Hold a shortcut and speak. Let go, and it transcribes, removes filler words, smooths the sentences, and drops the polished result right at your cursor. It's open source, so you can check exactly where your words go.</p>
     <div class="cta">
       <a class="btn primary lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Download free for Mac</a>
       <a class="btn lg" href="#pricing">See pricing →</a>
@@ -379,7 +391,7 @@
     <div class="trust">
       <span><i class="g"></i>macOS 12+</span>
       <span><i class="g"></i>Signed · Notarized</span>
-      <span><i class="g"></i>One-time purchase · No subscription</span>
+      <span><i class="g"></i>Open source · GPL-3.0</span>
     </div>
 
     <!-- 产品演示卡 -->
@@ -421,18 +433,18 @@ Overall, the layout doesn't feel great.</div>
   <div class="wrap">
     <div class="sec-head center reveal">
       <span class="kicker">Why Typefree</span>
-      <h2>As capable as subscription tools,<br>but your data and credentials stay yours.</h2>
+      <h2>As capable as paid tools,<br>but open source, and your data stays yours.</h2>
     </div>
     <div class="values">
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
-        <h3>Honest &amp; transparent</h3>
-        <p>Recording, recognition, clean-up, paste-back — we tell you exactly where every step goes. No overclaiming, nothing hidden.</p>
+        <h3>Open and transparent</h3>
+        <p>All the code is public (GPL-3.0). You can see where your words go at every step — recording, recognition, clean-up, typing — and even build it yourself.</p>
       </div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
         <h3>Local-first data</h3>
-        <p>Recordings, history and API credentials are stored on your own device by default, never passing through any server of ours.</p>
+        <p>Recordings, history and API credentials stay on your own device by default. With your own key, requests go straight to your provider, never through us.</p>
       </div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
@@ -578,7 +590,7 @@ Overall, the layout doesn't feel great.</div>
     <div class="sec-head reveal">
       <span class="kicker">Security</span>
       <h2>Where your words go,<br>spelled out clearly.</h2>
-      <p>Your recordings, history and API keys live on your own device; requests go straight to the providers you configured, never through us.</p>
+      <p>History and API keys stay on your device. With your own key, requests go straight to your providers; during the free trial and membership, they are relayed by our server — relayed only, never stored.</p>
     </div>
     <div class="sflow reveal">
       <div class="sstep">
@@ -587,7 +599,7 @@ Overall, the layout doesn't feel great.</div>
       </div>
       <div class="sstep">
         <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
-        <b>Straight to your provider</b><p>Requests go directly to the ASR and LLM you configured — never through a server of ours.</p>
+        <b>Clear routing</b><p>With your own key, straight to your providers. Trial and members: relayed by our server; audio and text are never stored.</p>
       </div>
       <div class="sstep">
         <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 7.8 8 9 4.6-1.2 8-4 8-9V5Z"/></svg></span>
@@ -658,48 +670,53 @@ Overall, the layout doesn't feel great.</div>
   <div class="wrap">
     <div class="sec-head center reveal">
       <span class="kicker">Pricing</span>
-      <h2>Three ways to use it — pick what fits.</h2>
-      <p>New users get a free 7-day trial, on us; after that, use your own key for free forever, or buy once for unlimited input — never a subscription.</p>
+      <h2>The app is free and open source.<br>Membership buys convenience.</h2>
+      <p>Try it free for 7 days. After that, use your own API key for free with no limits — or become a member and skip the setup.</p>
+    </div>
+    <div class="pay-cn oss reveal">
+      <span class="flag">🔓</span>
+      <div><b>Typefree is open source</b>All the code is on GitHub under GPL-3.0, and you can build it yourself. Membership fees cover the servers and models behind recognition and clean-up. <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">View source →</a></div>
     </div>
     <div class="pricing reveal">
       <div class="pcard">
         <span class="ptag">New users</span>
         <div class="price"><span class="amt">Free</span><span class="per">· 7-day trial</span></div>
-        <p class="pdesc">Download and go — zero setup, for new users.</p>
+        <p class="pdesc">Download and go — zero setup.</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>8,000 characters total over 7 days</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Recognition + AI clean-up, <b>on us</b></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>No API key needed — just press and speak</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>After 7 days, switch to either option below</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>8,000 characters over 7 days</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Recognition + AI clean-up, <b>on us</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>No API key needed — just press and speak</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Afterwards: become a member, or use your own key</span></li>
         </ul>
-        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">Download free for Mac</a>
+        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">Free download for Mac</a>
       </div>
       <div class="pcard feat">
-        <div class="ptags"><span class="ptag">Lifetime</span><span class="ptag">Your own key</span></div>
-        <div class="price"><span class="amt">$29</span><span class="was">$69</span><span class="off">58% OFF</span><span class="per">one-time · forever</span></div>
-        <p class="pdesc">Unlock unlimited input. Pay once, use forever — not a subscription.</p>
+        <div class="ptags"><span class="ptag">Member</span><span class="ptag">No setup</span></div>
+        <div class="price"><span class="amt">$26</span><span class="per">/ year</span></div>
+        <p class="pdesc">No API keys to sign up for — install and start talking.</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><b>Unlimited daily input</b>, no character cap</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Still uses your own key, nothing relayed</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>One license key activates 1 Mac</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Full refund within 30 days if unsatisfied</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Recognition + AI clean-up + Ask AI, <b>all included</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Unlimited</b> within fair use</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Renews yearly — cancel anytime</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Afterwards, keep using it free with your own key</span></li>
         </ul>
-        <a class="btn primary lg tf-buy" href="#pricing">Buy Lifetime · $29</a>
+        <a class="btn primary lg tf-buy" href="#pricing" data-price="pri_01m2fwycz1b89wwag45s0vbp3a">Become a member · $26/year</a>
+        <a class="plink tf-buy" href="#pricing" data-price="pri_01m2fxbnnfd08ah776tngepw98">Pay once, no auto-renewal →</a>
       </div>
       <div class="pcard">
         <span class="ptag">Free forever</span>
         <div class="price"><span class="amt">Free</span><span class="per">· no time limit</span></div>
-        <p class="pdesc">Add your own API key and use it free, long-term.</p>
+        <p class="pdesc">Use your own API key — free for the long run.</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>10,000 characters of input per week (resets Monday)</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Full recognition + AI clean-up + term correction</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Costs run on your own key — we don't relay or bill</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Switch recognition / clean-up providers freely</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Unlimited</b> input, free forever</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Full recognition + AI clean-up + term correction</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Billed to your own key — we don't relay or charge</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Switch recognition / clean-up providers freely</span></li>
         </ul>
-        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">Download free for Mac</a>
+        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">Free download for Mac</a>
       </div>
     </div>
-    <p class="pnote">Pay by card or WeChat Pay — securely processed by Paddle.<br>Don't see WeChat Pay? Set "Country" to China on the payment form.<br><b>After paying, don't worry</b> if the page doesn't change or returns to the homepage — that's normal; your code is emailed within ~5 minutes (check spam). WeChat confirmation can take 1–10 minutes; your license code is emailed automatically, so there's no need to pay twice.</p>
+    <p class="pnote">Payments are securely processed by Paddle. Membership requires Typefree 3.0 or later.</p>
   </div>
 </section>
 
@@ -715,7 +732,7 @@ Overall, the layout doesn't feel great.</div>
       <div class="scard reveal">
         <div class="sn">STEP 01</div>
         <h3>Download &amp; install</h3>
-        <p>Download the signed, notarized DMG and drag it into Applications. New users get a free 7-day trial with zero setup; after that, 10,000 characters a week for free or buy for unlimited.</p>
+        <p>Download the signed, notarized DMG and drag it into Applications. New users get a free 7-day trial with zero setup; after that, become a member or use your own key for free.</p>
         <div class="links">
           <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Download the Mac DMG</a>
         </div>
@@ -723,7 +740,7 @@ Overall, the layout doesn't feel great.</div>
       <div class="scard reveal">
         <div class="sn">STEP 02</div>
         <h3>Configure provider credentials</h3>
-        <p>Enter your recognition and clean-up API keys — you obtain them yourself from Volcengine and Qwen; Typefree never relays or bills. <b>First time? Follow the step-by-step guide and you're done in 5 minutes.</b></p>
+        <p>Enter API keys for recognition and clean-up — you get them from Volcengine and Alibaba Qwen, and Typefree never relays or bills them. Members can skip this step. <b>First time? The step-by-step guide takes 5 minutes.</b></p>
         <div class="links">
           <a href="setup-guide.en.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Step-by-step guide · Get an API key in 5 min</a>
           <a href="https://console.volcengine.com/speech/new/overview?projectName=default" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>Volcengine · Speech recognition</a>
@@ -751,11 +768,12 @@ Overall, the layout doesn't feel great.</div>
     </div>
     <div class="faq">
       <details open class="reveal"><summary>How is this different from the system dictation?<span class="plus"></span></summary><p>System dictation is closer to word-for-word transcription — it types out every &ldquo;um&rdquo; and &ldquo;you know.&rdquo; Typefree cleans the language after recognition — removing fillers, smoothing sentences, normalizing numbers and punctuation — so the output is ready to send or use as a prompt.</p></details>
-      <details class="reveal"><summary>Is it fully offline?<span class="plus"></span></summary><p>No. The main path calls the cloud recognition and LLM services you configured. The emphasis is local-first and never routing through a server of ours — not &ldquo;works without internet.&rdquo;</p></details>
+      <details class="reveal"><summary>Is Typefree open source?<span class="plus"></span></summary><p>Yes. The Mac app's code is public on <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a> under GPL-3.0, so you can check where your data goes at every step, or build it yourself (self-built copies need your own API keys). The Typefree name and icon are not covered by the open-source license.</p></details>
+      <details class="reveal"><summary>How does pricing work? Can I try it free first?<span class="plus"></span></summary><p>Yes. New users get a free 7-day trial — zero setup, on us, 8,000 characters in total (up to 5,000 a day). After that you have two options: use your own API key, free forever with no limits; or become a member ($26/year) and skip the setup. Membership renews yearly and you can cancel anytime; you can also pay once for a single year.</p></details>
+      <details class="reveal"><summary>Is it fully offline?<span class="plus"></span></summary><p>No. Recognition and clean-up call cloud speech-recognition and LLM services. Typefree's promise is local-first storage, open source and transparent data routing — not "works without internet".</p></details>
       <details class="reveal"><summary>Which providers and models are supported?<span class="plus"></span></summary><p>Recognition uses Volcengine BigASR; clean-up supports Qwen, Zhipu GLM and Doubao, switchable anytime — or you can choose &ldquo;no polish, output raw text.&rdquo;</p></details>
-      <details class="reveal"><summary>How does pricing work? Can I try it free first?<span class="plus"></span></summary><p>Yes. New users get a free 7-day trial — zero setup, on us, 8,000 characters total over 7 days (up to 5,000/day); after that, add your own key and keep 10,000 characters a week for free, forever (resets Monday); for unlimited input, buy once for $29 — forever, not a subscription. Full refund within 30 days if you're not satisfied.</p></details>
-      <details class="reveal"><summary>Can people who aren't great with APIs use it?<span class="plus"></span></summary><p>Right now it suits users willing to set up provider credentials. The guide has sign-up links and instructions (a 5-minute walkthrough); if you just want to see results, check the demo on this page.</p></details>
-      <details class="reveal"><summary>Are my recordings and data safe?<span class="plus"></span></summary><p>Recordings, history and API credentials are stored on your own device by default (on macOS, <code>~/.config/voicepolish/</code>). Requests only go to the providers you configured, never through us. You set how long history is kept.</p></details>
+      <details class="reveal"><summary>Can people who aren't great with APIs use it?<span class="plus"></span></summary><p>Yes. As a member you don't need any API keys — install and start talking. If you'd rather set up your own, there's a 5-minute illustrated guide.</p></details>
+      <details class="reveal"><summary>Are my recordings and data safe?<span class="plus"></span></summary><p>History and API credentials are stored on your device by default (on macOS in <code>~/.config/voicepolish/</code>). With your own key, requests go only to the providers you configured, never through us; during the free trial and membership, they are relayed by our server — relayed only, audio and text are never stored. The code is open source, so you can check for yourself.</p></details>
     </div>
   </div>
 </section>
@@ -765,7 +783,7 @@ Overall, the layout doesn't feel great.</div>
   <div class="wrap">
     <div class="final-box reveal">
       <h2>Make voice input a daily tool you can trust.</h2>
-      <p>For people who care about where their data goes, want to buy once, and don't want to be locked into a subscription. Start free, upgrade when you need more.</p>
+      <p>For people who care where their data goes: it's open source — start free, and become a member if you'd rather skip the setup.</p>
       <div class="cta">
         <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Download free for Mac</a>
         <a class="btn ghost lg" href="#pricing">See pricing →</a>
@@ -781,6 +799,7 @@ Overall, the layout doesn't feel great.</div>
     <div class="fl">
       <a href="#pricing">Pricing</a>
       <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">Download</a>
+      <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">Source</a>
       <a href="recover.en.html">License recovery</a>
       <a href="refund.en.html">Refund</a>
       <a href="privacy.en.html">Privacy</a>
@@ -830,7 +849,7 @@ Overall, the layout doesn't feel great.</div>
         // (unknown before checkout); address-only throws and the checkout never opens (verified 2026-06-11).
         Paddle.Checkout.open({
           settings: { successUrl: "https://typefree.app/thanks.en.html" },
-          items:[{ priceId:"pri_01ktpracbxxhfm2n9dvfs0rd70", quantity:1 }] });
+          items:[{ priceId: b.dataset.price, quantity:1 }] });
       });
     });
   }catch(err){ console.error("Paddle init failed", err); }
