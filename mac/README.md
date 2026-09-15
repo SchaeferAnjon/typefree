@@ -13,7 +13,7 @@
 - **语音翻译 / 口令**：句首或句尾说「用英文」直接输出英文
 - **词库与自动学词**：专有名词、人名、产品名越用越准；改过的错字下次自动纠正
 - **历史记录**：所有输入本地加密保存，可搜索、导出
-- **多家模型**：识别用火山引擎 / 阿里百炼，润色用通义千问 / 豆包 / 智谱，自动路由质量与速度
+- **多家模型**：识别用火山引擎，润色用通义千问，自动路由质量与速度
 
 ## 三种用法
 
@@ -78,6 +78,6 @@ cd mac/VoicePolishCore && swift test
 
 Typefree is a voice-input app for macOS: hold a hotkey, speak, release — the text is cleaned up by an LLM (filler words removed, punctuation and paragraphs added) and typed into whatever app you're in. It also answers questions on long-press, translates to English on command, and learns your vocabulary.
 
-Bring your own API key (Volcengine / Alibaba DashScope for ASR, Qwen / Doubao / Zhipu for polishing) and it's free with no limits. The signed build from [typefree.app](https://typefree.app) includes a 7-day zero-config trial; builds from this repo don't (the trial server address is not in the repo).
+Bring your own API key (Volcengine for ASR, Qwen for polishing) and it's free with no limits. The signed build from [typefree.app](https://typefree.app) includes a 7-day zero-config trial; builds from this repo don't (the trial server address is not in the repo).
 
 Build: macOS 14.0+, Xcode 26.3 — `cd mac && ./build.sh`. Licensed under GPL-3.0; the Typefree name, icon and website are not covered by the license.

@@ -449,7 +449,7 @@ Overall, the layout doesn't feel great.</div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
         <h3>Bring your own cloud (BYOK)</h3>
-        <p>Use your own Volcengine / Qwen / Zhipu accounts. Switch recognition and clean-up models freely, never locked to one provider — and we never bill you.</p>
+        <p>Use your own Volcengine / Qwen accounts. Switch recognition and clean-up models freely, never locked to one provider — and we never bill you.</p>
       </div>
       <div class="val reveal">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
@@ -625,13 +625,12 @@ Overall, the layout doesn't feel great.</div>
       <div class="advc reveal">
         <div class="ah">
           <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></span>
-          <h3>Switch models freely</h3>
+          <h3>Clean-up model picked for you</h3>
         </div>
-        <p>Recognition uses Volcengine BigASR; for clean-up, switch anytime between Qwen, Zhipu GLM and Doubao, choosing by cost and quality.</p>
+        <p>Recognition uses Volcengine BigASR; clean-up uses Qwen, with the model chosen automatically by quality and speed — or turn clean-up off for raw output.</p>
         <div class="model-row">
-          <span class="tagm on">Qwen</span>
-          <span class="tagm">Zhipu GLM</span>
-          <span class="tagm">Doubao</span>
+          <span class="tagm on">Qwen · quality first</span>
+          <span class="tagm">Qwen · speed first</span>
           <span class="tagm">No polish · Raw</span>
         </div>
       </div>
@@ -771,7 +770,7 @@ Overall, the layout doesn't feel great.</div>
       <details class="reveal"><summary>Is Typefree open source?<span class="plus"></span></summary><p>Yes. The Mac app's code is public on <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a> under GPL-3.0, so you can check where your data goes at every step, or build it yourself (self-built copies need your own API keys). The Typefree name and icon are not covered by the open-source license.</p></details>
       <details class="reveal"><summary>How does pricing work? Can I try it free first?<span class="plus"></span></summary><p>Yes. New users get a free 7-day trial — zero setup, on us, 8,000 characters in total (up to 5,000 a day). After that you have two options: use your own API key, free forever with no limits; or become a member ($26/year) and skip the setup. Membership renews yearly and you can cancel anytime; you can also pay once for a single year.</p></details>
       <details class="reveal"><summary>Is it fully offline?<span class="plus"></span></summary><p>No. Recognition and clean-up call cloud speech-recognition and LLM services. Typefree's promise is local-first storage, open source and transparent data routing — not "works without internet".</p></details>
-      <details class="reveal"><summary>Which providers and models are supported?<span class="plus"></span></summary><p>Recognition uses Volcengine BigASR; clean-up supports Qwen, Zhipu GLM and Doubao, switchable anytime — or you can choose &ldquo;no polish, output raw text.&rdquo;</p></details>
+      <details class="reveal"><summary>Which providers and models are supported?<span class="plus"></span></summary><p>Recognition uses Volcengine BigASR; clean-up uses Qwen with the model chosen automatically — or you can choose &ldquo;no polish, output raw text.&rdquo;</p></details>
       <details class="reveal"><summary>Can people who aren't great with APIs use it?<span class="plus"></span></summary><p>Yes. As a member you don't need any API keys — install and start talking. If you'd rather set up your own, there's a 5-minute illustrated guide.</p></details>
       <details class="reveal"><summary>Are my recordings and data safe?<span class="plus"></span></summary><p>History and API credentials are stored on your device by default (on macOS in <code>~/.config/voicepolish/</code>). With your own key, requests go only to the providers you configured, never through us; during the free trial and membership, they are relayed by our server — relayed only, audio and text are never stored. The code is open source, so you can check for yourself.</p></details>
     </div>

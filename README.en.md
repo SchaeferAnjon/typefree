@@ -33,7 +33,7 @@ In any app's text field, hold a hotkey or the left mouse button and talk. When y
 - **Voice translation** — end your sentence with "in Chinese" (or "Japanese", "Korean"…) and it is typed in that language
 - **Learns your words** — proper nouns, names and product terms get more accurate over time; corrections you make are applied next time
 - **History** — everything you dictate is stored encrypted on your Mac, searchable and exportable
-- **Multiple providers** — Volcengine / Alibaba DashScope for speech recognition, Qwen / Doubao / Zhipu for cleanup, routed automatically by quality and speed
+- **Multiple providers** — Volcengine for speech recognition, Qwen for cleanup, with the model picked automatically by quality and speed
 
 Chinese and English speech are both supported. The cleanup prompts are tuned first for Chinese, so that is where it shines most.
 

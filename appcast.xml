@@ -192,5 +192,14 @@
             <description><![CDATA[<h3>Typefree 开源了</h3><p>代码全部公开在 GitHub（GPL-3.0）：https://github.com/kdsz001/typefree 。你可以看它到底做了什么、自己编译、提意见或者改一改。设置里「关于」和定价页都有「查看源码」入口。</p><h3>三种用法：免费试用 · 自带 Key 永久免费 · 会员</h3><ul><li><strong>新用户免费试用 7 天</strong>，装好就能用，不用配任何东西。</li><li><strong>自带 API Key 永久免费、不限字数</strong>——以前每周 1 万字的限制取消了。</li><li><strong>会员 ¥188 / 年</strong>：不想申请 Key 的，开通后识别、润色、问 AI 全包，装好就能用。到期后仍可填自己的 Key 免费用。买断版不再销售；已经买过的老朋友，我们送一年会员，左上角会多一个「创世用户」标。</li></ul><p>会员和自己的 Key 同时都有时，模型页多了一个「优先走会员服务」开关，走哪条通道你自己定。</p><h3>鼠标长按说话</h3><p>在任何输入框里按住鼠标左键约半秒，说完松开，文字就进去了。说到一半想松手：向下拖一点锁定，说完点 ✓；不想要了：往外拖远，亮红光后松开，这句就取消。首次打开会有动画演示，探索页也能随时重看。</p><h3>随时问 AI</h3><p>看到不懂的，在空白处按住鼠标说出问题，回答出现在屏幕右上角；按住回答面板可以接着问。点面板外面它会缩成一行、几秒后消失，想留住就点图钉。</p><h3>语音翻译</h3><p>说完正文，结尾加一句「用英文」，这句话就直接输入成英文；也支持日文、韩文、中文，更多语言在探索页打开。也可以固定一种输出语言，不用每次说口令。</p><h3>直接和开发者聊</h3><p>侧栏多了「反馈」页：像聊天一样来回，能附截图，也能附上最后一次转录和录音。发送时会带上系统版本和最近的日志，方便定位「某个软件里不好用」这类问题；回复会直接出现在这一页。</p><h3>首页</h3><p>四个数字下面多了一行圆点：近 6 周每天说了多少，一眼看出节律；下面是连续天数、活跃天数、最常在周几用。快捷键卡片里也把三种用法列出来了，点一下就看演示。</p><h3>其他</h3><ul><li>主窗口和问 AI 面板支持夜间模式（设置 → 外观）。</li><li>长按问 AI 的开口判断改为按每次录音的安静基准自适应，不再用固定音量线。</li><li>各页面顶部不再空一段，页头与侧栏对齐。</li><li>历史文件读写加锁防丢条；麦克风被拒绝时启动不再自动弹系统设置；后台下载更新时设置窗不再反复重建。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.0/Typefree-3.0.0.dmg" sparkle:edSignature="0rr2fgaHBGVn9SoUco556fhD+IKrLToHEuRULAX+7hbP/5eT28ZkOVuPoiNkCCDevp192o6oquwSoR/zTQkOBA==" length="2656678" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.1</title>
+            <sparkle:version>3.0.1</sparkle:version>
+            <sparkle:shortVersionString>3.0.1</sparkle:shortVersionString>
+            <pubDate>Tue, 15 Sep 2026 14:13:19 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>3.0 发布当天的几处修正</h3><ul><li><strong>新功能引导</strong>：演示「随时问 AI」时，在引导页的空白处按住鼠标就能直接试；深色模式下动作标签和「上一个」按钮看不清的问题已修，右侧文字也放大了一档。</li><li><strong>模型页更清爽</strong>：语音识别只保留火山引擎，语音优化只保留「百炼（阿里）/ 不优化」，模型下拉只留常用的几档。正在使用被收起选项的老用户不受影响，原来的选择照常显示。</li><li><strong>录音浮窗默认「墨黑 · 白波」</strong>：升级后统一切到这个样式；想换回彩色，去「设置 → 录音浮窗」点一下即可。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.1/Typefree-3.0.1.dmg" sparkle:edSignature="ZxDbDgmYTw8bKJWHYqkAEUhRjlyCoPy+m92Sot4SKPB6QTCAg9SjAe9nb7z8LS4lkTQSImeojSIyoHbwFdTdBw==" length="2657915" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
