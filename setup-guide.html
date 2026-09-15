@@ -159,7 +159,7 @@
 
 <aside class="toc">
   <div class="toc-title">目录</div>
-  <a href="#s-plan">先选一个方案</a>
+  <a href="#s-plan">要拿两把钥匙</a>
   <a href="#s-ali">拿阿里的钥匙</a>
   <a href="#s-volc">拿火山的钥匙</a>
   <a href="#s-fill">填进 Typefree</a>
@@ -177,31 +177,24 @@
 
   <!-- STEP 1 -->
   <div class="step-h" id="s-plan"><span class="step-n">1</span><div>
-    <h2>先选一个方案</h2>
-    <p class="sub">Typefree 帮你干两件事：把话变成字（识别，必须）+ 把字理顺（润色，可选）。这两件事可以用阿里、也可以用火山（豆包）。给你两个推荐方案：</p>
+    <h2>要拿两把钥匙</h2>
+    <p class="sub">Typefree 帮你干两件事：把话变成字（识别，必须）+ 把字理顺（润色，可选）。识别用<b>火山（豆包）</b>，润色用<b>阿里（通义千问）</b>，所以要拿两把钥匙。两把都免费，各花几分钟。</p>
   </div></div>
 
   <div class="plans">
     <div class="plan reco">
-      <span class="tag">🏆 效果最好</span>
-      <h3>豆包识别 + 阿里润色</h3>
+      <span class="tag">🏆 就这一条路</span>
+      <h3>火山识别 + 阿里润色</h3>
       <span class="keys">要拿 2 把钥匙</span>
-      <p>识别用<b>火山（豆包）</b>，<b>识别效果最好</b>，免费时长也更多（三档共约 60 小时）；润色用<b>阿里</b>。</p>
-      <p class="who">适合：想要最好识别效果的人。</p>
-    </div>
-    <div class="plan">
-      <h3>全用阿里</h3>
-      <span class="keys">只拿 1 把钥匙</span>
-      <p>识别和润色都用阿里，<b>一把钥匙全搞定</b>，最省事。识别送 10 小时免费额度。</p>
-      <p class="who">适合：想最省事、先快速上手的人。</p>
+      <p>识别用<b>火山（豆包）</b>，识别效果最好，免费时长也多（三档共约 60 小时）；润色用<b>阿里</b>，每个模型送 100 万 Token。</p>
+      <p class="who">只要识别、不要润色？那只拿火山这一把（第 3 步），第 2 步可以跳过。</p>
     </div>
   </div>
-  <p class="sub" style="margin-top:16px;">选好了？按你选的方案往下看：<b>全用阿里只看第 2 步；要用豆包识别的，再加看第 3 步。</b></p>
+  <p class="sub" style="margin-top:16px;"><b>第 2 步拿阿里的钥匙，第 3 步拿火山的钥匙，第 4 步填进 Typefree。</b></p>
 
-  <!-- STEP 2: 阿里 -->
   <div class="step-h" id="s-ali"><span class="step-n">2</span><div>
     <h2>拿阿里的钥匙</h2>
-    <p class="sub">这把钥匙识别和润色都能用（同一个）。两个方案都需要它。</p>
+    <p class="sub">这把钥匙给「语音优化」（润色）用。只要识别、不要润色的可以跳过这一步。</p>
   </div></div>
 
   <ol class="steps">
@@ -260,7 +253,7 @@
   <!-- STEP 3: 火山 -->
   <div class="step-h" id="s-volc"><span class="step-n">3</span><div>
     <h2>拿火山（豆包）的钥匙</h2>
-    <p class="sub">只有「豆包识别 + 阿里润色」方案才需要这一步。全用阿里的可以跳过。</p>
+    <p class="sub">这把钥匙给「语音识别」用，必须拿。</p>
   </div></div>
 
   <ol class="steps">
@@ -310,10 +303,9 @@
   </div></div>
   <ol class="steps">
     <li>打开 Typefree <b>设置 → 模型</b>。</li>
-    <li><b>「语音识别」选服务商：</b>用阿里就选「百炼（阿里）」，用豆包就选「火山引擎（豆包）」。</li>
-    <li>把刚才复制的钥匙<b>粘进 API Key 框</b>。</li>
+    <li><b>「语音识别」：</b>把火山的钥匙<b>粘进 API Key 框</b>，识别版本默认「极速版」就行。</li>
     <li><b>点「测试连接」，看到 ✓ 就成功了！</b></li>
-    <li><b>润色同理：</b>「语音优化」选「百炼（阿里）」。<b>如果识别也用了阿里，这里会自动复用同一把钥匙，不用再填。</b></li>
+    <li><b>「语音优化」：</b>选「百炼（阿里）」，把阿里的钥匙粘进去，再点一次「测试连接」。不想润色就选「不优化」。</li>
   </ol>
 
   <!-- FAQ -->
@@ -323,7 +315,7 @@
   <details><summary>免费额度能用多久？会偷偷扣钱吗？</summary>
     <p>阿里 90 天、火山半年，<b>到期作废、不是永久</b>。⚠️ 阿里额度用完后会<b>自动扣费</b>，建议进阿里控制台打开「免费额度用完即停」开关，就绝不会偷偷扣钱了。</p></details>
   <details><summary>点「测试连接」失败？</summary>
-    <p>八成是钥匙没复制全（前后带了空格），或者服务商选错了。重新复制完整钥匙、确认选对「百炼（阿里）」还是「火山引擎（豆包）」再试。</p></details>
+    <p>八成是钥匙没复制全（前后带了空格），或者服务商选错了。重新复制完整钥匙，确认识别框填的是火山的钥匙、润色框填的是阿里的，别填反。</p></details>
 
   <!-- 词典 -->
   <div class="step-h" id="s-dict"><span class="step-n">✦</span><div><h2>看不懂的词，这里查</h2></div></div>
