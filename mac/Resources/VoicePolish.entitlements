@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 非沙盒 Developer ID app：硬化运行时下访问麦克风需要此 entitlement。 -->
+    <!-- 辅助功能(粘贴文字/全局热键)、网络、IOKit(机器号) 在非沙盒下无需 entitlement，运行时由用户授权。 -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

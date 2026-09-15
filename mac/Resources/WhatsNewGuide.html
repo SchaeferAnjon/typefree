@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Typefree 新功能</title>
+<style>
+  :root{
+    --desk:#E6E6E9;
+    --win:#FFFFFF;
+    --stage:#F2F2F4;
+    --soft:#F7F7F8;
+    --ink:#1D1D1F;
+    --ink2:#515154;
+    --ink3:#86868B;
+    --line:rgba(0,0,0,.09);
+    --line2:rgba(0,0,0,.06);
+    --ask:#4085FF;
+    --lock:#7AE6A8;
+    --cancel:#FF4F45;
+    --capfill:#0E0E0F;
+    --primary-bg:#1D1D1F; --primary-fg:#FFFFFF;
+    --field:#FFFFFF; --field-line:rgba(0,0,0,.12);
+    --dot:#D8D8DD;
+    color-scheme:light dark;
+  }
+  /* 深色跟随设置窗（设置 → 外观）；值同 VPTheme 的「原生深灰」。演示舞台保持浅色（它画的是别的 App 的窗口） */
+  @media (prefers-color-scheme: dark){
+    :root{
+      --win:#1E1E1E; --soft:#282828;
+      --ink:#F5F5F7; --ink2:#D1D1D6; --ink3:#8E8E93;
+      --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.08);
+      --primary-bg:#F5F5F7; --primary-fg:#1D1D1F;
+      --field:#323232; --field-line:rgba(255,255,255,.14);
+      --dot:#48484A;
+    }
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  .invisible{visibility:hidden}
+  html,body{background:var(--win);height:100%;overflow:hidden}
+  body{margin:0;color:var(--ink);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans","Apple SD Gothic Neo","Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;cursor:default}
+  textarea{user-select:text;-webkit-user-select:text;cursor:text}
+
+  /* ---------- 铺满设置窗（标题栏透明，顶部留出红绿灯）：左边演示，右边说明，底部翻页 ---------- */
+  .win{height:100%;display:flex;flex-direction:column;padding:44px 48px 28px}
+  .top{flex:none;height:22px}
+  .body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:44px;padding:8px 0 16px}
+  .left{flex:1 1 auto;min-width:0;max-width:calc((100vh - 230px) * 512 / 292);display:flex;flex-direction:column}
+  .right{flex:0 0 360px;display:flex;flex-direction:column}
+  @media (max-width:1100px){.right{flex-basis:320px}.body{gap:36px}}
+
+  .stage-host{position:relative;width:100%;max-width:100%;aspect-ratio:512/292;border-radius:12px;
+    background:#F2F2F4;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+  .stage{position:absolute;left:0;top:0;width:512px;height:292px;transform:scale(var(--k,1));transform-origin:0 0;color:#1D1D1F;
+    will-change:transform;backface-visibility:hidden}
+
+  /* 当前步骤：一次只说一句 */
+  .step{margin-top:14px;min-height:22px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink)}
+  .step i{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ink);opacity:0;transition:opacity .15s}
+  .step.on i{opacity:1}
+  .step span{transition:opacity .15s}
+  .step.swap span{opacity:0}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px}
+  .chip{position:relative;overflow:hidden;border:0;border-radius:99px;padding:5px 12px;font:inherit;font-size:12px;
+    font-weight:500;color:var(--ink2);background:var(--stage);cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--primary-bg);color:var(--primary-fg)}
+  .chip::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:rgba(255,255,255,.5)}
+  .chip.run::after{animation:prog var(--dur,6s) linear forwards}
+  @keyframes prog{to{width:100%}}
+
+  .copy{margin:0}
+  .eyebrow{font-size:12px;color:var(--ink3);letter-spacing:.3px;margin-bottom:3px;font-variant-numeric:tabular-nums}
+  .copy h2{margin:0 0 8px;font-size:22px;line-height:1.3;font-weight:650;letter-spacing:-.2px}
+  .copy p{margin:0;font-size:14px;line-height:1.75;color:var(--ink2);text-wrap:pretty}
+  .copy p b{color:var(--ink);font-weight:600}
+  .note{margin:16px 0 0;font-size:12px;color:var(--ink3)}
+
+  /* 试一试 */
+  .try{margin-top:18px;padding:11px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line2)}
+  .try-t{font-size:12px;color:var(--ink3);margin-bottom:7px}
+  .try-t b{color:var(--ink);font-weight:600}
+  .try-box{display:block;width:100%;height:40px;border-radius:8px;background:var(--field);border:1px solid var(--field-line);padding:10px 12px;
+    font:inherit;font-size:13px;line-height:18px;color:var(--ink);resize:none;outline:none;transition:border-color .2s,box-shadow .2s}
+  .try-box::placeholder{color:#ADADB3}
+  .try-box:focus{border-color:rgba(29,29,31,.4);box-shadow:0 0 0 3px rgba(29,29,31,.06)}
+
+  .foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .dots{display:flex;gap:6px}
+  .dot{width:7px;height:7px;border-radius:99px;border:0;padding:0;background:var(--dot);cursor:pointer;transition:width .2s,background .2s}
+  .dot[aria-current="true"]{width:20px;background:var(--ink)}
+  .btns{display:flex;gap:8px;margin-left:auto}   /* 圆点隐藏（单功能演示）时按钮仍靠右 */
+  .btn{font:inherit;font-size:13px;font-weight:600;border-radius:8px;height:32px;padding:0 16px;border:0;cursor:pointer}
+  .btn.ghost{background:var(--stage);color:var(--ink)}
+  .btn.primary{background:var(--primary-bg);color:var(--primary-fg);min-width:96px}
+
+  .chip:focus-visible,.btn:focus-visible,.dot:focus-visible{outline:2px solid var(--ask);outline-offset:2px}
+
+
+
+  /* ---------- 演示舞台里的小窗口（舞台永远浅色，颜色写死，不跟随深色）---------- */
+  .app{position:absolute;left:22px;top:16px;width:468px;height:172px;background:#fff;border-radius:10px;overflow:hidden;
+    display:flex;flex-direction:column;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 6px 18px rgba(0,0,0,.06)}
+  .app-bar{flex:none;height:26px;display:flex;align-items:center;gap:5px;padding:0 10px;border-bottom:1px solid rgba(0,0,0,.06);
+    font-size:11px;font-weight:600;color:#515154}
+  .app-bar i{width:7px;height:7px;border-radius:50%;background:#E3E3E7}
+  .app-bar span{margin-left:8px}
+  .app-bar .url{margin:0 auto;font-weight:500;color:#86868B;background:#F2F2F4;border-radius:5px;padding:1px 12px;font-size:10.5px}
+  .msgs{flex:1;padding:10px 12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .msg{background:#F0F0F2;border-radius:9px;padding:4px 9px;font-size:11.5px}
+  .input{flex:none;margin:0 10px 10px;height:32px;border:1px solid rgba(0,0,0,.12);border-radius:8px;display:flex;align-items:center;
+    padding:0 10px;font-size:12px;transition:border-color .2s,box-shadow .2s}
+  .input.focus{border-color:rgba(29,29,31,.4);box-shadow:0 0 0 3px rgba(29,29,31,.06)}
+  .typed{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:3px}
+  .typed.flash{animation:flash .8s ease-out}
+  @keyframes flash{from{background:rgba(64,133,255,.18)}to{background:transparent}}
+  .caret{flex:none;width:1px;height:14px;background:#1D1D1F;margin:0 1px;opacity:0}
+  .input.focus .caret{animation:blink 1s steps(1) infinite}
+  @keyframes blink{0%{opacity:1}50%{opacity:0}}
+  .ph{color:#ADADB3}
+  .input.filled .ph{display:none}
+
+  .art{padding:10px 16px;font-size:11px;line-height:1.75;color:#515154}
+  .art h4{margin:0 0 5px;font-size:13px;line-height:1.4;color:#1D1D1F;font-weight:650}
+  .art p{margin:0 0 5px}
+
+  /* 你说的话（只在翻译页用：口令本身就是内容） */
+  .say{position:absolute;left:50%;top:198px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:3px 11px 3px 4px;
+    border-radius:14px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 2px 6px rgba(0,0,0,.05);font-size:12px;white-space:nowrap;
+    opacity:0;transition:opacity .2s;z-index:6}
+  .say.show{opacity:1}
+  .say-k{flex:none;width:20px;height:20px;border-radius:50%;background:#F0F0F2;display:grid;place-items:center;color:#515154}
+  .say-k svg{width:11px;height:11px}
+  .say-t b{font-weight:600;background:#1D1D1F;color:#fff;border-radius:4px;padding:1px 5px;margin:0 2px}
+  .say-t b:empty{display:none}
+
+  /* 拖动轨迹：虚线 + 箭头，按下拖动时出现，松手消失 */
+  .trail{position:absolute;left:0;top:0;width:512px;height:292px;overflow:visible;pointer-events:none;z-index:5;opacity:0;transition:opacity .15s}
+  .trail.show{opacity:1}
+  .trail path{fill:none;stroke:#1D1D1F;stroke-width:2;stroke-linecap:round;stroke-dasharray:5 5;opacity:.55}
+  .trail .head{fill:#1D1D1F;stroke:none;opacity:.7}
+  .trail.show path.line{animation:draw .45s ease-out}
+  @keyframes draw{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
+
+  /* 录音胶囊（屏幕底部，墨黑款：近黑实心 + 白色声波，无彩色外发光） */
+  .cap{position:absolute;left:50%;bottom:14px;height:30px;min-width:64px;padding:0 12px;border-radius:15px;background:var(--capfill);color:#fff;
+    display:flex;align-items:center;justify-content:center;gap:8px;transform:translateX(-50%);font-size:12px;font-weight:500;white-space:nowrap;
+    box-shadow:0 0 0 1px rgba(255,255,255,.12),0 4px 12px rgba(0,0,0,.18);
+    transition:opacity .16s,transform .16s,box-shadow .12s;z-index:8}
+  .cap[data-state="hidden"]{opacity:0;transform:translateX(-50%) scale(.9)}
+  .cap::before{content:"";position:absolute;inset:-3px;border-radius:18px;padding:2px;opacity:0;pointer-events:none;
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+  .cap[data-glow="ask"]::before{opacity:1;background:var(--ask)}
+  .cap[data-glow="ask"]{box-shadow:0 0 14px 2px rgba(64,133,255,.45)}
+  .cap[data-glow="lock"]::before{opacity:1;background:var(--lock)}
+  .cap[data-glow="lock"]{box-shadow:0 0 14px 2px rgba(122,230,168,.6)}
+  .cap[data-glow="cancel"]::before{opacity:1;background:var(--cancel)}
+  .cap[data-glow="cancel"]{box-shadow:0 0 16px 3px rgba(255,79,69,.45)}
+
+  .wave{display:flex;align-items:center;gap:3px;height:16px}
+  .wave i{display:block;width:3px;height:15px;border-radius:2px;background:#fff;transform:scaleY(.27);transform-origin:center;
+    will-change:transform;animation:bar .8s ease-in-out infinite}
+  .wave i:nth-child(2){animation-delay:-.55s}
+  .wave i:nth-child(3){animation-delay:-.25s}
+  .wave i:nth-child(4){animation-delay:-.65s}
+  .wave i:nth-child(5){animation-delay:-.4s}
+  @keyframes bar{0%,100%{transform:scaleY(.27)}50%{transform:scaleY(1)}}
+
+  .cap-x,.cap-ok,.cap-undo{flex:none;width:22px;height:22px;border-radius:50%;display:none;place-items:center}
+  .cap-x{background:rgba(255,255,255,.16);color:#fff}
+  .cap-ok,.cap-undo{background:#fff;color:#111}
+  .cap-ok{transition:transform .12s}
+  .cap-ok.hit{transform:scale(.78)}
+  .cap-x svg,.cap-ok svg,.cap-undo svg{width:10px;height:10px}
+  .cap-text{display:none;padding:0 2px}
+  .cap-cancel{display:none;width:12px;height:12px}
+  .cap[data-state="btns"]{min-width:112px;padding:0 4px;justify-content:space-between}
+  .cap[data-state="btns"] .cap-x,.cap[data-state="btns"] .cap-ok{display:grid}
+  .cap[data-state="proc"] .wave,.cap[data-state="hint"] .wave,.cap[data-caption] .wave,.cap[data-glow="cancel"] .wave{display:none}
+  .cap[data-state="proc"] .cap-text,.cap[data-state="hint"] .cap-text,.cap[data-caption] .cap-text{display:block}
+  .cap[data-state="proc"] .cap-text{animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  .cap[data-glow="cancel"] .cap-cancel{display:block}
+  .cap[data-state="hint"]{padding:0 14px}
+  .cap[data-state="hint"][data-undo]{padding:0 4px 0 14px;gap:10px}
+  .cap[data-state="hint"][data-undo] .cap-undo{display:grid}
+
+  /* 鼠标指针 + 按住进度圈 */
+  .cursor{position:absolute;left:0;top:0;width:0;height:0;z-index:12;pointer-events:none;
+    transform:translate(var(--x,404px),var(--y,84px));transition:transform 700ms cubic-bezier(.4,0,.2,1)}
+  .arrow{position:absolute;left:-1.5px;top:-1.5px;width:18px;height:25px;filter:drop-shadow(0 1px 1.2px rgba(0,0,0,.3))}
+  .ring{position:absolute;left:-16px;top:-16px;width:32px;height:32px;opacity:0;transition:opacity .1s}
+  .ring .trk{fill:rgba(29,29,31,.07);stroke:rgba(29,29,31,.16);stroke-width:2.5}
+  .ring .prg{fill:none;stroke:#1D1D1F;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:75.4;stroke-dashoffset:75.4;
+    transform:rotate(-90deg);transform-origin:16px 16px}
+  .cursor.down .ring{opacity:1}
+  .cursor.down .prg{animation:fill .45s linear forwards}
+  .cursor.held .prg{animation:none;stroke-dashoffset:0}
+  .cursor.clk .ring{opacity:1}
+  .cursor.clk .prg{display:none}
+  .cursor[data-tone="ask"] .prg{stroke:var(--ask)}
+  .cursor[data-tone="ask"] .trk{fill:rgba(64,133,255,.1);stroke:rgba(64,133,255,.25)}
+  @keyframes fill{to{stroke-dashoffset:0}}
+
+  /* 问 AI 回答面板（屏幕右上角） */
+  .panel{position:absolute;top:10px;right:10px;width:246px;border-radius:14px;background:rgba(255,255,255,.97);padding:9px 12px 9px;z-index:10;
+    box-shadow:0 0 0 1px rgba(0,0,0,.07),0 12px 30px rgba(0,0,0,.14);opacity:0;transform:translateX(30px);
+    transition:opacity .22s,transform .32s cubic-bezier(.2,.8,.2,1),box-shadow .15s}
+  .panel.show{opacity:1;transform:none}
+  .panel.mini{width:190px}
+  .panel.mini .p-body,.panel.mini .p-foot{display:none}
+  .panel.fade{opacity:0;transition:opacity 1s}
+  .panel.listen{box-shadow:0 0 0 1.5px var(--ask),0 0 16px 2px rgba(64,133,255,.35),0 12px 30px rgba(0,0,0,.14)}
+  .p-head{display:flex;align-items:center;gap:7px;height:20px}
+  .p-bar{flex:none;width:3px;height:14px;border-radius:2px;background:var(--ask)}
+  .p-title{flex:1;min-width:0;font-size:11.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p-ico{flex:none;width:14px;height:14px;color:#9A9AA0}
+  .p-body{margin-top:5px;font-size:11px;line-height:1.65;color:#1D1D1F}
+  .turn{transition:opacity .3s}
+  .turn.dim{opacity:.42}
+  .q{display:flex;align-items:center;gap:6px;margin:7px 0 4px;padding:4px 8px;border-radius:7px;background:rgba(0,0,0,.05);font-weight:650}
+  .q::before{content:"";flex:none;width:2px;height:11px;border-radius:1px;background:var(--ask)}
+  .a:empty::before{content:"正在思考…";color:#86868B}
+  .p-foot{display:none;height:18px;margin-top:4px;align-items:center;justify-content:center;font-size:10px;color:#86868B}
+  .p-foot[data-mode]{display:flex}
+  .p-foot .wave{display:none;height:12px}
+  .p-foot .wave i{background:var(--ask);height:12px}
+  .p-foot[data-mode="wave"] .wave{display:flex}
+  .p-foot[data-mode="wave"] .p-foot-t{display:none}
+
+  /* 系统「减少动态效果」：每个动作只显示一张定格画面 */
+  .stage.still *,.stage.still *::before,.stage.still *::after{animation:none!important;transition:none!important}
+  .stage.still .wave i:nth-child(1){transform:scaleY(.4)}
+  .stage.still .wave i:nth-child(2){transform:scaleY(.8)}
+  .stage.still .wave i:nth-child(3){transform:scaleY(1)}
+  .stage.still .wave i:nth-child(4){transform:scaleY(.6)}
+  .stage.still .wave i:nth-child(5){transform:scaleY(.33)}
+</style></head><body>
+  <div class="win">
+    <div class="top"><span class="eyebrow" id="pg"></span></div>
+    <div class="body">
+      <div class="left">
+      <div class="stage-host" id="stageHost" role="img" aria-label="手势动画演示">
+
+        <!-- 第 1 页：鼠标长按说话 -->
+        <div class="stage">
+          <div class="app">
+            <div class="app-bar"><i></i><i></i><i></i><span>项目群</span></div>
+            <div class="msgs"><div class="msg">明天的会几点开？</div></div>
+            <div class="input"><span class="typed"></span><i class="caret"></i><span class="ph">发消息…</span></div>
+          </div>
+          <svg class="trail" viewBox="0 0 512 292" aria-hidden="true"><path class="line" d=""/><path class="head" d=""/></svg>
+          <div class="cap" data-state="hidden" data-glow="none" aria-hidden="true">
+            <span class="cap-x"><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+            <svg class="cap-cancel" viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="cap-text"></span>
+            <span class="cap-ok"><svg viewBox="0 0 10 10"><path d="M1.8 5.2l2.2 2.2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cap-undo"><svg viewBox="0 0 12 12"><path d="M4.2 3.4H7a2.7 2.7 0 0 1 0 5.4H4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.7 1.6L3.8 3.4l1.9 1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div class="cursor" style="--x:404px;--y:84px" aria-hidden="true">
+            <svg class="ring" viewBox="0 0 32 32"><circle class="trk" cx="16" cy="16" r="12"/><circle class="prg" cx="16" cy="16" r="12"/></svg>
+            <svg class="arrow" viewBox="0 0 18 25"><path d="M1.5 1.5v18.2l4.6-4.4 3.1 7.3 3.1-1.3-3.1-7.2h6.4z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <!-- 第 2 页：随时问 AI -->
+        <div class="stage" hidden>
+          <div class="app">
+            <div class="app-bar"><i></i><i></i><i></i><span class="url">knowledge.example.com</span></div>
+            <div class="art">
+              <h4>用 RAG 搭建企业知识库的五个步骤</h4>
+              <p>RAG 是现在最常用的知识库做法：把文档切成小段存起来，提问时先找出最相关的几段，再交给大模型组织回答。</p>
+            </div>
+          </div>
+          <div class="panel" aria-hidden="true">
+            <div class="p-head">
+              <span class="p-bar"></span><span class="p-title"></span>
+              <svg class="p-ico" viewBox="0 0 14 14"><path d="M5.2 2h3.6l-.5 3.4 1.9 1.7H3.8l1.9-1.7zM7 7.1V12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg class="p-ico" viewBox="0 0 14 14"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </div>
+            <div class="p-body"></div>
+            <div class="p-foot"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span><span class="p-foot-t"></span></div>
+          </div>
+          <div class="cap" data-state="hidden" data-glow="none" aria-hidden="true">
+            <span class="cap-x"><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+            <svg class="cap-cancel" viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="cap-text"></span>
+            <span class="cap-ok"><svg viewBox="0 0 10 10"><path d="M1.8 5.2l2.2 2.2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cap-undo"><svg viewBox="0 0 12 12"><path d="M4.2 3.4H7a2.7 2.7 0 0 1 0 5.4H4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.7 1.6L3.8 3.4l1.9 1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div class="cursor" style="--x:404px;--y:200px" aria-hidden="true">
+            <svg class="ring" viewBox="0 0 32 32"><circle class="trk" cx="16" cy="16" r="12"/><circle class="prg" cx="16" cy="16" r="12"/></svg>
+            <svg class="arrow" viewBox="0 0 18 25"><path d="M1.5 1.5v18.2l4.6-4.4 3.1 7.3 3.1-1.3-3.1-7.2h6.4z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <!-- 第 3 页：语音翻译 -->
+        <div class="stage" hidden>
+          <div class="app">
+            <div class="app-bar"><i></i><i></i><i></i><span>Global Team</span></div>
+            <div class="msgs"><div class="msg">Hi! Are we still meeting tomorrow?</div></div>
+            <div class="input"><span class="typed"></span><i class="caret"></i><span class="ph">发消息…</span></div>
+          </div>
+          <div class="say" aria-hidden="true"><span class="say-k"><svg viewBox="0 0 12 12"><rect x="4" y="1" width="4" height="6.5" rx="2" fill="currentColor"/><path d="M2.5 5.6a3.5 3.5 0 0 0 7 0M6 9.1V11" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span><span class="say-t"></span></div>
+          <div class="cap" data-state="hidden" data-glow="none" aria-hidden="true">
+            <span class="cap-x"><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+            <svg class="cap-cancel" viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="cap-text"></span>
+            <span class="cap-ok"><svg viewBox="0 0 10 10"><path d="M1.8 5.2l2.2 2.2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cap-undo"><svg viewBox="0 0 12 12"><path d="M4.2 3.4H7a2.7 2.7 0 0 1 0 5.4H4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.7 1.6L3.8 3.4l1.9 1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div class="cursor" style="--x:404px;--y:84px" aria-hidden="true">
+            <svg class="ring" viewBox="0 0 32 32"><circle class="trk" cx="16" cy="16" r="12"/><circle class="prg" cx="16" cy="16" r="12"/></svg>
+            <svg class="arrow" viewBox="0 0 18 25"><path d="M1.5 1.5v18.2l4.6-4.4 3.1 7.3 3.1-1.3-3.1-7.2h6.4z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="step" id="step" aria-live="polite"><i></i><span></span></div>
+      </div>
+      <div class="right">
+      <div class="chips" id="chips" aria-label="演示动作"></div>
+      <div class="copy">
+        <h2 id="ttl"></h2>
+        <p id="desc"></p>
+      </div>
+      <div class="try" id="try">
+        <div class="try-t"><b>试一试</b> · 在下面的框里按住鼠标，说一句话</div>
+        <textarea class="try-box" id="tryBox" rows="1" placeholder="在这里按住鼠标，说一句话" aria-label="试一试"></textarea>
+      </div>
+
+      <p class="note" id="note">这些功能已默认开启，想关闭或调整，去「设置 → 探索」。</p>
+
+      </div>
+    </div>
+      <div class="foot">
+        <div class="dots" id="dots">
+          <button class="dot" type="button" aria-label="第 1 页" aria-current="true"></button>
+          <button class="dot" type="button" aria-label="第 2 页"></button>
+          <button class="dot" type="button" aria-label="第 3 页"></button>
+        </div>
+        <div class="btns">
+          <button class="btn ghost invisible" id="prev" type="button">上一个</button>
+          <button class="btn primary" id="next" type="button">下一个</button>
+        </div>
+      </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+  let reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduce = false; }
+
+  const PROC = 'Thinking';   // 普通识别处理中胶囊显示 Thinking；问 AI「→ AI」；翻译「→ EN」
+
+  const host = document.getElementById('stageHost');
+  const stages = Array.from(host.querySelectorAll('.stage'));
+  const stepEl = document.getElementById('step');
+  const stepText = stepEl.querySelector('span');
+  const fit = () => host.style.setProperty('--k', String(host.clientWidth / 512));
+  fit();
+  if ('ResizeObserver' in window) new ResizeObserver(fit).observe(host);
+  else window.addEventListener('resize', fit);
+
+  function control(stage) {
+    const q = (s) => stage.querySelector(s);
+    const cursor = q('.cursor');
+    const cap = q('.cap');
+    const capText = q('.cap-text');
+    const capOk = q('.cap-ok');
+    const sayEl = q('.say');
+    const sayText = q('.say-t');
+    const input = q('.input');
+    const typed = q('.typed');
+    const panel = q('.panel');
+    const trail = q('.trail');
+    let timers = [];
+
+    const c = {
+      instant: false,
+      limit: Infinity,
+      at(ms, fn) {
+        if (c.instant) { if (ms <= c.limit) fn(); return; }
+        timers.push(setTimeout(fn, ms));
+      },
+      clear() {
+        timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
+        timers = [];
+      },
+      step(text) {
+        if (c.instant) { stepText.textContent = text; stepEl.classList.toggle('on', Boolean(text)); return; }
+        stepEl.classList.add('swap');
+        timers.push(setTimeout(() => {
+          stepText.textContent = text;
+          stepEl.classList.toggle('on', Boolean(text));
+          stepEl.classList.remove('swap');
+        }, 150));
+      },
+      reveal(target, parts, ms, from = 0) {
+        target.textContent = '';
+        const nodes = parts.map((p) => {
+          const el = document.createElement(p.cmd ? 'b' : 'span');
+          target.appendChild(el);
+          return { el, chars: Array.from(p.t) };
+        });
+        const total = nodes.reduce((n, x) => n + x.chars.length, 0);
+        const paint = (count) => {
+          let left = count;
+          nodes.forEach((x) => {
+            const n = Math.max(0, Math.min(x.chars.length, left));
+            x.el.textContent = x.chars.slice(0, n).join('');
+            left -= x.chars.length;
+          });
+        };
+        if (c.instant || ms <= 0) { paint(total); return; }
+        let shown = Math.min(from, total);
+        paint(shown);
+        const id = setInterval(() => {
+          shown += 1;
+          paint(shown);
+          if (shown >= total) clearInterval(id);
+        }, Math.max(24, ms / Math.max(1, total - shown)));
+        timers.push(id);
+      },
+      move(x, y, ms = 700) {
+        if (!cursor) return;
+        cursor.style.transitionDuration = (c.instant ? 0 : ms) + 'ms';
+        cursor.style.setProperty('--x', x + 'px');
+        cursor.style.setProperty('--y', y + 'px');
+      },
+      down(tone = '') {
+        cursor.dataset.tone = tone;
+        cursor.classList.remove('down', 'held');
+        void cursor.offsetWidth;
+        cursor.classList.add('down');
+      },
+      held() { cursor.classList.add('held'); },
+      click() { cursor.classList.add('clk'); timers.push(setTimeout(() => cursor.classList.remove('clk'), 160)); },
+      mini(on) { panel.classList.toggle('mini', Boolean(on)); },
+      fade() { panel.classList.add('fade'); },
+      up() { cursor.classList.remove('down', 'held'); c.trailOff(); },
+      // 拖动轨迹：从 (x0,y0) 到 (x1,y1) 的虚线 + 箭头
+      trailOn(x0, y0, x1, y1) {
+        if (!trail) return;
+        const dx = x1 - x0, dy = y1 - y0;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len;
+        const ex = x1 - ux * 9, ey = y1 - uy * 9;             // 线在箭头前结束
+        const line = trail.querySelector('.line');
+        line.setAttribute('d', `M${x0 + ux * 12} ${y0 + uy * 12} L${ex} ${ey}`);
+        line.style.setProperty('--len', String(len));
+        const px = -uy, py = ux;                                // 箭头两翼
+        trail.querySelector('.head').setAttribute('d',
+          `M${x1} ${y1} L${ex - ux * 2 + px * 5} ${ey - uy * 2 + py * 5} L${ex - ux * 2 - px * 5} ${ey - uy * 2 - py * 5} Z`);
+        trail.classList.remove('show'); void trail.offsetWidth; trail.classList.add('show');
+      },
+      trailOff() { if (trail) trail.classList.remove('show'); },
+      cap(state, o = {}) {
+        cap.dataset.state = state;
+        cap.dataset.glow = o.glow || 'none';
+        if (o.caption) cap.dataset.caption = ''; else delete cap.dataset.caption;
+        if (o.undo) cap.dataset.undo = ''; else delete cap.dataset.undo;
+        capText.textContent = o.caption || o.text || '';
+      },
+      tapOk() {
+        capOk.classList.add('hit');
+        timers.push(setTimeout(() => capOk.classList.remove('hit'), 180));
+      },
+      say(parts, ms, from) { if (!sayEl) return; sayEl.classList.add('show'); c.reveal(sayText, parts, ms, from); },
+      hush() { if (sayEl && !c.instant) sayEl.classList.remove('show'); },
+      type(text) {
+        typed.textContent = text;
+        input.classList.toggle('filled', Boolean(text));
+        if (text && !c.instant) { typed.classList.remove('flash'); void typed.offsetWidth; typed.classList.add('flash'); }
+      },
+      focus(on) { if (input) input.classList.toggle('focus', Boolean(on)); },
+      pos(sel) {
+        const r = q(sel).getBoundingClientRect();
+        const s = stage.getBoundingClientRect();
+        const k = s.width / 512 || 1;
+        return [(r.left + r.width / 2 - s.left) / k, (r.top + r.height / 2 - s.top) / k];
+      },
+      panelOpen(title, immediate) {
+        q('.p-title').textContent = title;
+        q('.p-body').textContent = '';
+        c.foot('');
+        if (immediate) {
+          panel.style.transition = 'none';
+          panel.classList.add('show');
+          void panel.offsetWidth;
+          panel.style.transition = '';
+        } else {
+          panel.classList.add('show');
+        }
+      },
+      turn(question) {
+        const body = q('.p-body');
+        body.querySelectorAll('.turn').forEach((t) => t.classList.add('dim'));
+        const t = document.createElement('div');
+        t.className = 'turn';
+        if (question) {
+          const qq = document.createElement('div');
+          qq.className = 'q';
+          qq.textContent = question;
+          t.appendChild(qq);
+        }
+        const a = document.createElement('div');
+        a.className = 'a';
+        t.appendChild(a);
+        body.appendChild(t);
+        return a;
+      },
+      stream(el, text, ms) { c.reveal(el, [{ t: text }], ms); },
+      listen(on) { panel.classList.toggle('listen', Boolean(on)); c.foot(on ? 'wave' : ''); },
+      foot(mode, text = '') {
+        const f = q('.p-foot');
+        if (!f) return;
+        if (mode) f.dataset.mode = mode; else delete f.dataset.mode;
+        q('.p-foot-t').textContent = text;
+      },
+      reset(start) {
+        c.clear();
+        c.cap('hidden');
+        if (sayEl) { sayEl.classList.remove('show'); sayText.textContent = ''; }
+        if (input) { c.type(''); c.focus(false); }
+        if (cursor) { c.up(); if (start) c.move(start[0], start[1], 0); }
+        c.trailOff();
+        if (panel) { panel.classList.remove('show', 'listen', 'mini', 'fade'); c.foot(''); }
+        stepText.textContent = '';
+        stepEl.classList.remove('on', 'swap');
+      },
+    };
+    return c;
+  }
+
+  // ---------- 第 1 页：鼠标长按说话 ----------
+  const START = [404, 84];
+  const IN = [196, 162];
+  const mouseScenes = [
+    {
+      name: '按住说话', dur: 7400, still: 4600, desc: '在输入框上<b>按住鼠标左键</b>说话，<b>松开</b>就输入。',
+      run(c) {
+        c.reset(START);
+        c.at(250, () => c.move(IN[0], IN[1], 850));
+        c.at(1200, () => { c.down(); c.focus(true); c.step('在输入框上按住鼠标，约半秒'); });
+        c.at(1650, () => { c.held(); c.cap('rec'); c.step('开始说话'); });
+        c.at(3800, () => { c.up(); c.step('松开'); c.cap('proc', { text: PROC }); });
+        c.at(4500, () => { c.cap('hidden'); c.step('整理好的文字自动输入'); c.type('明天下午三点开会，记得带上电脑。'); });
+        c.at(6400, () => c.move(START[0], START[1], 900));
+      },
+    },
+    {
+      name: '向下拖：锁定', dur: 10000, still: 2900, desc: '说到一半想松手：<b>向下拖一点</b>，亮绿光后松手接着说，说完点 ✓。',
+      run(c) {
+        c.reset(START);
+        c.at(250, () => c.move(IN[0], IN[1], 850));
+        c.at(1200, () => { c.down(); c.focus(true); c.step('按住，开始说话'); });
+        c.at(1650, () => { c.held(); c.cap('rec', { caption: '移近锁定' }); });
+        c.at(2350, () => { c.trailOn(IN[0], IN[1], IN[0], IN[1] + 34); c.move(IN[0], IN[1] + 30, 420); c.step('说到一半想松手：向下拖一点'); });
+        c.at(2750, () => c.cap('btns', { glow: 'lock', caption: '已锁定' }));
+        c.at(3700, () => { c.up(); c.step('亮绿光 = 已锁定，松手接着说'); });
+        c.at(3950, () => { c.cap('btns', { glow: 'lock' }); c.move(412, 70, 1300); });
+        c.at(6300, () => { const p = c.pos('.cap-ok'); c.move(p[0], p[1] + 1, 950); c.step('说完，点 ✓'); });
+        c.at(7400, () => { c.tapOk(); c.cap('proc', { text: PROC }); });
+        c.at(8100, () => { c.cap('hidden'); c.step('整理好的文字自动输入'); c.type('会议纪要我整理好了，下午发到群里。'); });
+        c.at(9100, () => c.move(START[0], START[1], 900));
+      },
+    },
+    {
+      name: '拖远：取消', dur: 8000, still: 3100, desc: '不想要这句：<b>往外拖远</b>，亮红光后松开。点错了 9 秒内可撤销。',
+      run(c) {
+        c.reset(START);
+        c.at(250, () => c.move(IN[0], IN[1], 850));
+        c.at(1200, () => { c.down(); c.focus(true); c.step('按住，开始说话'); });
+        c.at(1650, () => { c.held(); c.cap('rec'); });
+        c.at(2600, () => { c.trailOn(IN[0], IN[1], 300, 92); c.move(300, 92, 750); c.step('不想要了：往外拖远'); });
+        c.at(3100, () => { c.cap('rec', { glow: 'cancel' }); c.step('亮红光了，松开'); });
+        c.at(4300, () => { c.up(); c.focus(false); c.cap('hint', { text: '已取消', undo: true }); c.step('已取消，点错了 9 秒内可撤销'); });
+        c.at(6500, () => c.cap('hidden'));
+        c.at(6800, () => c.move(START[0], START[1], 900));
+      },
+    },
+  ];
+
+  // ---------- 第 2 页：随时问 AI ----------
+  const A1 = 'RAG 就是「检索增强生成」：先从资料里找出和问题相关的内容，再交给大模型组织成回答。回答有依据，资料更新了也不用重新训练模型。';
+  const A2 = '微调是把知识训练进模型本身，成本高、更新慢；RAG 不改模型，换掉资料就能更新，更适合经常变化的内容。';
+  const askScenes = [
+    {
+      name: '按住提问', dur: 9200, still: 6800, desc: '看到不懂的，在<b>空白处按住鼠标</b>说出问题，回答出现在<b>右上角</b>。不用切窗口，也不用先复制什么。',
+      run(c) {
+        let answer = null;
+        c.reset([404, 200]);
+        c.at(250, () => c.move(300, 150, 900));
+        c.at(1300, () => { c.down('ask'); c.step('找一块空白处，按住鼠标约半秒'); });
+        c.at(1750, () => { c.held(); c.cap('rec', { glow: 'ask' }); c.step('亮蓝光，说出问题'); });
+        c.at(3500, () => { c.up(); c.step('松开'); c.cap('proc', { text: '→ AI' }); });
+        c.at(4300, () => { c.cap('hidden'); c.step('回答出现在屏幕右上角'); c.panelOpen('RAG 是什么意思？'); answer = c.turn(''); });
+        c.at(4900, () => c.stream(answer, A1, 2200));
+        c.at(7800, () => c.move(404, 236, 900));
+      },
+    },
+    {
+      name: '按住面板：追问', dur: 10000, still: 5200, desc: '<b>按住回答面板</b>继续说，AI 接着这个话题回答。点图钉可以把回答固定住。',
+      run(c) {
+        let answer = null;
+        c.reset([404, 236]);
+        c.panelOpen('RAG 是什么意思？', true);
+        c.turn('').textContent = A1;
+        c.at(400, () => { const p = c.pos('.panel .a'); c.move(p[0] - 10, p[1], 900); });
+        c.at(1500, () => { c.down('ask'); c.step('想接着问：按住回答面板'); });
+        c.at(1950, () => { c.held(); c.listen(true); c.step('说出下一个问题'); });
+        c.at(3900, () => { c.up(); c.step('松开'); c.listen(false); c.foot('text', '识别中'); });
+        c.at(4600, () => { c.foot(''); c.step('接在同一个话题下回答'); answer = c.turn('它和微调有什么区别？'); });
+        c.at(5200, () => c.stream(answer, A2, 2200));
+        c.at(8100, () => c.move(404, 256, 900));
+      },
+    },
+    {
+      name: '点外面：收起', dur: 8600, still: 3000, desc: '看完了，<b>点面板外面</b>任意地方，它会缩成一行，几秒后自动消失。想留住它，点右上角的<b>图钉</b>。',
+      run(c) {
+        c.reset([404, 256]);
+        c.panelOpen('RAG 是什么意思？', true);
+        c.turn('').textContent = A1;
+        c.at(400, () => c.move(300, 150, 900));
+        c.at(1500, () => { c.click(); c.step('看完了：点面板外面任意地方'); });
+        c.at(1800, () => c.mini(true));
+        c.at(2600, () => c.step('缩成一行，几秒后自动消失'));
+        c.at(4800, () => c.fade());
+        c.at(6000, () => c.step('想留住它：点右上角的图钉'));
+      },
+    },
+  ];
+
+  // ---------- 第 3 页：语音翻译 ----------
+  const langScenes = [
+    { name: '用英文', desc: '说完正文，结尾加一句<b>「用英文」</b>，这句就直接输入成英文。放在开头也行；用快捷键说话也一样。', parts: [{ t: '明天下午三点开会，记得带上电脑，' }, { t: '用英文', cmd: true }], tag: '→ EN',
+      first: '按住鼠标，说完正文，结尾加一句「用英文」', out: 'Meeting at 3 p.m. tomorrow — remember to bring your laptop.', hint: '已按口令「用英文」输出英文' },
+    { name: '用韩文', desc: '还支持韩文、中文；法语、德语、西班牙语可以在设置里打开。也可以固定一种输出语言，不用每次说口令。', parts: [{ t: '谢谢你今天帮忙，' }, { t: '用韩文', cmd: true }], tag: '→ KO',
+      first: '说完正文，结尾加一句「用韩文」', out: '오늘 도와주셔서 감사합니다.', hint: '已按口令「用韩文」输出韩文' },
+  ].map((d) => ({
+    name: d.name, desc: d.desc, dur: 8600, still: 5300,
+    run(c) {
+      c.reset(START);
+      c.at(250, () => c.move(IN[0], IN[1], 850));
+      c.at(1200, () => { c.down(); c.focus(true); c.step(d.first); });
+      c.at(1650, () => { c.held(); c.cap('rec'); });
+      c.at(1900, () => c.say(d.parts, 2100));
+      c.at(4500, () => { c.up(); c.hush(); c.cap('proc', { text: d.tag }); c.step('松开'); });
+      c.at(5300, () => { c.type(d.out); c.cap('hint', { text: d.hint }); c.step('这句直接输入成对应的语言'); });
+      c.at(7300, () => { c.cap('hidden'); c.move(START[0], START[1], 900); });
+    },
+  }));
+
+  // ---------- 页面内容 ----------
+  const slides = [
+    {
+      title: '鼠标长按说话',
+      desc: '在输入框上<b>按住鼠标左键</b>说话，<b>松开</b>就输入。想松手：<b>向下拖</b>锁定；不想要：<b>拖远</b>再松开。',
+      scenes: mouseScenes, tryable: true,
+    },
+    {
+      title: '随时问 AI',
+      desc: '在<b>空白处按住鼠标</b>，说出问题，回答出现在<b>右上角</b>。<b>按住回答面板</b>可以接着问。',
+      scenes: askScenes,
+    },
+    {
+      title: '语音翻译',
+      desc: '说完正文，<b>结尾</b>加一句口令，比如「用英文」，这句话就直接输入成那种语言。放开头也行。',
+      scenes: langScenes,
+    },
+  ];
+
+  const chipsEl = document.getElementById('chips');
+  const pg = document.getElementById('pg');
+  const ttl = document.getElementById('ttl');
+  const desc = document.getElementById('desc');
+  const tryEl = document.getElementById('try');
+  const dots = Array.from(document.querySelectorAll('#dots .dot'));
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+
+  function makePlayer(stage, scenes) {
+    const c = control(stage);
+    const player = {
+      scenes,
+      chipEls: [],
+      show(i) {
+        c.clear();
+        player.chipEls.forEach((b, j) => {
+          b.setAttribute('aria-pressed', String(j === i));
+          b.classList.remove('run');
+          if (j === i && !reduce) {
+            b.style.setProperty('--dur', scenes[i].dur + 'ms');
+            void b.offsetWidth;
+            b.classList.add('run');
+          }
+        });
+        const sc = scenes[i];
+        if (reduce) {
+          stage.classList.add('still');
+          c.instant = true;
+          c.limit = sc.still;
+          sc.run(c);
+          c.instant = false;
+          c.limit = Infinity;
+          return;
+        }
+        stage.classList.remove('still');
+        sc.run(c);
+        c.at(sc.dur, () => player.show(i));   // 原地循环，等用户点「下一个」
+      },
+      stop() { c.clear(); },
+    };
+    return player;
+  }
+
+  const players = stages.map((st, i) => makePlayer(st, slides[i].scenes));
+  let current = 0;
+
+  // 线性步骤：[页, 动作]，「下一个」= 下一个动作
+  // 首次引导：三个功能的动作连成一条线；探索页「看演示」：只走那一个功能的动作（steps 只装它的）
+  const allSteps = [];
+  slides.forEach((sl, p) => sl.scenes.forEach((sc, j) => allSteps.push({ p, j })));
+  let steps = allSteps;
+  let k = 0;
+  const dotsEl = document.getElementById('dots');
+
+  function buildChips(player, p) {
+    chipsEl.textContent = '';
+    player.chipEls = player.scenes.map((sc, j) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = sc.name;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => go(steps.findIndex((st) => st.p === p && st.j === j)));
+      chipsEl.appendChild(b);
+      return b;
+    });
+  }
+
+  function renderCopy(p, j) {
+    const s = slides[p];
+    const sc = s.scenes[j];
+    pg.textContent = '新功能 ' + (p + 1) + ' / ' + slides.length + ' · ' + s.title;
+    ttl.textContent = sc.name;
+    desc.innerHTML = sc.desc;
+    tryEl.hidden = !s.tryable;
+  }
+
+  function go(n) {
+    const { p, j } = steps[n];
+    const pageChanged = p !== current;
+    players[current].stop();
+    stages.forEach((st, i) => { st.hidden = i !== p; });
+    current = p;
+    k = n;
+    fit();
+    renderCopy(p, j);
+    if (pageChanged || !players[p].chipEls.length) buildChips(players[p], p);
+    dots.forEach((d, i) => d.setAttribute('aria-current', String(i === p)));
+    prev.classList.toggle('invisible', n === 0);
+    next.textContent = n === steps.length - 1 ? finishLabel : '下一个';
+    players[p].show(j);
+  }
+
+  let finishLabel = '开始使用';
+  function post(type) {
+    try { window.webkit.messageHandlers.guide.postMessage({ type }); } catch (e) { /* 浏览器里预览时没有原生端 */ }
+  }
+
+  next.addEventListener('click', () => {
+    if (k < steps.length - 1) go(k + 1);
+    else post('done');
+  });
+  prev.addEventListener('click', () => { if (k > 0) go(k - 1); });
+  dots.forEach((d, i) => d.addEventListener('click', () => go(steps.findIndex((st) => st.p === i))));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('select,input,textarea')) return;
+    if (e.key === 'ArrowRight' && k < steps.length - 1) go(k + 1);
+    if (e.key === 'ArrowLeft' && k > 0) go(k - 1);
+  });
+
+  // 原生端调用：feature = 0/1/2 跳到该功能第一步；label = 末步按钮文案（首次「开始使用」，探索页「完成」）
+  window.__guide = {
+    go(feature, label, only) {
+      if (label) finishLabel = label;
+      steps = only ? allSteps.filter((st) => st.p === feature) : allSteps;
+      dotsEl.hidden = Boolean(only);   // 只看一个功能时不显示功能圆点
+      const n = steps.findIndex((st) => st.p === feature);
+      go(n < 0 ? 0 : n);
+    },
+  };
+  go(0);
+})();
+</script>
+</body></html>

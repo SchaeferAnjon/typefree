@@ -1,0 +1,69 @@
+import XCTest
+@testable import VoicePolishCore
+
+final class PersonalVocabularyTests: XCTestCase {
+
+    func testMergeWordsPutsPersonalWordsBeforeBuiltin() {
+        let words = PersonalVocabulary.mergeWords(
+            builtin: ["Claude"],
+            custom: ["小肚控制台"],
+            vocabularyTargets: ["徐相"]
+        )
+        XCTAssertEqual(words, ["小肚控制台", "徐相", "Claude"])
+    }
+
+    func testLimitCutsBuiltinBeforePersonalWords() {
+        let words = PersonalVocabulary.mergeWords(
+            builtin: ["iPhone", "Git"],
+            custom: [],
+            vocabularyTargets: ["Qwen", "徐相"],
+            limit: 3
+        )
+        XCTAssertEqual(words, ["Qwen", "徐相", "iPhone"])
+    }
+
+    func testBuiltinWordsHaveNoPersonalNames() {
+        for word in ["王鑫", "小肚控制台", "小肚", "打新", "结构图", "消耗暴增", "OpenClaw", "polyMarket"] {
+            XCTAssertFalse(PersonalVocabulary.builtinWords.contains(word), "\(word) 是个人词，不该随安装包发给所有用户")
+        }
+    }
+
+    func testMergeWordsStripsWeightSuffix() {
+        let words = PersonalVocabulary.mergeWords(
+            builtin: [],
+            custom: ["小肚控制台|10", " 热词 | 5 "],
+            vocabularyTargets: []
+        )
+        XCTAssertEqual(words, ["小肚控制台", "热词"])
+    }
+
+    func testMergeWordsDeduplicatesIgnoringCase() {
+        let words = PersonalVocabulary.mergeWords(
+            builtin: ["Claude Code"],
+            custom: ["claude code"],
+            vocabularyTargets: ["CLAUDE CODE", "徐相"]
+        )
+        XCTAssertEqual(words, ["claude code", "徐相"])   // 用户自己的写法优先
+    }
+
+    func testMergeWordsSkipsEmptyAndRespectsLimit() {
+        let words = PersonalVocabulary.mergeWords(
+            builtin: ["", "  "],
+            custom: ["a", "b", "c"],
+            vocabularyTargets: ["d"],
+            limit: 3
+        )
+        XCTAssertEqual(words, ["a", "b", "c"])
+    }
+
+    func testContextSentenceFormat() {
+        XCTAssertEqual(
+            PersonalVocabulary.contextSentence(for: ["热词", "小肚控制台"]),
+            "用户常说的词：热词、小肚控制台"
+        )
+    }
+
+    func testContextSentenceNilWhenEmpty() {
+        XCTAssertNil(PersonalVocabulary.contextSentence(for: []))
+    }
+}

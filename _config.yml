@@ -1,0 +1,4 @@
+# GitHub Pages（Jekyll）：官网在仓库根目录，源码在 mac/，不要把源码发布到网站上。
+exclude:
+  - mac
+  - README.md

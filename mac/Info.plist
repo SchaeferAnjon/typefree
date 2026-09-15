@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>CFBundleDisplayName</key>
+	<string>Typefree</string>
+	<key>CFBundleExecutable</key>
+	<string>Typefree</string>
+	<key>CFBundleIconFile</key>
+	<string>VoicePolish</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.voicepolish.app</string>
+	<key>CFBundleName</key>
+	<string>Typefree</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>3.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>3.0.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Typefree 需要麦克风权限来录制语音并转写为文字。</string>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://typefree.app/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>+khgUWwhbTRDxxcApk3BhYRR/t0dHd7D7oUwOoHzYf8=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<!-- 试用服务器地址/证书指纹：由 build.sh 从 local.build.env（不进仓库）注入；开源自编译版为空 = 无试用通道 -->
+	<key>VPTrialAPIBase</key>
+	<string>$(VP_TRIAL_API_BASE)</string>
+	<key>VPTrialCertSHA256</key>
+	<string>$(VP_TRIAL_CERT_SHA256)</string>
+</dict>
+</plist>
