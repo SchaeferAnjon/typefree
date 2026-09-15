@@ -183,5 +183,14 @@
             <description><![CDATA[<h3>出错时会告诉你原因了</h3><p>以前识别失败只会闪一个红框，没有一个字，你不知道是没网、Key 不对还是别的什么。现在红框闪一下之后，会紧接着显示一条说明，直接写清原因，比如「火山账号未开通此识别版本，请到控制台开通并领免费额度」「API Key 无效，请检查是否复制完整」「账号欠费或免费额度已用完」。看一眼就知道该去哪儿处理。</p><h3>「测试连接」更靠谱</h3><p>以前有一种情况：Key 填对了，但火山账号还没开通极速版，测试连接照样显示"✓ 凭证有效"，一录音就失败，让人摸不着头脑。现在只有整条链路真的通了才显示"✓ 连接成功"，服务没开通、欠费、断网这些都会直接标 ✗ 并说明原因。</p><h3>屏幕底部的提示统一了样式</h3><p>「已学会」「学习建议」「已取消」以及各类提示、报错，以前是几种不同的样子。现在全部统一成和录音胶囊同款的墨黑小胶囊，靠左侧一个小圆点区分：红=失败、橙=提醒、绿=成功。看起来更清爽，也不会再被误认成别的软件弹出来的东西。</p><h3>「自动 · 质量优先」调整为 qwen3.7-plus 优先</h3><p>用词更贴近口语原话，整理时更克制。仍然会在额度用完时自动切换到下一个模型。想要其他模型的，下拉框里照旧可以手动选。</p><h3>App 内可以看更新历史了</h3><p>侧栏 Typefree 名字旁边多了版本号，点一下就能看到每一版更新了什么。以后有新版本时，弹窗里也会直接列出更新内容。</p>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v2.8.1/Typefree-2.8.1.dmg" sparkle:edSignature="416a68vd5Do+qjaYoGMpqBb7QCLq7+9XPNt085fDdeu2nf5QiWOLs4lh7PeM3HEi3nbBJPApV7IMzWpbKPeRDA==" length="2338879" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.0</title>
+            <sparkle:version>3.0.0</sparkle:version>
+            <sparkle:shortVersionString>3.0.0</sparkle:shortVersionString>
+            <pubDate>Tue, 15 Sep 2026 10:35:27 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>Typefree 开源了</h3><p>代码全部公开在 GitHub（GPL-3.0）：https://github.com/kdsz001/typefree 。你可以看它到底做了什么、自己编译、提意见或者改一改。设置里「关于」和定价页都有「查看源码」入口。</p><h3>三种用法：免费试用 · 自带 Key 永久免费 · 会员</h3><ul><li><strong>新用户免费试用 7 天</strong>，装好就能用，不用配任何东西。</li><li><strong>自带 API Key 永久免费、不限字数</strong>——以前每周 1 万字的限制取消了。</li><li><strong>会员 ¥188 / 年</strong>：不想申请 Key 的，开通后识别、润色、问 AI 全包，装好就能用。到期后仍可填自己的 Key 免费用。买断版不再销售；已经买过的老朋友，我们送一年会员，左上角会多一个「创世用户」标。</li></ul><p>会员和自己的 Key 同时都有时，模型页多了一个「优先走会员服务」开关，走哪条通道你自己定。</p><h3>鼠标长按说话</h3><p>在任何输入框里按住鼠标左键约半秒，说完松开，文字就进去了。说到一半想松手：向下拖一点锁定，说完点 ✓；不想要了：往外拖远，亮红光后松开，这句就取消。首次打开会有动画演示，探索页也能随时重看。</p><h3>随时问 AI</h3><p>看到不懂的，在空白处按住鼠标说出问题，回答出现在屏幕右上角；按住回答面板可以接着问。点面板外面它会缩成一行、几秒后消失，想留住就点图钉。</p><h3>语音翻译</h3><p>说完正文，结尾加一句「用英文」，这句话就直接输入成英文；也支持日文、韩文、中文，更多语言在探索页打开。也可以固定一种输出语言，不用每次说口令。</p><h3>直接和开发者聊</h3><p>侧栏多了「反馈」页：像聊天一样来回，能附截图，也能附上最后一次转录和录音。发送时会带上系统版本和最近的日志，方便定位「某个软件里不好用」这类问题；回复会直接出现在这一页。</p><h3>首页</h3><p>四个数字下面多了一行圆点：近 6 周每天说了多少，一眼看出节律；下面是连续天数、活跃天数、最常在周几用。快捷键卡片里也把三种用法列出来了，点一下就看演示。</p><h3>其他</h3><ul><li>主窗口和问 AI 面板支持夜间模式（设置 → 外观）。</li><li>长按问 AI 的开口判断改为按每次录音的安静基准自适应，不再用固定音量线。</li><li>各页面顶部不再空一段，页头与侧栏对齐。</li><li>历史文件读写加锁防丢条；麦克风被拒绝时启动不再自动弹系统设置；后台下载更新时设置窗不再反复重建。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.0/Typefree-3.0.0.dmg" sparkle:edSignature="0rr2fgaHBGVn9SoUco556fhD+IKrLToHEuRULAX+7hbP/5eT28ZkOVuPoiNkCCDevp192o6oquwSoR/zTQkOBA==" length="2656678" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
