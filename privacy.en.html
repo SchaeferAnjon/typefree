@@ -52,7 +52,7 @@
 
 <main><div class="wrap">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: September 14, 2026</p>
+  <p class="updated">Last updated: September 15, 2026</p>
 
   <h2>In short</h2>
   <p>Typefree <strong>runs locally on your device, and its code is open source</strong>. Your recordings, transcribed text, history and API credentials are <strong>stored on your device by default</strong> — we have no servers that store this content. (During the free trial and membership, recognition and clean-up requests are relayed by our server; see <strong>"Data processing during the free trial and membership"</strong> below.)</p>
@@ -77,13 +77,22 @@
   </ul>
 
   <h2>Purchases and licenses</h2>
-  <p>Purchases are handled by our payment provider <strong>Paddle</strong> (Paddle.com Market Ltd, acting as Merchant of Record / reseller). Your payment information is collected and processed by Paddle under its privacy policy; we never see your full card details. When you activate a license code, the app sends our license server (api.typefree.app, hosted on Cloudflare) <strong>the license code, a device fingerprint (a one-way hash of a hardware identifier that cannot be reversed), your Mac model and macOS version</strong>, to enforce one Mac per code, check membership validity and provide support (<a href="recover.en.html">recover a code / reset activation</a>). After activation, the app checks its license status with the server every few days, sending only the license code and device fingerprint. We don't collect your computer's name.</p>
+  <p>Purchases are handled by our payment provider <strong>Paddle</strong> (Paddle.com Market Ltd, acting as Merchant of Record / reseller). Your payment information is collected and processed by Paddle under its privacy policy; we never see your full card details. When you activate a license code, the app sends our license server (api.typefree.app, hosted on Cloudflare) <strong>the license code, a device fingerprint (a one-way hash of a hardware identifier that cannot be reversed), your Mac model and macOS version</strong>, to enforce one Mac per code, check membership validity and provide support (<a href="recover.en.html">recover a code / reset activation</a>). After activation, the app checks its license status with the server every few days, sending only the license code and device fingerprint.</p>
+
+  <h2>The in-app "Feedback" page</h2>
+  <p>The "Feedback" page in the app's sidebar lets you talk to the developer without signing in or leaving an email address. When you press Send there, the following is sent to our server (api.typefree.app, hosted on Cloudflare) and stored so we can reply and investigate:</p>
+  <ul>
+    <li>The text you write and any screenshots you attach.</li>
+    <li>Attached automatically to help diagnose "it doesn't work well in app X" issues: the app and macOS version, your computer's name, the name of the app you most recently dictated into, and roughly the last 120 lines of the app's log (the log records app names, timestamps and durations, <strong>never what you said or the recognized text</strong>).</li>
+    <li>Only if you click the "Attach last transcript" button: the text and audio of your most recent dictation. Nothing is attached unless you click it.</li>
+  </ul>
+  <p>This data is used only to reply to you and investigate the issue, is visible only to the developer, and is not used for anything else. New feedback triggers a Feishu (Lark) notification to the developer that includes the computer name and the first few lines of the message. You can ask us by email to delete your feedback records at any time.</p>
 
   <h2>This website</h2>
   <p>typefree.app is a static site hosted on GitHub Pages / Cloudflare. It <strong>sets no tracking cookies and includes no third-party advertising or behavioral analytics</strong>. The hosts may keep standard server access logs (such as IP and access time) for security and operations under their own policies.</p>
 
   <h2>Your rights</h2>
-  <p>Because we hold very little personal data, you have full control over the data on your device and can delete it at any time. For purchase-related data, contact us or Paddle. Send any privacy request to <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
+  <p>Because we hold very little personal data, you have full control over the data on your device and can delete it at any time. Anything you sent through the "Feedback" page can be deleted on request. For purchase-related data, contact us or Paddle. Send any privacy request to <a href="mailto:ray@typefree.app">ray@typefree.app</a>.</p>
 
   <h2>Changes to this policy</h2>
   <p>We'll post any updates on this page and change the date at the top.</p>
