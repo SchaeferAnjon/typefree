@@ -201,5 +201,14 @@
             <description><![CDATA[<h3>3.0 发布当天的几处修正</h3><ul><li><strong>新功能引导</strong>：演示「随时问 AI」时，在引导页的空白处按住鼠标就能直接试；深色模式下动作标签和「上一个」按钮看不清的问题已修，右侧文字也放大了一档。</li><li><strong>模型页更清爽</strong>：语音识别只保留火山引擎，语音优化只保留「百炼（阿里）/ 不优化」，模型下拉只留常用的几档。正在使用被收起选项的老用户不受影响，原来的选择照常显示。</li><li><strong>录音浮窗默认「墨黑 · 白波」</strong>：升级后统一切到这个样式；想换回彩色，去「设置 → 录音浮窗」点一下即可。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.1/Typefree-3.0.1.dmg" sparkle:edSignature="ZxDbDgmYTw8bKJWHYqkAEUhRjlyCoPy+m92Sot4SKPB6QTCAg9SjAe9nb7z8LS4lkTQSImeojSIyoHbwFdTdBw==" length="2657915" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.2</title>
+            <sparkle:version>3.0.2</sparkle:version>
+            <sparkle:shortVersionString>3.0.2</sparkle:shortVersionString>
+            <pubDate>Wed, 16 Sep 2026 01:09:33 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>上线后全面检查的修正</h3><ul><li><strong>新功能引导</strong>：右上角加了「跳过」，按 Esc 也能关；页面万一加载失败不再把设置窗盖住。引导只在升级后第一次启动自动弹出，之后不再抢前台。</li><li><strong>随时问 AI 更安静</strong>：没配 Key 或试用结束时，在空白处按住不再弹提示；按住没说话就松手，不再发送静音、不再闪胶囊；提问时点回答面板外面不会误收起。</li><li><strong>试用状态更准确</strong>：7 天总额用完会直接提示开会员或填 Key，不再反复上传失败；跨天后不再被昨天的额度拦住；试用到期的提示改成人话。填了自己 Key 的用户不再被显示成「试用中」。</li><li><strong>健康卡与提示</strong>：选了「不优化」不再报「未配置」；只填了识别 Key、试用结束后，每天提示一次润色未配置；会员到期、断网时的提示更清楚。</li><li><strong>语音口令</strong>：「用英文吧」「翻译成英文好吗」这类带语气词的说法也能识别；全模态模式下口令同样生效。</li><li><strong>反馈页</strong>：第一条消息先发文字，截图和录音自动作为第二条跟上。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.2/Typefree-3.0.2.dmg" sparkle:edSignature="QjLj+QUjj/LAf8pN106E9zBtVHTyuEjszMLW9rrcXShA+h3KNVsGfDCxj/DgcW6O2N0KlND681oxzcIAhBfRDA==" length="2678437" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
