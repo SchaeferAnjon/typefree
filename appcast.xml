@@ -210,5 +210,14 @@
             <description><![CDATA[<h3>上线后全面检查的修正</h3><ul><li><strong>新功能引导</strong>：右上角加了「跳过」，按 Esc 也能关；页面万一加载失败不再把设置窗盖住。引导只在升级后第一次启动自动弹出，之后不再抢前台。</li><li><strong>随时问 AI 更安静</strong>：没配 Key 或试用结束时，在空白处按住不再弹提示；按住没说话就松手，不再发送静音、不再闪胶囊；提问时点回答面板外面不会误收起。</li><li><strong>试用状态更准确</strong>：7 天总额用完会直接提示开会员或填 Key，不再反复上传失败；跨天后不再被昨天的额度拦住；试用到期的提示改成人话。填了自己 Key 的用户不再被显示成「试用中」。</li><li><strong>健康卡与提示</strong>：选了「不优化」不再报「未配置」；只填了识别 Key、试用结束后，每天提示一次润色未配置；会员到期、断网时的提示更清楚。</li><li><strong>语音口令</strong>：「用英文吧」「翻译成英文好吗」这类带语气词的说法也能识别；全模态模式下口令同样生效。</li><li><strong>反馈页</strong>：第一条消息先发文字，截图和录音自动作为第二条跟上。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.2/Typefree-3.0.2.dmg" sparkle:edSignature="QjLj+QUjj/LAf8pN106E9zBtVHTyuEjszMLW9rrcXShA+h3KNVsGfDCxj/DgcW6O2N0KlND681oxzcIAhBfRDA==" length="2678437" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.3</title>
+            <sparkle:version>3.0.3</sparkle:version>
+            <sparkle:shortVersionString>3.0.3</sparkle:shortVersionString>
+            <pubDate>Thu, 17 Sep 2026 17:07:54 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>反馈改成工单，视频上长按不再误触发</h3><ul><li><strong>反馈页改成工单</strong>：每个问题单独提交一个工单，可选「使用问题」「功能建议」或「其他」，在工单里和开发者来回沟通；处理完会标为「已结束」，有新问题再提交新工单。</li><li><strong>视频画面上长按不再触发问 AI</strong>：在网页视频画面上按住，交给网页自己处理（比如 YouTube 长按 2 倍速），也不会再把外放的视频声音录去提问；标题、评论区等地方照常能问。</li><li><strong>可以隐藏 Dock 图标</strong>：「设置 → 外观」新增「在 Dock 中显示」开关，关掉后只在菜单栏显示图标。</li><li><strong>试用额度按 7 天总额显示</strong>：侧栏进度条显示 7 天里一共用了多少字，不再显示每天上限。</li><li><strong>「撤销」按钮缩短为 5 秒</strong>：取消语音输入后，撤销按钮 5 秒后自动消失（原来 9 秒）。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.3/Typefree-3.0.3.dmg" sparkle:edSignature="6jHYjPb5MgFqIhywYjE1mLKiU0v6K8QxzhtAGjIqYAU/YVags+DPc/4viyJ34IB8J64PFAqcuAWsJ8QSuQxuAg==" length="2737912" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
