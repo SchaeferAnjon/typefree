@@ -363,10 +363,10 @@ class OverlayWindow {
                                  CapsuleAction(title: "学习", primary: true, action: #selector(acceptLearnSuggestionTapped))])
     }
 
-    /// 「已取消」+ 白色圆形撤销按钮，不显示语义圆点；9 秒后自动消失（与音频暂存时长一致）。
+    /// 「已取消」+ 白色圆形撤销按钮，不显示语义圆点；5 秒后自动消失（与音频暂存时长一致，Ray 2026-09-17：9 秒太长）。
     /// 点撤销箭头 → AppDelegate 用暂存的录音重新识别输出。
     func showCancelledCapsule() {
-        showCapsuleBar("已取消", accent: nil, seconds: 9.0,
+        showCapsuleBar("已取消", accent: nil, seconds: 5.0,
                        actions: [CapsuleAction(title: "撤销取消", primary: true,
                                                action: #selector(undoCancelTapped), systemImage: "arrow.uturn.backward")])
     }

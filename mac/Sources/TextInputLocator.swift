@@ -109,6 +109,14 @@ enum TextInputLocator {
         if let interactive = interactiveAncestor(of: hit) {
             return .notEditable("命中 \(hitRole)，在可点击的 \(interactive) 上")
         }
+        // 视频画面上的长按留给网页 / 播放器（YouTube 长按 2 倍速）；开麦还会把外放的视频声音当成提问（2026-09-17）。
+        // 放在吸附之前：按在视频底边时，下面的弹幕输入框也在吸附范围内。
+        if let bundleID, VideoRegion.playerAppBundleIDs.contains(bundleID) {
+            return .notEditable("视频播放器 App")
+        }
+        if let video = VideoRegion.find(hit: hit, point: point) {
+            return .notEditable("在视频画面上：\(video)")
+        }
         // 可点的东西（发送按钮等）先排除：长按开始录音时会给 App 合成一次「松开」，落在按钮上就等于点了它
         if let nearInput {
             let why = "命中 \(hitRole)，离 \(role(of: nearInput)) 不到 \(Int(inputSnapDistance))pt（吸附）"
@@ -335,6 +343,97 @@ enum WeChatInputRegion {
         let right = min(f.maxX - rightInset, left + maxInputWidth)
         guard bottom > top, right > left else { return .null }
         return CGRect(x: left, y: top, width: right - left, height: bottom - top)
+    }
+}
+
+/// 指针是否在视频画面上（含盖在画面上的控制栏、弹幕层）。视频是一块没有子元素的「组」，两种浏览器内核各有认法：
+/// - Safari（WebKit）：视频元素带 AXURL（视频地址）；B 站视频页上只有它是带地址的组
+/// - Chrome 系（Chromium）：视频就是普通的组，没有任何视频标记（查过 Chromium 源码），只能看网页给它或
+///   紧贴它的外层起的名字（DOM class / id）里有没有 video、player——B 站 bpx-player-*、YouTube video-stream
+/// 2026-09-17 在 Safari 的 B 站、Chrome 的 B 站和 YouTube 上逐点核对过：画面、控制栏算；标题、推荐列表、页面空白不算。
+enum VideoRegion {
+    /// 专门放视频的 App 整个不问 AI（没逐个核对它们的画面在辅助功能里长什么样）。ID 取自本机安装包，VLC 本机未装、用其公开 ID
+    static let playerAppBundleIDs: Set<String> = [
+        "com.colliderli.iina", "com.apple.QuickTimePlayerX", "org.videolan.vlc", "com.youku.mac", "com.iqiyi.player",
+    ]
+    static let minWidth: CGFloat = 160
+    static let minHeight: CGFloat = 90
+    static let nameHints = ["video", "player"]
+    /// 名字可以长在外层，但外层面积不能超过视频本身的这么多倍（B 站整页容器叫 video-container-v1，不能算）
+    static let maxNamedAncestorAreaRatio: CGFloat = 1.5
+    static let maxNamedAncestorLevels = 2
+    /// 指针落在控制栏、弹幕上时，视频在旁边的分支里：向上最多回退几层、每层向下找几层
+    static let maxClimb = 5
+    static let maxSearchDepth = 3
+    static let maxVisits = 120
+    static let stopRoles: Set<String> = ["AXWebArea", "AXWindow", "AXApplication", "AXScrollArea"]
+    /// 从旁边分支找到的「视频」如果盖住了整页，多半是透明的全页面板（B 站 video-note-sidebar-panel），不算。
+    /// 直接命中的不受此限，网页全屏的视频照样认得出。
+    static let maxPageCoverage: CGFloat = 0.9
+
+    /// 在视频画面上就返回判定依据（写日志用），否则 nil
+    static func find(hit: AXUIElement, point: CGPoint) -> String? {
+        if let why = videoBox(hit, point: point, frame: TextInputLocator.frame(of: hit)) { return why }
+        var visits = 0
+        var cursor = hit
+        var cameFrom: AXUIElement?
+        for level in 0...maxClimb {
+            if level > 0 {
+                guard let parent = TextInputLocator.attribute(cursor, kAXParentAttribute) else { break }
+                cameFrom = cursor
+                cursor = parent as! AXUIElement
+                if stopRoles.contains(TextInputLocator.role(of: cursor)) { break }
+            }
+            var queue: [(AXUIElement, Int)] = TextInputLocator.children(of: cursor)
+                .filter { child in cameFrom.map { !CFEqual(child, $0) } ?? true }
+                .map { ($0, 1) }
+            while !queue.isEmpty && visits < maxVisits {
+                let (el, depth) = queue.removeFirst()
+                visits += 1
+                guard let f = TextInputLocator.frame(of: el), f.insetBy(dx: -2, dy: -2).contains(point) else { continue }
+                if let why = videoBox(el, point: point, frame: f) {
+                    if let page = pageFrame(around: hit), f.width * f.height >= page.width * page.height * maxPageCoverage { continue }
+                    return "\(why)，在\(level == 0 ? "命中元素" : "上\(level)层")的子树里"
+                }
+                if depth < maxSearchDepth {
+                    queue += TextInputLocator.children(of: el).map { ($0, depth + 1) }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func videoBox(_ el: AXUIElement, point: CGPoint, frame: CGRect?) -> String? {
+        guard let f = frame, f.width >= minWidth, f.height >= minHeight, f.insetBy(dx: -2, dy: -2).contains(point),
+              TextInputLocator.role(of: el) == "AXGroup", TextInputLocator.children(of: el).isEmpty else { return nil }
+        let box = TextInputLocator.describeFrame(el)
+        if TextInputLocator.attribute(el, "AXURL") != nil { return "带视频地址的组 \(box)" }
+        var cur = el
+        for level in 0...maxNamedAncestorLevels {
+            if level > 0 {
+                guard let parent = TextInputLocator.attribute(cur, kAXParentAttribute) else { break }
+                cur = parent as! AXUIElement
+                guard let pf = TextInputLocator.frame(of: cur),
+                      pf.width * pf.height <= f.width * f.height * maxNamedAncestorAreaRatio else { break }
+            }
+            let names = (TextInputLocator.attribute(cur, "AXDOMClassList") as? [String] ?? [])
+                + [TextInputLocator.attribute(cur, "AXDOMIdentifier") as? String ?? ""]
+            if let name = names.first(where: { name in nameHints.contains { name.lowercased().contains($0) } }) {
+                return "组 \(box)，\(level == 0 ? "自己" : "外\(level)层")名字带 \(name)"
+            }
+        }
+        return nil
+    }
+
+    /// 网页区域（找不到就用窗口）的范围，判断「是不是盖满整页」用
+    private static func pageFrame(around el: AXUIElement) -> CGRect? {
+        var cur = el
+        for _ in 0...TextInputLocator.maxAncestorLevels {
+            if TextInputLocator.role(of: cur) == "AXWebArea" { return TextInputLocator.frame(of: cur) }
+            guard let parent = TextInputLocator.attribute(cur, kAXParentAttribute) else { break }
+            cur = parent as! AXUIElement
+        }
+        return TextInputLocator.attribute(el, kAXWindowAttribute).flatMap { TextInputLocator.frame(of: $0 as! AXUIElement) }
     }
 }
 

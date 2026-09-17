@@ -89,7 +89,7 @@ public final class VoicePolishPipeline {
                 switch result {
                 case .success(let text):
                     self.log(String(format: "Omni produced text in %.0f ms (total since stop %.0f ms)", elapsed * 1000, Date().timeIntervalSince(pipelineStart) * 1000))
-                    self.finishProcessing(with: text, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+                    self.handleOmniText(text, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
                 case .failure(let error):
                     if case OmniTranscriber.OmniError.noAPIKey = error {
                         self.log("OmniTranscriber not configured, falling back to cloudOnly")
@@ -180,44 +180,74 @@ public final class VoicePolishPipeline {
 
     // MARK: - cloudOnly 后处理
 
+    // MARK: - omni 后处理
+
+    /// omni（音频直喂大模型）拿到的已经是成稿，但用户说的「用英文」等口令会被原样打出来。
+    /// 这里对模型文本再跑一次同样的口令规则：命中就剥掉口令，再走同一条「按目标语言输出」的润色路径翻译。
+    /// 只认口令，不套「默认输出语言」（omni 从来没接过这项设置，行为保持不变）。
+    private func handleOmniText(_ text: String, pipelineStart: Date, samples: [Float], entryID: String) {
+        let command = Self.detectOutputLanguageCommand(in: text)
+        guard let plan = Self.resolveOutputLanguage(rawText: text, command: command, defaultLanguage: nil) else {
+            finishProcessing(with: text, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+            return
+        }
+        log("Omni text carries output language command, stripping and translating")
+        applyOutputLanguage(plan.target, command: command, text: plan.text, rawASR: text,
+                            pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+    }
+
+    /// 决定本次是否要按目标语言输出：语音口令优先，其次是「默认输出语言」；返回目标语言与去掉口令后的正文。
+    static func resolveOutputLanguage(rawText: String, command: OutputLanguageCommand?, defaultLanguage: OutputLanguage?) -> (target: OutputLanguage, text: String)? {
+        guard let target = command?.target ?? defaultLanguage else { return nil }
+        return (target, command?.strippedText ?? rawText)
+    }
+
+    /// 按目标语言输出（cloudOnly 与 omni 共用）：润色开着就交给模型「把这段用 X 写出来」；关着就只剥口令照常输出。
+    private func applyOutputLanguage(_ target: OutputLanguage, command: OutputLanguageCommand?, text: String, rawASR: String,
+                                     pipelineStart: Date, samples: [Float], entryID: String) {
+        if let command {
+            log("Output language command: \(command.matchedPhrase) (\(command.position.rawValue)) → \(target.id)")
+        } else {
+            log("Default output language → \(target.id)")
+        }
+        guard aiPolisher.isPolishEnabled() else {
+            // 用户关了润色：没有模型可翻译，去掉口令后照常输出
+            log("Polish disabled, output language ignored")
+            finishProcessing(with: text, rawASR: rawASR, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+            return
+        }
+        onStateChange?(.polishing(message: "→ \(target.tag)"))
+        let polishStart = Date()
+        aiPolisher.polishCloudASROutput(text: text, outputLanguage: target) { [weak self] result in
+            guard let self = self else { return }
+            let polishTime = Date().timeIntervalSince(polishStart)
+            switch result {
+            case .success(let polished) where !polished.isEmpty:
+                self.log("Output in \(target.id) done in \(String(format: "%.1f", polishTime))s, chars=\(polished.count)")
+                self.onOutputLanguageApplied?(target, command)
+                self.finishProcessing(with: polished, rawASR: rawASR, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+            case .success:
+                self.finishProcessing(with: text, rawASR: rawASR, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+            case .failure(let err):
+                self.log("Output in \(target.id) failed in \(String(format: "%.1f", polishTime))s: \(err), fallback to original")
+                if case AIPolisher.PolishError.noAPIKey = err {} else {
+                    let reason = (err as? LocalizedError)?.errorDescription ?? "\(err)"
+                    self.onPolishFailed?(reason)
+                }
+                self.finishProcessing(with: text, rawASR: rawASR, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
+            }
+        }
+    }
+
+    // MARK: - cloudOnly 后处理
+
     private func handleCloudOnlyText(_ rawText: String, mode: ProcessingMode, pipelineStart: Date, samples: [Float], entryID: String) {
         // 目标语言：语音口令（句首/句尾「用英文」「翻译成日文」等）优先，其次是设置里的「默认输出语言」。
         // 口令由程序规则识别，不交给模型领会；模型只负责「把这段用 X 写出来」。
         let command = Self.detectOutputLanguageCommand(in: rawText)
-        if let target = command?.target ?? OutputLanguage.defaultLanguage() {
-            let text = command?.strippedText ?? rawText
-            if let command {
-                log("Output language command: \(command.matchedPhrase) (\(command.position.rawValue)) → \(target.id)")
-            } else {
-                log("Default output language → \(target.id)")
-            }
-            guard aiPolisher.isPolishEnabled() else {
-                // 用户关了润色：没有模型可翻译，去掉口令后照常输出
-                log("Polish disabled, output language ignored")
-                finishProcessing(with: text, rawASR: rawText, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
-                return
-            }
-            onStateChange?(.polishing(message: "→ \(target.tag)"))
-            let polishStart = Date()
-            aiPolisher.polishCloudASROutput(text: text, outputLanguage: target) { [weak self] result in
-                guard let self = self else { return }
-                let polishTime = Date().timeIntervalSince(polishStart)
-                switch result {
-                case .success(let polished) where !polished.isEmpty:
-                    self.log("Output in \(target.id) done in \(String(format: "%.1f", polishTime))s, chars=\(polished.count)")
-                    self.onOutputLanguageApplied?(target, command)
-                    self.finishProcessing(with: polished, rawASR: rawText, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
-                case .success:
-                    self.finishProcessing(with: text, rawASR: rawText, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
-                case .failure(let err):
-                    self.log("Output in \(target.id) failed in \(String(format: "%.1f", polishTime))s: \(err), fallback to original")
-                    if case AIPolisher.PolishError.noAPIKey = err {} else {
-                        let reason = (err as? LocalizedError)?.errorDescription ?? "\(err)"
-                        self.onPolishFailed?(reason)
-                    }
-                    self.finishProcessing(with: text, rawASR: rawText, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
-                }
-            }
+        if let plan = Self.resolveOutputLanguage(rawText: rawText, command: command, defaultLanguage: OutputLanguage.defaultLanguage()) {
+            applyOutputLanguage(plan.target, command: command, text: plan.text, rawASR: rawText,
+                                pipelineStart: pipelineStart, samples: samples, entryID: entryID)
             return
         }
 
@@ -251,13 +281,28 @@ public final class VoicePolishPipeline {
                 self.log("Cloud ASR polish failed in \(String(format: "%.1f", polishTime))s: \(err), fallback to raw")
                 // 润色失败：文字照常输出（不丢用户的话），但提醒一次"没润色 + 原因"。
                 // noAPIKey（用户选了不润色/没配 key）是正常状态，不提醒；其余（额度/欠费/网络/限流）都提醒。
-                if case AIPolisher.PolishError.noAPIKey = err {} else {
+                // 例外：没选「不优化」、只是没填润色 Key 且试用已结束的人，每天提醒一次，不然他不知道为什么文字没整理。
+                if case AIPolisher.PolishError.noAPIKey = err {
+                    if let hint = Self.dailyPolishUnconfiguredHint() { self.onPolishFailed?(hint) }
+                } else {
                     let reason = (err as? LocalizedError)?.errorDescription ?? "\(err)"
                     self.onPolishFailed?(reason)
                 }
                 self.finishProcessing(with: rawText, pipelineStart: pipelineStart, samples: samples, entryID: entryID)
             }
         }
+    }
+
+    /// 试用结束 / 不是会员、又没填润色 Key、也没主动选「不优化」：每天最多提醒一次「润色未配置」。
+    static func dailyPolishUnconfiguredHint(now: Date = Date()) -> String? {
+        let config = VoicePolishConfig.shared
+        guard !AIPolisher.isPolishDisabled(provider: config.string(forKey: "polish_provider")) else { return nil }
+        guard TrialManager.shared.trialExpired, !LicenseManager.shared.hasActiveMembership() else { return nil }
+        let key = "polishUnconfiguredHintDay"
+        let day = TrialManager.beijingDayKey(now: now)
+        guard UserDefaults.standard.string(forKey: key) != day else { return nil }
+        UserDefaults.standard.set(day, forKey: key)
+        return "润色未配置，已输出原文 · 在「设置 → 模型」填润色 Key，或开通会员"
     }
 
     /// 口令总开关（output_language_command_enabled，默认开）+ 设置里的语言列表（触发词/开关可改）

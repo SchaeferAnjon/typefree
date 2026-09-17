@@ -1017,13 +1017,25 @@ final class VPToggle: NSControl {
         if !animated { CATransaction.commit() }
     }
 
-    override func mouseDown(with event: NSEvent) {
+    override func mouseDown(with event: NSEvent) { toggleByUser() }
+
+    private func toggleByUser() {
         isOn.toggle()
         render(animated: true)
         sendAction(action, to: target)
     }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+
+    // 辅助功能：读屏 / 自动化能读到开关状态并「按下」切换（原先只认鼠标，VoiceOver 用户点不了）
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .checkBox }
+    override func accessibilitySubrole() -> NSAccessibility.Subrole? { .switch }
+    override func accessibilityValue() -> Any? { NSNumber(value: isOn) }
+    override func accessibilityPerformPress() -> Bool {
+        toggleByUser()
+        return true
+    }
 }
 
 // MARK: - Window controller
@@ -1194,6 +1206,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     private func dismissGuide() {
         WhatsNewGuide.markSeen()
+        guideView?.tearDown()
         guideView?.removeFromSuperview()
         guideView = nil
     }
@@ -1936,12 +1949,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if page == .support { supportChatView?.pageDidAppear() }
     }
 
-    // MARK: - Page: Support（反馈对话）
+    // MARK: - Page: Support（反馈工单）
 
     private weak var supportChatView: SupportChatView?
     private var supportObserver: NSObjectProtocol?
 
-    /// 反馈页不走通用的「内容多长页面多长」滚动：消息区自己滚、输入区钉在底部，整页正好填满窗口。
+    /// 反馈页不走通用的「内容多长页面多长」滚动：列表/对话区自己滚、输入区钉在底部，整页正好填满窗口。
+    /// 页头由 SupportChatView 自己画（列表页带「提交工单」按钮，详情页是工单标题）。
     private func buildSupportScroll() -> NSScrollView {
         let scroll = NSScrollView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -1950,9 +1964,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         scroll.automaticallyAdjustsContentInsets = false
         let doc = FlippedView()
         doc.translatesAutoresizingMaskIntoConstraints = false
-        let header = pageHeader(eyebrow: "TYPEFREE / 反馈", title: "反馈",
-                                sub: "直接和开发者说；回复会出现在这里。")
-        header.translatesAutoresizingMaskIntoConstraints = false
         let chat = SupportChatView(theme: theme, context: SupportChatView.Context(
             latestTranscript: { [weak self] in
                 guard let self, let e = self.historyStore.load(limit: 1).first else { return nil }
@@ -1964,7 +1975,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         ))
         supportChatView = chat
         SupportChatView.log = { [weak self] in self?.settingsDelegate?.debugLog($0) }
-        doc.addSubview(header)
         doc.addSubview(chat)
         scroll.documentView = doc
         NSLayoutConstraint.activate([
@@ -1973,14 +1983,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
             doc.heightAnchor.constraint(equalTo: scroll.contentView.heightAnchor),
-            header.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 56),
-            header.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -56),
-            header.topAnchor.constraint(equalTo: doc.topAnchor, constant: 36),
             chat.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 56),
-            chat.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -56),
-            chat.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 20),
+            // 右边多给一条滚动条空隙：内容仍与其它页面一样离右边 56，浮着的滚动条落在空隙里
+            chat.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -56 + SupportChatView.scrollerGutter),
+            chat.topAnchor.constraint(equalTo: doc.topAnchor, constant: 36),
             chat.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -32),
-            chat.widthAnchor.constraint(lessThanOrEqualToConstant: 880),
+            chat.widthAnchor.constraint(lessThanOrEqualToConstant: 880 + SupportChatView.scrollerGutter),
         ])
         if supportObserver == nil {
             supportObserver = NotificationCenter.default.addObserver(forName: SupportChatService.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -2492,9 +2500,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     /// 侧边栏底部额度升级卡片（仅未激活时显示，激活后消失）。
     /// 标题 + 今日额度进度条 + 说明 + 墨黑升级按钮；点击任意处弹出激活窗。
     private func makeSidebarUpgradeButton() -> NSView? {
-        if TrialManager.shared.isInTrial {
+        // 填了自己识别 Key 的人：不管服务器有没有给他起试用，他走的是直连，显示自带 Key 卡
+        if CloudASRTranscriber().isConfigured() && TrialManager.shared.isTrialAvailable {
+            return makeSidebarUpgradeButtonBYOK()
+        }
+        if TrialManager.shared.isInTrial && !TrialManager.shared.isTotalExhausted {
             return makeSidebarUpgradeButtonTrial()
-        } else if TrialManager.shared.trialExpired {
+        } else if TrialManager.shared.trialExpired || TrialManager.shared.isTotalExhausted {
             return makeSidebarUpgradeButtonExpired()
         } else if TrialManager.shared.isTrialAvailable {
             return makeSidebarUpgradeButtonBYOK()
@@ -2537,18 +2549,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     /// 侧边栏卡片——试用中状态。
     private func makeSidebarUpgradeButtonTrial() -> NSView {
-        // 试用计数用服务器的 usedToday（每日上限对应的那个数），
-        // 而非 InputStats 的本地「今日所有输入」——后者含非试用使用，会显示超额。
-        let today = TrialManager.shared.usedToday
-        let trialLimit = max(TrialManager.shared.dailyLimit, 1)
-        let ratio = max(min(CGFloat(today) / CGFloat(trialLimit), 1), 0.001)
+        // 对用户只讲一个数：7 天总额。用服务器记的 totalUsed，
+        // 而非 InputStats 的本地输入统计——后者含非试用使用，会显示超额。
+        let used = TrialManager.shared.totalUsed
+        let trialLimit = TrialManager.shared.displayTotalLimit
+        let ratio = max(min(CGFloat(used) / CGFloat(trialLimit), 1), 0.001)
+        let limitStr = TrialManager.formatChars(trialLimit)
 
         // 注意：这里不要向服务器刷新试用状态——本函数在每次 rebuildSidebar 时都会跑，
         // 而 rebuildSidebar 会被多种通知触发；刷新统一放在 App 激活时（appDidBecomeActive）做一次。
-
-        let nf = NumberFormatter()
-        nf.numberStyle = .decimal
-        let todayStr = nf.string(from: NSNumber(value: today)) ?? "\(today)"
 
         let card = makeUpgradeCard()
 
@@ -2565,11 +2574,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         titleRow.addArrangedSubview(titleSpacer)
         titleRow.addArrangedSubview(daysLbl)
 
-        // 数字行：320 / 1,500 字
-        let (numRow, track) = makeProgressNumRow(todayStr: todayStr, limitStr: nf.string(from: NSNumber(value: trialLimit)) ?? "\(trialLimit)", ratio: ratio)
+        // 数字行：已用 3,200 / 10,000 字
+        let (numRow, track) = makeProgressNumRow(usedStr: TrialManager.formatChars(used), limitStr: limitStr, ratio: ratio)
 
         // 说明
-        let sub = label("7 天试用共 8000 字，每天最多 5000。到期后可开通会员，或填自己的 Key 永久免费。",
+        let sub = label("7 天共 \(limitStr) 字，用完或到期后可开通会员，或填自己的 Key 永久免费。",
                         size: 11.5, weight: .regular, color: theme.text2)
         sub.maximumNumberOfLines = 0
 
@@ -2601,9 +2610,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private func makeSidebarUpgradeButtonExpired() -> NSView {
         let card = makeUpgradeCard()
 
-        let title = label("免费试用已结束", size: 13.5, weight: .semibold, color: theme.text)
+        // 额度先用完（还没满 7 天）和到期是两回事，分开说，免得用户以为「怎么没到 7 天就结束了」
+        let quotaUsedUp = TrialManager.shared.isTotalExhausted && !TrialManager.shared.trialExpired
+        let title = label(quotaUsedUp ? "免费试用额度已用完" : "免费试用已结束",
+                          size: 13.5, weight: .semibold, color: theme.text)
 
-        let sub = label("开通会员直接用；或在「模型」填入自己的 Key，永久免费。",
+        let lead = quotaUsedUp ? "7 天共 \(TrialManager.formatChars(TrialManager.shared.displayTotalLimit)) 字已用完。" : ""
+        let sub = label(lead + "开通会员直接用；或在「模型」填入自己的 Key，永久免费。",
                         size: 11.5, weight: .regular, color: theme.text2)
         sub.maximumNumberOfLines = 0
 
@@ -2690,17 +2703,19 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
 
-    /// 进度数字行（N / Limit 字 ⓘ）+ 进度条，返回两个视图。
-    private func makeProgressNumRow(todayStr: String, limitStr: String, ratio: CGFloat)
+    /// 进度数字行（已用 N / Limit 字 ⓘ）+ 进度条，返回两个视图。
+    private func makeProgressNumRow(usedStr: String, limitStr: String, ratio: CGFloat)
         -> (numRow: NSStackView, track: NSView) {
-        let num = label("\(todayStr) / \(limitStr)", size: 13, weight: .semibold, color: theme.text)
+        let prefix = label("已用", size: 11.5, weight: .regular, color: theme.text3)
+        prefix.setContentHuggingPriority(.required, for: .horizontal)
+        let num = label("\(usedStr) / \(limitStr)", size: 13, weight: .semibold, color: theme.text)
         num.setContentHuggingPriority(.required, for: .horizontal)
         let unit = label("字", size: 11.5, weight: .regular, color: theme.text3)
         unit.setContentHuggingPriority(.required, for: .horizontal)
         let info = NSImageView()
         info.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "额度说明")
         info.contentTintColor = theme.text3
-        info.toolTip = "免费额度每周一 0 点重置"
+        info.toolTip = "试用 7 天内共 \(limitStr) 字，不按天重置；用完或满 7 天试用结束"
         info.translatesAutoresizingMaskIntoConstraints = false
         info.widthAnchor.constraint(equalToConstant: 13).isActive = true
         info.heightAnchor.constraint(equalToConstant: 13).isActive = true
@@ -2709,6 +2724,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         numRow.orientation = .horizontal
         numRow.alignment = .centerY
         numRow.spacing = 4
+        numRow.addArrangedSubview(prefix)
         numRow.addArrangedSubview(num)
         numRow.addArrangedSubview(unit)
         numRow.addArrangedSubview(numSpacer)
@@ -3028,6 +3044,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             let btn: NSView
             if LicenseManager.shared.isActivated {
                 btn = makeCurrentButton(title: "已激活 · 无需试用")
+            } else if CloudASRTranscriber().isConfigured() && TrialManager.shared.isTrialAvailable {
+                btn = makeCurrentButton(title: "已填自己的 Key · 无需试用")
+            } else if TrialManager.shared.isTotalExhausted {
+                btn = makeCurrentButton(title: "试用额度已用完")
             } else if TrialManager.shared.isInTrial {
                 btn = makeCurrentButton(title: "试用中 · 剩 \(TrialManager.shared.daysLeft) 天")
             } else if TrialManager.shared.trialExpired {
@@ -3047,7 +3067,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             stack.addArrangedSubview(btn)
             stack.setCustomSpacing(20, after: btn)
             for f in [
-                makeFeatureRow("7 天共 8000 字"),
+                makeFeatureRow("7 天共 \(TrialManager.formatChars(TrialManager.shared.displayTotalLimit)) 字"),
                 makeFeatureRow("识别 + AI 润色，", muted: "费用我们承担"),
                 makeFeatureRow("不用填 Key，按一下就出字"),
                 makeFeatureRow("到期后可转下面两种"),
@@ -3371,6 +3391,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let accessOK = AXIsProcessTrusted()
         let asrOK = CloudASRTranscriber().isConfigured()
         let polishOK = isPolishConfigured()
+        let polishOff = (config.string(forKey: "polish_provider") ?? "qwen") == "none"
         // 按真实走的通道显示：会员优先时填了 Key 也显示「会员」；没填 Key 时会员 / 试用都算「可用」
         func hostedRow(ownKey: Bool) -> (sub: String, tail: String)? {
             switch HostedRoute.current(ownKeyConfigured: ownKey) {
@@ -3393,11 +3414,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                 : asrOK
                     ? ("语音识别", "BigASR 可用", true, "已配置", nil)
                     : ("语音识别", "请填写 ASR Key", false, "未配置", nil),
-            polishHosted != nil
-                ? ("AI 润色", polishHosted!.sub, true, polishHosted!.tail, nil)
-                : polishOK
-                    ? ("AI 润色", "可整理文本", true, "已配置", nil)
-                    : ("AI 润色", "请填写润色 Key", false, "未配置", nil),
+            polishOff
+                ? ("AI 润色", "已选「不优化」，直接输出识别原文", true, "已关闭", nil)
+                : polishHosted != nil
+                    ? ("AI 润色", polishHosted!.sub, true, polishHosted!.tail, nil)
+                    : polishOK
+                        ? ("AI 润色", "可整理文本", true, "已配置", nil)
+                        : ("AI 润色", "请填写润色 Key", false, "未配置", nil),
         ]
 
         let allOK = rows.allSatisfy { $0.2 }
@@ -3675,7 +3698,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         stack.setCustomSpacing(8, after: appearanceTitle)
         let appearanceCard = makeAppearanceCard()
         stack.addArrangedSubview(appearanceCard)
-        stack.setCustomSpacing(24, after: appearanceCard)
+        stack.setCustomSpacing(10, after: appearanceCard)
+        let dockCard = makeDockIconCard()
+        stack.addArrangedSubview(dockCard)
+        stack.setCustomSpacing(24, after: dockCard)
 
         let audioTitle = sectionTitle("音频")
         stack.addArrangedSubview(audioTitle)
@@ -3826,6 +3852,53 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return card
     }
 
+    private func makeDockIconCard() -> NSView {
+        let card = makeCard()
+
+        let title = label("在 Dock 中显示", size: 14, weight: .medium, color: theme.text)
+        let desc = label("关闭后 Dock 和 ⌘Tab 里不再出现 Typefree，可从屏幕顶部菜单栏的图标打开。",
+                         size: 12, weight: .regular, color: theme.text3)
+        desc.maximumNumberOfLines = 0
+
+        let toggle = VPToggle(theme: theme, target: self, action: #selector(dockIconChanged(_:)))
+        toggle.setOn(DockIcon.isShown, animated: false)
+        toggle.setAccessibilityLabel("在 Dock 中显示")
+
+        let textStack = NSStackView()
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 2
+        textStack.addArrangedSubview(title)
+        textStack.addArrangedSubview(desc)
+        textStack.setHuggingPriority(.defaultLow, for: .horizontal)
+
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.distribution = .fill
+        row.spacing = 16
+        row.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
+        row.addArrangedSubview(textStack)
+        row.addArrangedSubview(spacer)
+        row.addArrangedSubview(toggle)
+
+        mount(row, in: card)
+        return card
+    }
+
+    @objc private func dockIconChanged(_ sender: VPToggle) {
+        DockIcon.setShown(sender.isOn)
+        // 切激活策略时系统会把本 App 挪到后台，把设置窗拉回前台，别让用户以为窗口没了
+        DispatchQueue.main.async { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.window?.makeKeyAndOrderFront(nil)
+        }
+    }
+
     @objc private func mainWindowAppearanceChanged(_ sender: VPSegmentedControl) {
         let option = Self.appearanceOptions[sender.selectedSegment]
         UserDefaults.standard.set(option.rawValue, forKey: MainWindowAppearance.userDefaultsKey)
@@ -3856,7 +3929,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         refreshASRFields(for: provider)
         // 识别服务商变了，优化卡片可能要在「填框」和「已复用」之间切换，刷新一下
         if let seg = polishProviderControl {
-            refreshPolishKeyField(for: Self.polishProvider(forSegment: seg.selectedSegment))
+            refreshPolishKeyField(for: polishProvider(forSegment: seg.selectedSegment))
         }
     }
 
@@ -4175,7 +4248,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         headRow.addArrangedSubview(badge)
         headRow.addArrangedSubview(titleLbl)
 
-        let desc = label("把你说的话转成文字。识别准、支持热词；不知道选哪家就用火山引擎（豆包）。",
+        let desc = label("把你说的话转成文字。识别准、支持热词。",
                           size: 12.5, weight: .regular, color: theme.text3)
         desc.maximumNumberOfLines = 0
 
@@ -4187,8 +4260,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             selBg: theme.segSelBg, selBorder: theme.sep,
             selText: theme.text, normalText: theme.text2,
             target: self, action: #selector(asrProviderChanged(_:)))
-        providerSeg.selectedSegment = Self.asrProviderSegmentIndex(for: CloudASRTranscriber().currentVersion().provider)
+        let asrProviderNow = CloudASRTranscriber().currentVersion().provider
+        providerSeg.selectedSegment = Self.asrProviderSegmentIndex(for: asrProviderNow)
         asrProviderControl = providerSeg
+        // 9-15 Ray：识别服务商只留火山，百炼选项隐藏；已经在用百炼的老用户仍能看到分段（好切回来）
+        let showASRProviderSeg = asrProviderNow == .bailian
 
         // 动态区：随服务商切换（火山→Key+版本三选；百炼→DashScope Key+模型说明）
         let keyContainer = NSStackView()
@@ -4227,22 +4303,27 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         inner.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18)
         inner.addArrangedSubview(headRow)
         inner.addArrangedSubview(desc)
-        inner.addArrangedSubview(providerLabel)
-        inner.addArrangedSubview(providerSeg)
+        if showASRProviderSeg {
+            inner.addArrangedSubview(providerLabel)
+            inner.addArrangedSubview(providerSeg)
+        }
         inner.addArrangedSubview(keyContainer)
         inner.addArrangedSubview(getKey)
         inner.addArrangedSubview(testRow)
         inner.setCustomSpacing(4, after: headRow)
         inner.setCustomSpacing(14, after: desc)
-        inner.setCustomSpacing(6, after: providerLabel)
-        inner.setCustomSpacing(12, after: providerSeg)
+        if showASRProviderSeg {
+            inner.setCustomSpacing(6, after: providerLabel)
+            inner.setCustomSpacing(12, after: providerSeg)
+        }
         inner.setCustomSpacing(12, after: getKey)
 
         let filler = NSView()
         filler.setContentHuggingPriority(.init(1), for: .vertical)
         inner.addArrangedSubview(filler)
 
-        for v in [desc, providerSeg, keyContainer, testRow] {
+        // 分段被隐藏时不在视图树里，不能给它挂宽度约束（否则抛异常，整页空白）
+        for v in (showASRProviderSeg ? [desc, providerSeg, keyContainer, testRow] : [desc, keyContainer, testRow]) {
             v.widthAnchor.constraint(equalTo: inner.widthAnchor, constant: -36).isActive = true
         }
 
@@ -4269,8 +4350,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
         // Provider selector: 通义千问 / 豆包 / 不优化（阿里润色更强，作为推荐放最前）
         // 自绘分段控件，软填充观感（详见 VPSegmentedControl）
+        let current = config.string(forKey: "polish_provider") ?? "qwen"
+        // 9-15 Ray：润色只留「百炼 / 不优化」，豆包隐藏；已经选了豆包的老用户仍显示三段
+        polishSegProviders = current == "doubao" ? ["qwen", "doubao", "none"] : ["qwen", "none"]
         let seg = VPSegmentedControl(
-            labels: ["百炼（阿里）", "火山引擎（豆包）", "不优化"],
+            labels: polishSegProviders.map { Self.polishProviderLabel($0) },
             trackBg: theme.cardAlt,
             trackBorder: theme.sep,
             selBg: theme.segSelBg,
@@ -4279,8 +4363,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             normalText: theme.text2,
             target: self,
             action: #selector(polishProviderChanged(_:)))
-        let current = config.string(forKey: "polish_provider") ?? "qwen"
-        seg.selectedSegment = Self.polishSegmentIndex(for: current)
+        seg.selectedSegment = polishSegmentIndex(for: current)
         polishProviderControl = seg
 
         // Key field container (swapped by selection)
@@ -4438,24 +4521,27 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         NSWorkspace.shared.open(url)
     }
 
-    private static func polishSegmentIndex(for provider: String) -> Int {
+    /// 润色分段当前显示的服务商顺序（豆包默认隐藏，见 buildPolishCard）
+    private var polishSegProviders: [String] = ["qwen", "none"]
+
+    private static func polishProviderLabel(_ provider: String) -> String {
         switch provider {
-        case "doubao": return 1
-        case "none": return 2
-        default: return 0 // qwen（推荐，放最前）
+        case "doubao": return "火山引擎（豆包）"
+        case "none": return "不优化"
+        default: return "百炼（阿里）"
         }
     }
 
-    private static func polishProvider(forSegment index: Int) -> String {
-        switch index {
-        case 1: return "doubao"
-        case 2: return "none"
-        default: return "qwen"
-        }
+    private func polishSegmentIndex(for provider: String) -> Int {
+        polishSegProviders.firstIndex(of: provider) ?? 0 // qwen（推荐，放最前）
+    }
+
+    private func polishProvider(forSegment index: Int) -> String {
+        polishSegProviders.indices.contains(index) ? polishSegProviders[index] : "qwen"
     }
 
     @objc private func polishProviderChanged(_ sender: VPSegmentedControl) {
-        let provider = Self.polishProvider(forSegment: sender.selectedSegment)
+        let provider = polishProvider(forSegment: sender.selectedSegment)
         config.save(value: provider, forKey: "polish_provider")
         refreshPolishKeyField(for: provider)
         polishTestResultLabel?.stringValue = ""
@@ -4477,7 +4563,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             polishTestButton?.isEnabled = false
             polishTestButton?.title = "无需测试"
         case "qwen":
-            let rec = label("✓ 推荐。语义润色效果好，识别配火山或阿里都行。", size: 11.5, weight: .medium, color: theme.accent)
+            let rec = label("✓ 推荐。语义润色效果好。", size: 11.5, weight: .medium, color: theme.accent)
             rec.maximumNumberOfLines = 0
             container.addArrangedSubview(rec)
             rec.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
@@ -4551,7 +4637,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let saved = config.string(forKey: "qwen_polish_model") ?? ""
         let current = saved.isEmpty ? def : saved
 
-        var options = qwenPolishModelOptions
+        // 9-15 Ray：先别给用户太多选择，这三档隐藏；正选着的仍显示
+        let hiddenModels: Set<String> = ["qwen3.8-max", "qwen3.7-max", "qwen3.6-flash"]
+        var options = qwenPolishModelOptions.filter { !hiddenModels.contains($0.value) || $0.value == current }
         if !current.isEmpty, !options.contains(where: { $0.value == current }) {
             options.append((current, "自定义：\(current)"))
         }
@@ -5152,7 +5240,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if bailianKeyField != nil || dashscopeAPIKeyField != nil {
             secretOK = config.saveSecret(!dsBailian.isEmpty ? dsBailian : dsPolish, forKey: "dashscope_api_key") && secretOK
         }
-        config.save(values: ["polish_provider": polishProviderControl.map { Self.polishProvider(forSegment: $0.selectedSegment) } ?? "qwen"])
+        config.save(values: ["polish_provider": polishProviderControl.map { polishProvider(forSegment: $0.selectedSegment) } ?? "qwen"])
         if !secretOK {
             presentHistoryActionResult(success: false, message: "API Key 保存到钥匙串失败，请重试")
         }
@@ -5193,7 +5281,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func testPolishConnection() {
-        let provider = polishProviderControl.map { Self.polishProvider(forSegment: $0.selectedSegment) } ?? "qwen"
+        let provider = polishProviderControl.map { polishProvider(forSegment: $0.selectedSegment) } ?? "qwen"
         guard provider != "none" else { return }
         persistModelFields()
         polishTestButton?.isEnabled = false
@@ -5229,7 +5317,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             // 识别百炼填了 key → 优化通义千问那边切到「已复用」
             DispatchQueue.main.async { [weak self] in
                 guard let self, let seg = self.polishProviderControl else { return }
-                self.refreshPolishKeyField(for: Self.polishProvider(forSegment: seg.selectedSegment))
+                self.refreshPolishKeyField(for: polishProvider(forSegment: seg.selectedSegment))
             }
         } else if field === dashscopeAPIKeyField {
             bailianKeyField?.stringValue = field.stringValue
@@ -6840,6 +6928,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             return !(config.string(forKey: "dashscope_api_key", envKey: "DASHSCOPE_API_KEY") ?? "").isEmpty
         case "zhipu":
             return !(config.string(forKey: "zhipu_api_key", envKey: "ZHIPU_API_KEY") ?? "").isEmpty
+        case "none":
+            return true   // 用户主动选了「不优化」，不是没配置
         default:
             return !(config.string(forKey: "ark_api_key", envKey: "ARK_API_KEY") ?? "").isEmpty
         }

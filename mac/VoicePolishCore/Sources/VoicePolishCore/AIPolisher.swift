@@ -584,7 +584,9 @@ public class AIPolisher {
             }
             // 非 200：试用层错误（含 429 润色额度用尽）。把真实原因带回上层，用于提醒用户。
             let errJson = (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any]
-            let msg = Self.extractAPIErrorMessage(from: errJson) ?? (route == .member ? "会员润色失败（\(status)）" : "试用润色失败（\(status)）")
+            let expired = (errJson?["code"] as? String) == "trial_expired" || (errJson?["expired"] as? Bool) == true
+            let msg = expired ? "试用已结束 · 开通会员，或填自己的 Key"
+                : Self.extractAPIErrorMessage(from: errJson) ?? (route == .member ? "会员润色失败（\(status)）" : "试用润色失败（\(status)）")
             log?("Hosted polish failed: \(msg)")
             completion(.failure(PolishError.apiError(msg)))
         }

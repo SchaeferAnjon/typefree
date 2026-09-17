@@ -89,9 +89,13 @@ final class AnswerPanel {
     }
 
     /// 录音状态 → 面板蓝光 / 待取消红光；底栏同步换成音浪
+    /// 主程序告知：现在正在「长按问 AI」等开口（误触时什么都别动）。为 true 时点面板外面不收起。
+    var isAskPending: (() -> Bool)?
+
     func setRecording(_ recording: Bool, cancelArmed: Bool = false) {
         model.recording = recording
         model.cancelArmed = cancelArmed
+        if !recording { followUpActive = false }   // 快捷键停止的续聊不经 endFollowUp，别把状态留着
         if recording { model.footer = .listening; model.wave.start() } else { model.wave.stop(); if model.footer == .listening { model.footer = .idle } }
     }
 
@@ -307,6 +311,8 @@ final class AnswerPanel {
         removeOutsideClickMonitor()
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, !self.model.pinned, self.panel?.isVisible == true, !self.model.collapsed else { return }
+            // 用户在别处长按提问：等他开口再收（feedAskSpeechDetector 里 hide），误触时面板原地不动
+            if self.isAskPending?() == true { return }
             self.collapse()
         }
     }

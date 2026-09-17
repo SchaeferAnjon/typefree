@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import ServiceManagement
 import VoicePolishCore
 
@@ -39,5 +39,30 @@ enum LaunchAtLogin {
         guard !config.bool(forKey: defaultAppliedKey, defaultValue: false) else { return }
         setEnabled(true)
         config.save(bool: true, forKey: defaultAppliedKey)
+    }
+}
+
+// MARK: - Dock 图标
+
+/// 「在 Dock 中显示」（默认开）。关掉 = 切成 accessory：Dock 和 ⌘Tab 里都不再出现，和纯菜单栏 App 一样；
+/// 菜单栏图标照常在（「打开 Typefree」从那里进），在访达 / 启动台再次打开 App 也会弹出主窗口。
+enum DockIcon {
+    static let configKey = "show_dock_icon"
+
+    static var isShown: Bool {
+        VoicePolishConfig.shared.bool(forKey: configKey, defaultValue: true)
+    }
+
+    /// 设置页开关回调：存下选择并立即生效。
+    static func setShown(_ shown: Bool) {
+        VoicePolishConfig.shared.save(bool: shown, forKey: configKey)
+        apply()
+    }
+
+    /// 按当前选择设置激活策略；启动时（applicationWillFinishLaunching，Dock 图标出现前）调一次。
+    static func apply() {
+        let policy: NSApplication.ActivationPolicy = isShown ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
     }
 }

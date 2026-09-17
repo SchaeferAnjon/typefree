@@ -37,6 +37,9 @@ public final class TrialManager {
     private let kUsedToday    = "trial.usedToday"
     private let kDailyLimit   = "trial.dailyLimit"
     private let kExpired      = "trial.expired"
+    private let kTotalUsed    = "trial.totalUsed"
+    private let kTotalLimit   = "trial.totalLimit"
+    private let kUsedDay      = "trial.usedDay"      // usedToday 对应的北京日，跨天视为 0
     private let kLastRefresh  = "trial.lastRefreshAt"
 
     // 自带 key（付费/BYOK）用户活跃自报：识别/润色走自己通道、不经服务器，
@@ -76,8 +79,38 @@ public final class TrialManager {
     /// 剩余试用天数（来自上次服务器响应的缓存）。
     public var daysLeft: Int { defaults.integer(forKey: kDaysLeft) }
 
-    /// 今日已用次数（来自上次服务器响应的缓存）。
-    public var usedToday: Int { defaults.integer(forKey: kUsedToday) }
+    /// 今日已用字数（来自上次服务器响应的缓存）。缓存的是哪一天的：过了北京时间 0 点就视为 0，
+    /// 别拿昨天的数字拦今天的录音。
+    public var usedToday: Int {
+        guard defaults.string(forKey: kUsedDay) == Self.beijingDayKey() else { return 0 }
+        return defaults.integer(forKey: kUsedToday)
+    }
+
+    /// 7 天总额（字）与已用（来自上次服务器响应）。服务器没给时 totalLimit 为 0，视为不限。
+    public var totalUsed: Int { defaults.integer(forKey: kTotalUsed) }
+    public var totalLimit: Int { defaults.integer(forKey: kTotalLimit) }
+    /// 试用总额已用完：等同试用结束（服务器会 429），客户端提前拦住并引导开会员 / 填 Key
+    public var isTotalExhausted: Bool { totalLimit > 0 && totalUsed >= totalLimit }
+    /// 界面展示用的总额：还没拿到服务器数字时（首启未握手）用默认值，别显示成 0。
+    public static let fallbackTotalLimit = 10_000
+    public var displayTotalLimit: Int { totalLimit > 0 ? totalLimit : Self.fallbackTotalLimit }
+
+    /// 字数千分位（10000 → "10,000"），试用额度相关文案统一用它。
+    public static func formatChars(_ n: Int) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: NSNumber(value: n)) ?? "\(n)"
+    }
+
+    /// 北京时间（UTC+8）的 yyyy-MM-dd，与服务器记账口径一致
+    public static func beijingDayKey(now: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 8 * 3600)
+        return f.string(from: now)
+    }
 
     /// 每日上限（缺省 1500，来自服务器）。
     public var dailyLimit: Int {
@@ -166,6 +199,13 @@ public final class TrialManager {
         public let dailyLimit: Int
         public let usedToday: Int
         public let expired: Bool
+        public let totalUsed: Int
+        public let totalLimit: Int
+
+        public init(token: String?, daysLeft: Int, dailyLimit: Int, usedToday: Int, expired: Bool, totalUsed: Int = 0, totalLimit: Int = 0) {
+            self.token = token; self.daysLeft = daysLeft; self.dailyLimit = dailyLimit
+            self.usedToday = usedToday; self.expired = expired; self.totalUsed = totalUsed; self.totalLimit = totalLimit
+        }
     }
 
     /// 解析 /trial/start 返回的 JSON 字典。
@@ -183,12 +223,16 @@ public final class TrialManager {
         let daysLeft   = json["days_left"]   as? Int ?? 0
         let dailyLimit = json["daily_limit"] as? Int ?? 1500
         let usedToday  = json["used_today"]  as? Int ?? 0
+        let totalUsed  = json["total_used"]  as? Int ?? 0
+        let totalLimit = json["total_limit"] as? Int ?? 0
         return ParsedTrial(
             token:      (token?.isEmpty == false) ? token : nil,
             daysLeft:   daysLeft,
             dailyLimit: dailyLimit,
             usedToday:  usedToday,
-            expired:    false
+            expired:    false,
+            totalUsed:  totalUsed,
+            totalLimit: totalLimit
         )
     }
 
@@ -202,7 +246,10 @@ public final class TrialManager {
             defaults.set(p.token ?? "", forKey: kToken)
             defaults.set(p.daysLeft,   forKey: kDaysLeft)
             defaults.set(p.usedToday,  forKey: kUsedToday)
+            defaults.set(Self.beijingDayKey(), forKey: kUsedDay)
             defaults.set(p.dailyLimit, forKey: kDailyLimit)
+            defaults.set(p.totalUsed,  forKey: kTotalUsed)
+            defaults.set(p.totalLimit, forKey: kTotalLimit)
             defaults.set(false,        forKey: kExpired)
         }
         defaults.set(Date().timeIntervalSince1970, forKey: kLastRefresh)
@@ -233,6 +280,13 @@ public final class TrialManager {
         // TrialManager 是共享单例，self 不会被释放，强持有 self 安全。
         session.dataTask(with: req) { data, response, error in
             let http = response as? HTTPURLResponse
+            // 403 trial_expired：两次握手之间到期了，立刻标记，别等下次打开主窗口
+            if http?.statusCode == 403,
+               let data = data,
+               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+               (json["code"] as? String) == "trial_expired" || (json["expired"] as? Bool) == true {
+                self.applyParsed(ParsedTrial(token: nil, daysLeft: 0, dailyLimit: self.dailyLimit, usedToday: 0, expired: true))
+            }
             // 401 且 token 过期 → 刷新一次后重试（仅第一次）
             if attempt == 1, http?.statusCode == 401,
                let data = data,
@@ -275,6 +329,13 @@ public final class TrialManager {
                (json["code"] as? String) == "bad_member_token" {
                 LicenseManager.shared.revalidateNow { ok in
                     guard ok else { completion(data, http, error); return }
+                    guard LicenseManager.shared.hasActiveMembership() else {
+                        // 复核成功但会员已到期：给人话，别用空令牌再撞一次 401
+                        let body = try? JSONSerialization.data(withJSONObject: ["error": "会员已到期 · 续费，或在「设置 → 模型」填自己的 Key", "code": "member_expired"])
+                        let resp = HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: nil)
+                        completion(body, resp, nil)
+                        return
+                    }
                     self.sendMemberPost(path: path, jsonBody: jsonBody, timeout: timeout, attempt: 2, completion: completion)
                 }
                 return

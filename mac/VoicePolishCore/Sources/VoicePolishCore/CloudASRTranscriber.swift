@@ -374,7 +374,9 @@ public final class CloudASRTranscriber {
             } else {
                 // 托管层错误（试用额度/会员隐藏限额等）：用服务器给的人话 error 文案
                 let json = (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any]
-                let msg = (json?["error"] as? String) ?? (route == .member ? "会员识别失败（\(status)）" : "试用识别失败（\(status)）")
+                let expired = (json?["code"] as? String) == "trial_expired" || (json?["expired"] as? Bool) == true
+                let msg = expired ? "试用已结束 · 开通会员，或在「设置 → 模型」填自己的 Key"
+                    : (json?["error"] as? String) ?? (route == .member ? "会员识别失败（\(status)）" : "试用识别失败（\(status)）")
                 completion(.failure(TranscriptionError.serverFailed(message: msg)))
             }
         }

@@ -76,7 +76,6 @@ final class MouseHoldToTalkManager {
         let bundleID: String?
         let appName: String
         /// 按在自家窗口（新功能引导的「试一试」输入框）上：只允许输入框长按说话，不触发问 AI
-        var ownWindow = false
         var recording = false
         /// 已向目标 App 合成过「松开」：系统层面的按键状态已不可信，只认硬件层状态 / 真实松开事件
         var preempted = false
@@ -216,7 +215,7 @@ final class MouseHoldToTalkManager {
             guard let self else { return event }
             let guideNumber = self.guideWindowNumber?()
             // 松开/拖动没有 window 归属时也要送到（按住期间指针可能已离开窗口）
-            if event.window?.windowNumber == guideNumber || (event.type != .leftMouseDown && self.press != nil) {
+            if (guideNumber != nil && event.window?.windowNumber == guideNumber) || (event.type != .leftMouseDown && self.press != nil) {
                 self.dispatch(event)
             }
             return event
@@ -279,7 +278,6 @@ final class MouseHoldToTalkManager {
             lockDistance: availableBelow.map { MouseHoldToTalkSettings.lockDistance(availableBelow: $0) }
                 ?? MouseHoldToTalkSettings.lockArmDistance
         )
-        current.ownWindow = onGuideWindow
         press = current
         debugLog?("down #\(current.id) at \(TextInputLocator.fmt(point)) app=\(current.appName)")
 
@@ -585,7 +583,8 @@ final class MouseHoldToTalkManager {
     private func applyVerdict(_ verdict: TextInputVerdict, pressID: Int) {
         guard var current = press, current.id == pressID, !current.recording else { return }
         var askMode = false
-        if case .askable = verdict, onStartAsk != nil, !current.ownWindow {
+        // 自家引导页的空白处也放行问 AI（Ray 9-15：看完演示想立刻在引导页上试一下）；输入框仍走长按说话
+        if case .askable = verdict, onStartAsk != nil, MouseHoldToTalkSettings.isAskEnabled {
             askMode = true
         } else if !verdict.isEditable || !MouseHoldToTalkSettings.isEnabled {
             // 只开了「随时问 AI」没开「鼠标长按说话」：输入框上按住不录音

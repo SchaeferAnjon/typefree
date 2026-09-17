@@ -51,4 +51,83 @@ final class SupportChatTests: XCTestCase {
         XCTAssertEqual(service.unreadCount, 0)
         XCTAssertFalse(service.hasThread)
     }
+
+    // MARK: - 工单
+
+    func testPayloadCarriesTicketIdOrCategory() {
+        let send = SupportChatService.makePayload(out(text: "补充"), deviceID: "d", secret: "s", osVersion: "26.0", ticketId: 7)
+        XCTAssertEqual(send?["ticket_id"] as? Int, 7)
+        XCTAssertNil(send?["category"])
+        let create = SupportChatService.makePayload(out(text: "问题"), deviceID: "d", secret: nil, osVersion: "26.0", category: .idea)
+        XCTAssertEqual(create?["category"] as? String, "idea")
+        XCTAssertNil(create?["ticket_id"])
+    }
+
+    func testTicketJSONParsingFallsBackForUnknownValues() {
+        let t = SupportTicket(json: ["id": 3, "no": 1003, "category": "issue", "title": "闪退", "status": "closed",
+                                    "created_at": "2026-09-17 10:00:00", "closed_at": "2026-09-17 11:00:00"])
+        XCTAssertEqual(t, SupportTicket(id: 3, no: 1003, category: .issue, title: "闪退", status: .closed,
+                                        createdAt: "2026-09-17 10:00:00", closedAt: "2026-09-17 11:00:00"))
+        let odd = SupportTicket(json: ["id": 4, "category": "hack", "status": "weird"])
+        XCTAssertEqual(odd?.category, .other)
+        XCTAssertEqual(odd?.status, .open)
+        XCTAssertEqual(odd?.no, 1004)
+        XCTAssertNil(SupportTicket(json: ["title": "没有 id"]))
+    }
+
+    func testClassifyPrefersServerMessageAndMapsTicketClosed() {
+        XCTAssertEqual(SupportChatService.classify(code: 409, json: ["code": "ticket_closed", "error": "x"]), .ticketClosed)
+        XCTAssertEqual(SupportChatService.classify(code: 429, json: ["code": "too_many_open", "error": "处理中的工单太多了"]), .network("处理中的工单太多了"))
+        XCTAssertEqual(SupportChatService.classify(code: 403, json: ["code": "blocked"]), .blocked)
+        XCTAssertEqual(SupportChatService.classify(code: 0, json: nil), .network("网络不通"))
+        XCTAssertEqual(SupportChatService.classify(code: 502, json: ["error": "bad gateway"]), .network("服务器返回 502"))
+    }
+
+    func testUnreadIsCountedPerTicketAndOpenTicketsSortFirst() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("support-test-\(UUID().uuidString)")
+        let suite = UserDefaults(suiteName: "support-test-\(UUID().uuidString)")!
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let service = SupportChatService(defaults: suite, storeDir: dir, apiBase: "http://127.0.0.1:1")
+        service.replaceTickets([
+            SupportTicket(id: 1, no: 1001, category: .issue, title: "旧的", status: .closed, createdAt: "", closedAt: ""),
+            SupportTicket(id: 2, no: 1002, category: .idea, title: "新的", status: .open, createdAt: ""),
+            SupportTicket(id: 3, no: 1003, category: .other, title: "更新的", status: .open, createdAt: ""),
+        ])
+        service.append([
+            SupportMessage(id: 10, role: .user, text: "q", createdAt: "", ticketId: 1),
+            SupportMessage(id: 11, role: .admin, text: "a", createdAt: "", ticketId: 1),
+            SupportMessage(id: 12, role: .user, text: "q2", createdAt: "", localImageFile: "img-12.jpg", ticketId: 2),
+            SupportMessage(id: 13, role: .admin, text: "b", createdAt: "", ticketId: 2),
+            SupportMessage(id: 14, role: .admin, text: "c", createdAt: "", ticketId: 2),
+        ])
+        XCTAssertEqual(service.sortedTickets.map(\.id), [3, 2, 1])
+        XCTAssertEqual(service.unreadCount(ticket: 1), 1)
+        XCTAssertEqual(service.unreadCount(ticket: 2), 2)
+        XCTAssertEqual(service.unreadCount, 3)
+        service.markTicketSeen(2)
+        XCTAssertEqual(service.unreadCount(ticket: 2), 0)
+        XCTAssertEqual(service.unreadCount, 1)
+        // 同步回来的同一条消息不带本机截图文件名：合并时保留
+        service.append([SupportMessage(id: 12, role: .user, text: "q2", createdAt: "", ticketId: 2)])
+        XCTAssertEqual(service.messages(inTicket: 2).first?.localImageFile, "img-12.jpg")
+        // 重开服务：工单和消息都从本机缓存读回（落盘在后台队列，等文件写好）
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline, SupportChatService(defaults: suite, storeDir: dir, apiBase: "x").tickets.count < 3 { usleep(20_000) }
+        let again = SupportChatService(defaults: suite, storeDir: dir, apiBase: "http://127.0.0.1:1")
+        XCTAssertEqual(Set(again.tickets.map(\.id)), [1, 2, 3])
+        XCTAssertEqual(again.messages.count, 5)
+    }
+
+    func testOldCachedMessagesWithoutTicketStillDecodeAndCountAsUnread() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("support-test-\(UUID().uuidString)")
+        let suite = UserDefaults(suiteName: "support-test-\(UUID().uuidString)")!
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // 3.0.2 写的缓存：没有 ticketId 字段
+        let old = #"[{"id":1,"role":"user","text":"q","hasImage":false,"hasAudio":false,"createdAt":"x"},{"id":2,"role":"admin","text":"a","hasImage":false,"hasAudio":false,"createdAt":"x"}]"#
+        try Data(old.utf8).write(to: dir.appendingPathComponent("support.json"))
+        let service = SupportChatService(defaults: suite, storeDir: dir, apiBase: "http://127.0.0.1:1")
+        XCTAssertEqual(service.messages.count, 2)
+        XCTAssertNil(service.messages[0].ticketId)
+        XCTAssertEqual(service.unreadCount, 1)
+    }
 }

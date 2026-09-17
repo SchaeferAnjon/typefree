@@ -128,6 +128,7 @@ final class TrialManagerTests: XCTestCase {
         d.set(parsed.token ?? "", forKey: "trial.token")
         d.set(parsed.daysLeft,   forKey: "trial.daysLeft")
         d.set(parsed.usedToday,  forKey: "trial.usedToday")
+        d.set(TrialManager.beijingDayKey(), forKey: "trial.usedDay")   // usedToday 只在当天有效
         d.set(parsed.dailyLimit, forKey: "trial.dailyLimit")
         d.set(false,             forKey: "trial.expired")
 
@@ -157,5 +158,26 @@ final class TrialManagerTests: XCTestCase {
         let d = freshDefaults(name: "limit-default")
         let mgr = TrialManager(defaults: d, apiBase: "http://localhost")
         XCTAssertEqual(mgr.dailyLimit, 1500, "UserDefaults 无值时 dailyLimit accessor 应默认 1500")
+    }
+
+    func testParseTrialStartReadsTotalQuota() {
+        let p = TrialManager.parseTrialStart(["trial_token": "t", "days_left": 3, "daily_limit": 5000, "used_today": 120, "total_used": 7900, "total_limit": 8000])
+        XCTAssertEqual(p.totalUsed, 7900)
+        XCTAssertEqual(p.totalLimit, 8000)
+        let old = TrialManager.parseTrialStart(["trial_token": "t", "days_left": 3])
+        XCTAssertEqual(old.totalLimit, 0, "老服务器没给总额字段时视为不限")
+    }
+
+    func testUsedTodayResetsAcrossBeijingDay() {
+        let defaults = UserDefaults(suiteName: "TrialManagerDayTests")!
+        defaults.removePersistentDomain(forName: "TrialManagerDayTests")
+        let m = TrialManager(defaults: defaults, session: URLSession(configuration: .ephemeral), apiBase: "https://example.invalid")
+        defaults.set(4800, forKey: "trial.usedToday")
+        defaults.set("2000-01-01", forKey: "trial.usedDay")
+        XCTAssertEqual(m.usedToday, 0, "缓存是别的日子的，跨天视为 0")
+        defaults.set(TrialManager.beijingDayKey(), forKey: "trial.usedDay")
+        XCTAssertEqual(m.usedToday, 4800)
+        defaults.set(8000, forKey: "trial.totalUsed"); defaults.set(8000, forKey: "trial.totalLimit")
+        XCTAssertTrue(m.isTotalExhausted)
     }
 }

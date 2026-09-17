@@ -31,6 +31,10 @@ public struct AskSpeechDetector {
     /// 当前的过线值
     var line: Float { max(Self.floorLevel, (quietest ?? 0) * Self.ratio) }
 
+    /// 到目前为止有没有哪一帧响到过线值（没攒够帧数、判不出「开口」，但至少响过一下）。
+    /// 松手时用来区分「说了话只是没判出来」和「从头到尾没出声的误触」
+    public var peakReachedLine: Bool { frameCount > 0 && peak >= line }
+
     /// 喂一帧电平（0～1）；返回 true 表示判出开口
     public mutating func feed(_ level: Float) -> Bool {
         frameCount += 1

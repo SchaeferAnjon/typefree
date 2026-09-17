@@ -54,43 +54,44 @@
     will-change:transform;backface-visibility:hidden}
 
   /* 当前步骤：一次只说一句 */
-  .step{margin-top:14px;min-height:22px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink)}
+  .step{margin-top:14px;min-height:22px;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--ink)}
   .step i{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ink);opacity:0;transition:opacity .15s}
   .step.on i{opacity:1}
   .step span{transition:opacity .15s}
   .step.swap span{opacity:0}
 
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px}
-  .chip{position:relative;overflow:hidden;border:0;border-radius:99px;padding:5px 12px;font:inherit;font-size:12px;
-    font-weight:500;color:var(--ink2);background:var(--stage);cursor:pointer}
+  .chip{position:relative;overflow:hidden;border:0;border-radius:99px;padding:6px 13px;font:inherit;font-size:13px;
+    font-weight:500;color:var(--ink2);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line2);cursor:pointer}
   .chip[aria-pressed="true"]{background:var(--primary-bg);color:var(--primary-fg)}
   .chip::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:rgba(255,255,255,.5)}
   .chip.run::after{animation:prog var(--dur,6s) linear forwards}
   @keyframes prog{to{width:100%}}
 
   .copy{margin:0}
-  .eyebrow{font-size:12px;color:var(--ink3);letter-spacing:.3px;margin-bottom:3px;font-variant-numeric:tabular-nums}
-  .copy h2{margin:0 0 8px;font-size:22px;line-height:1.3;font-weight:650;letter-spacing:-.2px}
-  .copy p{margin:0;font-size:14px;line-height:1.75;color:var(--ink2);text-wrap:pretty}
+  .eyebrow{font-size:13px;color:var(--ink3);letter-spacing:.3px;margin-bottom:3px;font-variant-numeric:tabular-nums}
+  .copy h2{margin:0 0 8px;font-size:25px;line-height:1.3;font-weight:650;letter-spacing:-.2px}
+  .copy p{margin:0;font-size:15.5px;line-height:1.75;color:var(--ink2);text-wrap:pretty}
   .copy p b{color:var(--ink);font-weight:600}
-  .note{margin:16px 0 0;font-size:12px;color:var(--ink3)}
+  .note{margin:16px 0 0;font-size:13px;color:var(--ink3)}
 
   /* 试一试 */
   .try{margin-top:18px;padding:11px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line2)}
-  .try-t{font-size:12px;color:var(--ink3);margin-bottom:7px}
+  .try-t{font-size:13px;color:var(--ink3);margin-bottom:7px}
   .try-t b{color:var(--ink);font-weight:600}
-  .try-box{display:block;width:100%;height:40px;border-radius:8px;background:var(--field);border:1px solid var(--field-line);padding:10px 12px;
-    font:inherit;font-size:13px;line-height:18px;color:var(--ink);resize:none;outline:none;transition:border-color .2s,box-shadow .2s}
+  .try-box{display:block;width:100%;height:42px;border-radius:8px;background:var(--field);border:1px solid var(--field-line);padding:10px 12px;
+    font:inherit;font-size:14px;line-height:20px;color:var(--ink);resize:none;outline:none;transition:border-color .2s,box-shadow .2s}
   .try-box::placeholder{color:#ADADB3}
   .try-box:focus{border-color:rgba(29,29,31,.4);box-shadow:0 0 0 3px rgba(29,29,31,.06)}
+  @media (prefers-color-scheme: dark){.try-box:focus{border-color:rgba(255,255,255,.4);box-shadow:0 0 0 3px rgba(255,255,255,.08)}}
 
   .foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .dots{display:flex;gap:6px}
   .dot{width:7px;height:7px;border-radius:99px;border:0;padding:0;background:var(--dot);cursor:pointer;transition:width .2s,background .2s}
   .dot[aria-current="true"]{width:20px;background:var(--ink)}
   .btns{display:flex;gap:8px;margin-left:auto}   /* 圆点隐藏（单功能演示）时按钮仍靠右 */
-  .btn{font:inherit;font-size:13px;font-weight:600;border-radius:8px;height:32px;padding:0 16px;border:0;cursor:pointer}
-  .btn.ghost{background:var(--stage);color:var(--ink)}
+  .btn{font:inherit;font-size:14px;font-weight:600;border-radius:8px;height:34px;padding:0 16px;border:0;cursor:pointer}
+  .btn.ghost{background:var(--soft);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
   .btn.primary{background:var(--primary-bg);color:var(--primary-fg);min-width:96px}
 
   .chip:focus-visible,.btn:focus-visible,.dot:focus-visible{outline:2px solid var(--ask);outline-offset:2px}
@@ -795,6 +796,8 @@
       const n = steps.findIndex((st) => st.p === feature);
       go(n < 0 ? 0 : n);
     },
+    // 原生端收起引导前调用：停掉当前页的动画定时器
+    stop() { players[current].stop(); },
   };
   go(0);
 })();

@@ -128,8 +128,67 @@ final class OutputLanguageCommandTests: XCTestCase {
         XCTAssertEqual(OutputLanguage.defaultLanguage(config: config)?.id, "en")
     }
 
+    func testTrailingFillersAfterCommand() {
+        let cases: [(String, String, String)] = [
+            ("明天开会用英文吧", "明天开会", "用英文"),
+            ("明天三点开会，翻译成英文好吗", "明天三点开会", "翻译成英文"),
+            ("明天三点开会，翻译成英文好吗？", "明天三点开会", "翻译成英文"),
+            ("明天开会，用英文说", "明天开会", "用英文"),
+            ("明天开会，用英文谢谢", "明天开会", "用英文"),
+            ("明天开会，用英文说吧。", "明天开会", "用英文"),
+            ("明天开会，翻译成英文一下", "明天开会", "翻译成英文"),
+            ("明天开会，用英语可以吗", "明天开会", "用英语"),
+            ("明天三点开会，in English please", "明天三点开会", "in English"),
+            ("明天三点开会，English, please.", "明天三点开会", "English"),
+        ]
+        for (input, body, phrase) in cases {
+            let cmd = detect(input)
+            XCTAssertNotNil(cmd, "应识别：\(input)")
+            XCTAssertEqual(cmd?.position, .trailing, input)
+            XCTAssertEqual(cmd?.matchedPhrase, phrase, input)
+            XCTAssertEqual(cmd?.strippedText, body, input)
+        }
+    }
+
+    func testTrailingFillersDoNotLeakIntoContent() {
+        // 语气词前面不是口令 → 整句是正文，什么都不剥
+        XCTAssertNil(detect("这个词用英文怎么说"))
+        XCTAssertNil(detect("我打算用英文写这篇文章的开头"))
+        XCTAssertNil(detect("他说用英文写邮件比较正式，我同意吧"))
+        XCTAssertNil(detect("明天开会说"))
+        XCTAssertNil(detect("明天开会好吗"))
+        // 剥掉语气词后紧跟的是否定词 → 仍是正文
+        XCTAssertNil(detect("这段话不要翻译成英文吧"))
+        XCTAssertNil(detect("这次别用英文说"))
+        // 只有口令 + 语气词，没正文 → 正文
+        XCTAssertNil(detect("翻译成英文好吗"))
+        XCTAssertNil(detect("用英文谢谢"))
+    }
+
     func testNoisyASRPunctuation() {
         XCTAssertEqual(detect("明天开会。。翻译成英文，")?.strippedText, "明天开会")
         XCTAssertEqual(detect("  用英文， 明天开会  ")?.strippedText, "明天开会")
+    }
+
+    // MARK: - Pipeline 决策（cloudOnly / omni 共用）
+
+    func testResolveOutputLanguagePrefersCommandThenDefault() {
+        let en = OutputLanguage.builtin.first { $0.id == "en" }!
+        let ja = OutputLanguage.builtin.first { $0.id == "ja" }!
+        let cmd = detect("明天开会，用英文吧")!
+
+        // omni：只认口令，不套默认语言
+        let omniHit = VoicePolishPipeline.resolveOutputLanguage(rawText: "明天开会，用英文吧", command: cmd, defaultLanguage: nil)
+        XCTAssertEqual(omniHit?.target.id, "en")
+        XCTAssertEqual(omniHit?.text, "明天开会")
+        XCTAssertNil(VoicePolishPipeline.resolveOutputLanguage(rawText: "明天开会", command: nil, defaultLanguage: nil))
+
+        // cloudOnly：口令优先于默认语言；没口令才用默认语言，正文原样
+        let both = VoicePolishPipeline.resolveOutputLanguage(rawText: "明天开会，用英文吧", command: cmd, defaultLanguage: ja)
+        XCTAssertEqual(both?.target.id, "en")
+        XCTAssertEqual(both?.text, "明天开会")
+        let onlyDefault = VoicePolishPipeline.resolveOutputLanguage(rawText: "明天开会", command: nil, defaultLanguage: en)
+        XCTAssertEqual(onlyDefault?.target.id, "en")
+        XCTAssertEqual(onlyDefault?.text, "明天开会")
     }
 }

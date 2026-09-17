@@ -19,11 +19,19 @@ public struct OutputLanguageCommand: Equatable {
     static let negations: [String] = ["不要", "别", "不用", "不能", "无需", "不需要", "不必", "不会", "没有", "不是", "不", "没"]
     /// 正文至少要有这么多有意义的字符，否则整句当正文
     static let minimumContentCharacters = 3
+    /// 句尾口令后面常带的语气词/客套（「用英文吧」「翻译成英文好吗」「用英文说」「in English please」），
+    /// 匹配句尾时先剥掉这些再比对；只在剥完后紧邻的是口令时才算数，否则整句照旧按正文处理。
+    static let trailingFillers: [String] = [
+        "可以吗", "好吗", "好么", "行吗", "谢谢", "一下", "就行", "吧", "呗", "哦", "啊", "呀", "哈", "说", "please",
+    ].sorted { $0.count > $1.count }
 
     public static func detect(in text: String, languages: [OutputLanguage] = OutputLanguage.builtin) -> OutputLanguageCommand? {
         let trimmed = trimEdges(text)
         guard !trimmed.isEmpty else { return nil }
         let lower = trimmed.lowercased()
+        // 句尾候选：原句，以及剥掉句尾语气词/客套后的句子（两者不同时才多一个候选）
+        let withoutFillers = stripTrailingFillers(trimmed)
+        let trailingCandidates: [String] = withoutFillers == trimmed ? [trimmed] : [trimmed, withoutFillers]
         var pairs: [(String, OutputLanguage)] = []
         for language in languages where language.enabled {
             for phrase in language.phrases {
@@ -37,10 +45,10 @@ public struct OutputLanguageCommand: Equatable {
             let p = phrase.lowercased()
             // 英文口令（English / in English）在英文句子里本来就是普通单词，空格不算停顿，必须有标点隔开
             let needsPunctuation = phrase.unicodeScalars.contains { isASCIILetter($0) }
-            // 句尾
-            if lower.hasSuffix(p) {
-                let bodyEnd = trimmed.index(trimmed.endIndex, offsetBy: -phrase.count)
-                let body = String(trimmed[..<bodyEnd])
+            // 句尾（先试原句，再试剥掉语气词后的句子）
+            for candidate in trailingCandidates where candidate.lowercased().hasSuffix(p) {
+                let bodyEnd = candidate.index(candidate.endIndex, offsetBy: -phrase.count)
+                let body = String(candidate[..<bodyEnd])
                 let boundaryOK = !needsPunctuation || hasPunctuationBoundary(body.unicodeScalars.reversed())
                 if boundaryOK, !isNegated(before: body), let stripped = validBody(trimEdges(body)) {
                     return OutputLanguageCommand(target: language, position: .trailing, matchedPhrase: phrase, strippedText: stripped)
@@ -78,6 +86,16 @@ public struct OutputLanguageCommand: Equatable {
 
     static func trimEdges(_ s: String) -> String {
         String(String.UnicodeScalarView(s.unicodeScalars.drop(while: isSeparator).reversed().drop(while: isSeparator).reversed()))
+    }
+
+    /// 反复剥掉句尾的语气词/客套及其旁边的标点（「用英文说吧。」→「用英文」）
+    static func stripTrailingFillers(_ s: String) -> String {
+        var current = trimEdges(s)
+        while true {
+            let lower = current.lowercased()
+            guard let filler = trailingFillers.first(where: { lower.hasSuffix($0.lowercased()) }) else { return current }
+            current = trimEdges(String(current.dropLast(filler.count)))
+        }
     }
 
     /// 口令前面（去掉标点后）紧跟否定词 → 是正文，不是口令

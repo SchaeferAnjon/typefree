@@ -891,6 +891,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private var askAwaitingSpeech = false
     /// 「开口」判定：每次录音按这次最安静的一帧现定过线值，换麦、换环境都自适应（见 AskSpeechDetector）
     private var askSpeechDetector = AskSpeechDetector()
+    /// 长按问 AI 这次录音的开始时刻：没判出开口就松手时，不足 1 秒的按住当误触丢掉
+    private var askRecordingStartedAt: Date?
     private let answerPanel = AnswerPanel()
     var textDelivery: TextDelivery!
     var pipeline: VoicePolishPipeline!
@@ -1007,6 +1009,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         }
     }
 
+    /// 3.0.1 起录音浮窗默认「墨黑·白波」（Ray 9-15：新装和升级的用户都统一用这个）。
+    /// 升级用户做一次性重置——之前选过「彩色（Siri）」的也回到墨黑，想换回去在「设置 → 录音浮窗」里点一下就行。
+    private func resetOverlayStyleToMonoOnce() {
+        let flag = "overlayStyleResetToMonoV1"
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: flag) else { return }
+        defaults.removeObject(forKey: OverlayStyle.userDefaultsKey)   // 空 = 默认墨黑
+        defaults.set(true, forKey: flag)
+    }
+
     private func removeLegacyPlaintextDebugLogIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: debugLogPrivacyMigrationKey) else { return }
@@ -1023,8 +1035,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         }
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // 用户关了「在 Dock 中显示」：在 Dock 图标出现前就切走，免得启动时闪一下
+        DockIcon.apply()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         removeLegacyPlaintextDebugLogIfNeeded()
+        resetOverlayStyleToMonoOnce()
         debugLog("App launched")
 
         // 启动早期：把明文 config 残留的 API key 收敛进钥匙串（幂等、fail-closed）。
@@ -1142,8 +1160,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         if !VoicePolishConfig.shared.bool(forKey: "onboarding_completed") {
             debugLog("First run: presenting onboarding")
             showOnboarding()
-        } else if !WhatsNewGuide.hasSeen {
-            // 老用户升级到 3.0：第一次打开就把设置窗打开，新手势演示盖在上面，看完才进正式页面
+        } else if !WhatsNewGuide.hasSeen, !UserDefaults.standard.bool(forKey: "WhatsNewGuideAutoShown_\(WhatsNewGuide.version)") {
+            // 老用户升级到 3.0：第一次打开就把设置窗打开，新手势演示盖在上面，看完才进正式页面。
+            // 只自动弹这一次：没看完就关掉的人，下次启动不再抢前台，从状态栏打开设置时仍会看到引导
+            UserDefaults.standard.set(true, forKey: "WhatsNewGuideAutoShown_\(WhatsNewGuide.version)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self, !self.isOnboardingVisible else { return }
                 self.debugLog("Presenting what's-new guide \(WhatsNewGuide.version)")
@@ -1172,6 +1192,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // 在访达 / 启动台再次打开时，系统会把 App 改回普通前台 App（Dock 图标又出来）；用户关了就再切回去
+        debugLog("reopen: policy=\(NSApp.activationPolicy().rawValue) showDock=\(DockIcon.isShown)")
+        DockIcon.apply()
+        DispatchQueue.main.async { DockIcon.apply() }
         if !flag {
             showSettingsCenter()
         }
@@ -1192,10 +1216,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         }
     }
 
+    /// - Parameter feedback: 不能录（没配 Key / 试用到期 / 额度用完）时要不要弹提示胶囊。
+    ///   问 AI 的长按、面板续聊传 false：默认开着的手势不该在空白处按住半秒就冒提示
     @discardableResult
-    private func startRecording() -> Bool {
+    private func startRecording(feedback: Bool = true) -> Bool {
         guard !isRecording else { return false }
-        guard canStartRecording(showFeedback: true) else { return false }
+        guard canStartRecording(showFeedback: feedback) else { return false }
         // 反馈页用：记下这次是在哪个软件里录的（定位「某个软件里不好用」）
         if let name = NSWorkspace.shared.frontmostApplication?.localizedName, name != "Typefree" {
             lastRecordingTargetApp = name
@@ -1214,7 +1240,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         overlayWindow.askGlow = voiceQuestionMode
         overlayWindow.languageTag = voiceQuestionMode ? nil : OutputLanguage.defaultLanguage()?.tag
         // 面板上续聊：录音状态画在面板底栏里（音浪 + 识别中），不弹底部胶囊
-        if !voiceQuestionFollowUp { overlayWindow.show(state: .recording) }
+        // 长按问 AI：等判断出开口再弹胶囊（feedAskSpeechDetector），误触时什么都不冒出来
+        if !voiceQuestionFollowUp, !askAwaitingSpeech { overlayWindow.show(state: .recording) }
+        if askAwaitingSpeech { askRecordingStartedAt = Date() }
 
         let errorMsg = audioRecorder.startRecording { [weak self] level in
             DispatchQueue.main.async {
@@ -1336,9 +1364,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
     /// 「长按问 AI」松手：只识别，不润色不粘贴，把识别出的问题交给 AI，答案弹在按下点附近。
     private func stopRecordingAndAsk() {
-        // 没判断出开口就松手（收音小或误触）：照常识别，识别不出话就悄悄收起，不弹「没听到问题」
+        // 没判断出开口就松手：录了至少 1 秒且响到过过线值（离麦远时说话可能攒不够帧）才照常识别，
+        // 识别不出话就悄悄收起，不弹「没听到问题」；太短或从头到尾没出声就是误触，静默丢弃
         let speechUnconfirmed = askAwaitingSpeech
-        if speechUnconfirmed { debugLog("ASK released before speech detected (\(askSpeechDetector.summary)) → recognize anyway") }
+        if speechUnconfirmed {
+            let duration = askRecordingStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+            guard duration >= 1.0, askSpeechDetector.peakReachedLine else {
+                debugLog("ASK released before speech detected, \(String(format: "%.2f", duration))s (\(askSpeechDetector.summary)) → discard")
+                discardAskRecording()
+                return
+            }
+            debugLog("ASK released before speech detected (\(askSpeechDetector.summary)) → recognize anyway")
+        }
+        askRecordingStartedAt = nil
         askAwaitingSpeech = false
         voiceQuestionMode = false
         let followUp = voiceQuestionFollowUp
@@ -1427,6 +1465,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         askAwaitingSpeech = false
         debugLog("ASK speech detected (level \(String(format: "%.2f", level)); \(askSpeechDetector.summary))")
         if !answerPanel.isPinned { answerPanel.hide() }
+        // 开口确认了才弹胶囊；先于接管按键，拖开取消 / 下拉锁定要用胶囊位置
+        overlayWindow.show(state: .recording)
         mouseHoldToTalkManager?.askSpeechDetected()
     }
 
@@ -1435,6 +1475,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private func discardAskRecording() {
         guard isRecording, voiceQuestionMode else { return }
         debugLog("ASK discarded before speech (\(askSpeechDetector.summary))")
+        askRecordingStartedAt = nil
         askAwaitingSpeech = false
         voiceQuestionMode = false
         voiceQuestionFollowUp = false
@@ -1487,7 +1528,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                 if wasFollowUp { self.answerPanel.setListening(.cancelled); return }
                 self.cancelledSamples = samples
                 self.cancelledSamplesTimer?.invalidate()
-                self.cancelledSamplesTimer = Timer.scheduledTimer(withTimeInterval: 9.0, repeats: false) { [weak self] _ in
+                self.cancelledSamplesTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
                     self?.cancelledSamples = nil
                 }
                 self.overlayWindow.showCancelledCapsule()
@@ -1648,10 +1689,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         if processingMode.usesCloudTranscription && !cloudTranscriber.isConfigured() {
             if !LicenseManager.shared.isActivated {
                 if TrialManager.shared.isInTrial {
+                    // 7 天总额用完 = 试用结束（服务器会 429），别再上传音频白跑一趟
+                    if TrialManager.shared.isTotalExhausted {
+                        TrialManager.shared.refreshFromServer()   // 服务器可能调高/重置过额度，对一次账，下次按就能用
+                        if showFeedback {
+                            overlayWindow.showHint("试用额度已用完（7 天共 \(TrialManager.formatChars(TrialManager.shared.totalLimit)) 字）· 开通会员，或填自己的 Key 不限量")
+                        }
+                        return false
+                    }
                     // 试用中：当日额度（缓存值，服务器才是权威）没满就放行；放行后不再走下面的免费额度检查。
                     if TrialManager.shared.usedToday >= TrialManager.shared.dailyLimit {
+                        TrialManager.shared.refreshFromServer()   // 缓存可能旧了，顺手对一次账
                         if showFeedback {
-                            overlayWindow.showHint("今日试用额度已用完（剩 \(TrialManager.shared.daysLeft) 天）")
+                            overlayWindow.showHint("今日试用额度已用完（剩 \(TrialManager.shared.daysLeft) 天）· 开通会员或填自己的 Key 不限量")
                         }
                         return false
                     }
@@ -1687,8 +1737,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                     return false
                 }
                 if license.hasActiveMembership() { return true }
-                // 会员有效但手里还没有可用令牌（刚转成会员 / 很久没联网）→ 立刻复核一次
-                license.revalidateNow()
+                // 会员有效但手里还没有可用令牌（刚转成会员 / 很久没联网）→ 立刻复核一次；联不上就说清楚是网络
+                license.revalidateNow { [weak self] ok in
+                    guard let self, !ok, showFeedback else { return }
+                    self.overlayWindow.showHint("无法连接激活服务，请检查网络后再试")
+                }
                 if showFeedback {
                     overlayWindow.showHint("正在验证会员状态，请稍候…")
                 }
@@ -1829,12 +1882,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             manager?.endLockedCapsuleDrag(at: point)
         }
         AnswerPanel.log = { [weak self] in self?.debugLog($0) }
+        answerPanel.isAskPending = { [weak self] in self?.askAwaitingSpeech == true }
         answerPanel.onFollowUpStart = { [weak self] in
             guard let self, !self.isRecording, !self.isProcessing else { return false }
             self.voiceQuestionMode = true
             self.voiceQuestionFollowUp = true
             self.overlayWindow.recordingControls = .hidden
-            guard self.startRecording() else { self.voiceQuestionMode = false; self.voiceQuestionFollowUp = false; return false }
+            guard self.startRecording(feedback: false) else { self.voiceQuestionMode = false; self.voiceQuestionFollowUp = false; return false }
             self.answerPanel.setRecording(true)
             return true
         }
@@ -1853,7 +1907,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             self.askAwaitingSpeech = true
             self.askSpeechDetector = AskSpeechDetector()
             self.overlayWindow.recordingControls = .hidden
-            guard self.startRecording() else { self.voiceQuestionMode = false; self.askAwaitingSpeech = false; return false }
+            guard self.startRecording(feedback: false) else { self.voiceQuestionMode = false; self.askAwaitingSpeech = false; return false }
             return true
         }
         manager.onAbortAsk = { [weak self] in self?.discardAskRecording() }
@@ -2133,7 +2187,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                 if let warning = self.pendingPolishWarning {
                     self.pendingPolishWarning = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        self.overlayWindow.showHint("已输出未润色文字（润色失败：\(warning)）")
+                        let tip = warning.contains("额度") && !LicenseManager.shared.hasActiveMembership() ? " · 开通会员或填自己的 Key 不限量" : ""
+                        self.overlayWindow.showHint("已输出未润色文字（润色失败：\(warning)）\(tip)")
                     }
                 }
 
@@ -2410,8 +2465,12 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         let hotkey = RecordingHotkeyShortcut.current.displayName
         stack.addArrangedSubview(makeBadge("✓", green: true))
         stack.setCustomSpacing(26, after: stack.arrangedSubviews.last!)
-        stack.addArrangedSubview(makeTitle("全部就绪"))
-        stack.addArrangedSubview(makeBody("按住 \(hotkey) 说话，松手就贴上整理好的文字。"))
+        // 自编译的开源版没有试用通道：得先填 Key 才能用，别报「就绪」
+        let selfBuilt = !TrialManager.shared.isTrialAvailable
+        stack.addArrangedSubview(makeTitle(selfBuilt ? "还差一步" : "全部就绪"))
+        stack.addArrangedSubview(makeBody(selfBuilt
+            ? "这个版本不含试用通道。先到「设置 → 模型」填入自己的 API Key，然后按住 \(hotkey) 说话。"
+            : "按住 \(hotkey) 说话，松手就贴上整理好的文字。"))
         stack.setCustomSpacing(30, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(makePrimaryButton("开始使用") { [weak self] in
             self?.finish()
