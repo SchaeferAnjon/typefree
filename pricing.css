@@ -1,0 +1,74 @@
+/* =========================== 价格页专用 =========================== */
+.p-hero{padding:72px 0 0;text-align:center}
+.p-hero .h2{font-size:clamp(32px,4.6vw,58px);line-height:1.2;margin-top:14px}
+.p-hero .lede{margin:22px auto 0;text-align:center}
+
+/* 选择器：你更像哪一种 */
+.pick{margin-top:34px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.pick-q{font-size:14px;color:var(--lead)}
+.pick-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.pick-row button{height:40px;padding:0 18px;border-radius:999px;border:1px solid var(--line2);background:var(--card);font-size:15px;cursor:pointer;color:var(--ink2);transition:background .15s,color .15s,border-color .15s}
+.pick-row button:hover{background:var(--mist)}
+.pick-row button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+/* 三张卡 */
+.plans{margin-top:34px;display:grid;grid-template-columns:1fr 1.06fr 1fr;gap:16px;align-items:stretch;text-align:left}
+.plan{position:relative;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:26px;padding:30px 28px 26px;
+  transition:opacity .35s ease,transform .35s ease,box-shadow .35s ease}
+.plan .k{font-size:12.5px;letter-spacing:.1em;color:var(--faint)}
+.plan .price{margin-top:14px;font-family:var(--serif);font-weight:700;font-size:44px;line-height:1.05}
+.plan .price small{font-family:var(--sans);font-weight:400;font-size:15px;color:var(--lead);margin-left:6px}
+.plan .desc{margin-top:10px;font-size:15px;color:var(--lead)}
+.plan ul{list-style:none;margin:22px 0 26px;padding-top:20px;border-top:1px solid var(--line);display:grid;gap:10px;font-size:14.5px}
+.plan li{display:flex;gap:10px;align-items:flex-start;line-height:1.6}
+.plan li svg{width:16px;height:16px;flex:none;margin-top:4px;color:var(--ink)}
+.plan li em{font-style:normal;font-weight:600}
+.plan .act{margin-top:auto;display:grid;gap:12px}
+.plan .act .btn{width:100%}
+.plan .sub-link{text-align:center;font-size:14px;color:var(--lead)}
+.plan .sub-link:hover{color:var(--ink)}
+.plan.feature{background:var(--night);border-color:var(--night);color:#F5F5F7;box-shadow:0 40px 80px -40px rgba(0,0,0,.55)}
+.plan.feature .k{color:#8E8E93}
+.plan.feature .price small,.plan.feature .desc,.plan.feature .sub-link{color:#A1A1A6}
+.plan.feature .sub-link:hover{color:#fff}
+.plan.feature ul{border-top-color:rgba(255,255,255,.1)}
+.plan.feature li svg{color:#fff}
+.plan.feature .btn-ink{background:#fff;border-color:#fff;color:var(--ink)}
+.plans.has-pick .plan{opacity:.42;transform:scale(.985)}
+.plans.has-pick .plan.is-pick{opacity:1;transform:none;box-shadow:0 0 0 2px var(--ink),0 30px 60px -30px rgba(0,0,0,.35)}
+.plans.has-pick .plan.feature.is-pick{box-shadow:0 0 0 2px var(--ink),0 0 0 6px rgba(17,17,19,.12),0 40px 80px -40px rgba(0,0,0,.55)}
+.pick-say{min-height:1.7em;margin-top:18px;text-align:center;font-size:15px;color:var(--ink2)}
+
+/* 开源说明 + 付款须知 */
+.notes{margin-top:18px;text-align:left;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px}
+.note{border:1px solid var(--line);border-radius:22px;padding:24px 26px;background:var(--card);font-size:14.5px;color:var(--lead);line-height:1.75}
+.note b{display:block;margin-bottom:6px;font-size:15.5px;color:var(--ink)}
+.note a{color:var(--ink);font-weight:600}
+.note a:hover{text-decoration:underline;text-underline-offset:3px}
+.note.open{background:var(--mist);border-color:transparent}
+.note .note-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.wx-badge{width:30px;height:30px;flex:none;border-radius:8px;background:#07C160;color:#fff;display:grid;place-items:center}
+.wx-badge svg{width:19px;height:19px}
+.plan .wx-link{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.wx-link svg{width:17px;height:17px;flex:none;color:#07C160}
+.pay-line{margin-top:18px;text-align:center;font-size:13.5px;color:var(--faint)}
+
+/* 对照表 */
+.cmp{margin-top:40px;width:100%;border-collapse:collapse;font-size:14.5px}
+.cmp th,.cmp td{text-align:left;padding:15px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+.cmp thead th{font-size:13px;font-weight:500;letter-spacing:.08em;color:var(--faint);border-bottom-color:var(--ink)}
+.cmp tbody th{font-weight:600;width:22%}
+.cmp td{color:var(--ink2);width:26%}
+.cmp .col-member{background:rgba(17,17,19,.03)}
+.cmp .dim{color:var(--faint)}
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media (max-width:980px){
+  .plans{grid-template-columns:1fr;max-width:520px;margin-left:auto;margin-right:auto}
+  .notes{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .p-hero{padding-top:64px}
+  .plan{padding:28px 24px 24px}
+  .cmp{min-width:640px}
+}

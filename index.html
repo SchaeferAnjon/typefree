@@ -1,875 +1,403 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="zh-CN" data-lang="zh-Hans">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Typefree — 开源、隐私优先、更懂中文的 AI 语音输入</title>
-<meta name="description" content="Typefree 是开源、隐私优先的 AI 语音输入工具。按住快捷键说话，自动识别、去掉口水词、理顺句子，把整理好的文字直接落到光标处。新用户 7 天免费试用；自带 API Key 永久免费、不限字数；不想配置 Key 可以开通会员。">
-<script>try{history.scrollRestoration='manual';}catch(e){}</script>
-<script>/* 按系统语言/记忆自动跳转语言版本 */(function(){var P="zh-Hans";try{var s=localStorage.getItem("tf_lang");var w=s;if(!w){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}if(w!==P){var m={"zh-Hans":"index.html","zh-Hant":"index.zh-Hant.html","en":"index.en.html"};var t=m[w];var cur=location.pathname.split("/").pop()||"index.html";if(t&&t!==cur){location.replace(t);}}}catch(e){}})();</script>
-<style>
-  /* ================= 设计令牌：100% 取自 macOS App（SettingsWindowController.swift）================= */
-  :root{
-    --bg:#FCFCFD; --card:#FFFFFF; --alt:#F5F5F7; --alt2:#ECECEE;
-    --ink:#1D1D1F; --ink2:#515154; --ink3:#86868B;
-    --line:rgba(0,0,0,.09); --line2:rgba(0,0,0,.06);
-    --ok:#2E8762; --ok-soft:#E8F2EC;
-    --dark:#1C1C1E; --dark2:#2C2C2E; --dark3:#3A3A3C;
-    --warn:#9A5A16;
-    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
-    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-    --shadow:0 24px 70px rgba(20,20,22,.10), 0 4px 14px rgba(20,20,22,.05);
-    --shadow-sm:0 1px 2px rgba(20,20,22,.05), 0 10px 28px rgba(20,20,22,.06);
-    --r:16px; --r-sm:12px;
-    --maxw:1140px;
-  }
-  *{box-sizing:border-box;}
-  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
-  body{margin:0;color:var(--ink);background:var(--bg);font-family:var(--sans);
-    line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;}
-  a{color:inherit;text-decoration:none;}
-  p{margin:0;}
-  h1,h2,h3{margin:0;letter-spacing:-.022em;}
-  .wrap{width:min(var(--maxw),calc(100% - 48px));margin:0 auto;}
-  .center{text-align:center;}
-
-  /* ===== 按钮 ===== */
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-    min-height:46px;padding:0 20px;border-radius:11px;border:1px solid var(--line);
-    background:var(--card);color:var(--ink);font-size:15px;font-weight:600;cursor:pointer;
-    transition:transform .16s ease,box-shadow .16s ease,background .16s ease,border-color .16s ease;}
-  .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm);}
-  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
-  .btn.primary:hover{background:#000;}
-  .btn.lg{min-height:52px;padding:0 26px;font-size:16px;border-radius:12px;}
-  .btn svg{width:17px;height:17px;flex:none;}
-
-  /* ===== 导航 ===== */
-  nav{position:sticky;top:0;z-index:50;border-bottom:1px solid transparent;
-    background:rgba(252,252,253,.72);backdrop-filter:saturate(180%) blur(20px);
-    transition:border-color .2s ease,background .2s ease;}
-  nav.scrolled{border-bottom-color:var(--line2);}
-  nav .wrap{display:flex;align-items:center;justify-content:space-between;min-height:60px;gap:20px;}
-  .brand{display:inline-flex;align-items:center;gap:11px;font-size:20px;font-weight:700;letter-spacing:-.01em;}
-  .brand .logo{width:32px;height:32px;border-radius:8px;background:#fff;border:1px solid var(--line);
-    display:inline-flex;align-items:center;justify-content:center;color:var(--ink);}
-  .brand .logo svg{width:26px;height:26px;}
-  .nav-links{display:flex;align-items:center;gap:28px;color:var(--ink2);font-size:14.5px;font-weight:500;}
-  .nav-links a:hover{color:var(--ink);}
-  .nav-cta{display:flex;align-items:center;gap:11px;}
-  .nav-cta .btn{min-height:38px;padding:0 15px;font-size:14px;}
-  .ghm{width:18px;height:18px;flex:none;}
-  .nav-cta .gh{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);font-size:14px;font-weight:600;white-space:nowrap;}
-  .nav-cta .gh:hover{color:var(--ink);}
-  .trust a{display:inline-flex;align-items:center;gap:6px;color:inherit;}
-  .trust a:hover{color:var(--ink);}
-  .trust a .ghm{width:15px;height:15px;}
-  footer .fl a.gh{display:inline-flex;align-items:center;gap:6px;}
-  footer .fl a.gh .ghm{width:15px;height:15px;}
-  .langsw{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
-  .langsw a{padding:7px 9px;font-size:12.5px;font-weight:600;color:var(--ink3);line-height:1;border-left:1px solid var(--line2);}
-  .langsw a:first-child{border-left:0;}
-  .langsw a:hover{color:var(--ink);background:var(--alt);}
-  .langsw a.on{color:var(--ink);background:var(--alt2);}
-
-  /* ===== 区块通用 ===== */
-  section{padding:96px 0;position:relative;}
-  .kicker{display:inline-block;color:var(--ink3);font-size:13px;font-weight:700;
-    letter-spacing:.08em;text-transform:uppercase;}
-  .sec-head{max-width:760px;margin:0 auto 56px;}
-  .sec-head.center{margin-left:auto;margin-right:auto;}
-  h2{font-size:clamp(30px,4vw,44px);line-height:1.12;font-weight:780;margin-top:14px;}
-  .sec-head p{margin-top:18px;color:var(--ink2);font-size:18px;line-height:1.55;}
-
-  /* ===== Hero ===== */
-  header.hero{position:relative;padding:96px 0 72px;overflow:hidden;text-align:center;}
-  header.hero::before{content:"";position:absolute;inset:0;z-index:0;
-    background:
-      radial-gradient(50% 42% at 50% 0%, rgba(29,29,31,.055), rgba(29,29,31,0) 72%),
-      radial-gradient(40% 30% at 85% 8%, rgba(46,135,98,.05), rgba(46,135,98,0) 70%);}
-  .hero-inner{position:relative;z-index:1;}
-  .eyebrow{display:inline-flex;align-items:center;gap:9px;height:32px;padding:0 14px;border-radius:999px;
-    background:var(--alt);border:1px solid var(--line2);color:var(--ink2);font-size:13.5px;font-weight:600;}
-  .eyebrow b{color:var(--ink);font-weight:700;}
-  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(46,135,98,.16);}
-  h1{margin:26px auto 0;max-width:900px;font-size:clamp(38px,6.2vw,64px);line-height:1.06;font-weight:800;}
-  h1 .grey{color:var(--ink3);}
-  .sub{max-width:650px;margin:22px auto 0;color:var(--ink2);font-size:clamp(17px,2.2vw,20px);line-height:1.55;}
-  .cta{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:34px;}
-  .trust{display:flex;justify-content:center;flex-wrap:wrap;gap:9px 18px;margin-top:24px;
-    color:var(--ink3);font-size:13.5px;font-weight:500;}
-  .trust span{display:inline-flex;align-items:center;gap:6px;}
-  .trust .g{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:none;}
-
-  /* ===== mac 窗口（产品界面仿真）通用 ===== */
-  .win{border:1px solid var(--line);border-radius:var(--r);background:var(--card);
-    box-shadow:var(--shadow);overflow:hidden;text-align:left;}
-  .win-top{display:flex;align-items:center;gap:14px;height:44px;padding:0 16px;
-    background:var(--alt);border-bottom:1px solid var(--line2);}
-  .win.dark .win-top{background:var(--dark2);border-bottom-color:rgba(255,255,255,.08);}
-  .traffic{display:flex;gap:8px;}
-  .traffic i{width:11px;height:11px;border-radius:50%;display:block;}
-  .traffic i:nth-child(1){background:#ff5f57;} .traffic i:nth-child(2){background:#febc2e;} .traffic i:nth-child(3){background:#28c840;}
-  .win-title{font-size:13px;color:var(--ink3);font-weight:600;}
-  .win.dark .win-title{color:rgba(255,255,255,.5);}
-
-  /* ===== Hero 演示卡 ===== */
-  .demo{max-width:980px;margin:56px auto 0;}
-  .demo-body{display:grid;grid-template-columns:1fr 1fr;position:relative;}
-  .demo-body>*{padding:32px 34px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
-  .rec{background:var(--dark);color:#fff;gap:16px;}
-  .rec .tag{display:inline-flex;align-items:center;gap:8px;color:rgba(255,255,255,.55);
-    font-size:12px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;}
-  .rec .tag .live{width:8px;height:8px;border-radius:50%;background:#ff5f57;animation:blink 1.2s infinite ease-in-out;}
-  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
-  .wave{display:flex;align-items:center;gap:4px;height:36px;}
-  .wave i{flex:1;border-radius:99px;background:linear-gradient(180deg,#fff,rgba(255,255,255,.55));transform-origin:center;animation:eq 1.1s infinite ease-in-out;}
-  @keyframes eq{0%,100%{transform:scaleY(.32);}50%{transform:scaleY(1);}}
-  .wave i:nth-child(1){animation-delay:0s}.wave i:nth-child(2){animation-delay:.12s}.wave i:nth-child(3){animation-delay:.24s}.wave i:nth-child(4){animation-delay:.36s}.wave i:nth-child(5){animation-delay:.18s}.wave i:nth-child(6){animation-delay:.30s}.wave i:nth-child(7){animation-delay:.42s}.wave i:nth-child(8){animation-delay:.20s}.wave i:nth-child(9){animation-delay:.34s}.wave i:nth-child(10){animation-delay:.10s}.wave i:nth-child(11){animation-delay:.28s}.wave i:nth-child(12){animation-delay:.40s}
-  .rec .raw{color:rgba(255,255,255,.9);font-size:18px;line-height:1.72;}
-  .rec .raw del{color:rgba(255,255,255,.34);text-decoration:line-through;text-decoration-thickness:1.5px;}
-  .out{display:flex;flex-direction:column;gap:14px;}
-  .out .tag{color:var(--ink3);font-size:12px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;}
-  .out .text{font-size:23px;line-height:1.52;font-weight:650;letter-spacing:-.01em;}
-  .out .text mark{background:var(--ok-soft);color:var(--ok);padding:0 3px;border-radius:4px;font-weight:700;}
-  .out .out-text{white-space:pre-wrap;font-size:15.5px;line-height:1.72;color:var(--ink);font-weight:450;}
-  .chain{display:flex;flex-wrap:wrap;gap:8px;}
-  .chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;
-    background:var(--alt);color:var(--ink2);font-size:12.5px;font-weight:600;}
-  .chip svg{width:13px;height:13px;color:var(--ok);}
-  .convert{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;width:48px;height:48px;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(20,20,22,.18);display:flex;align-items:center;justify-content:center;color:var(--ink);}
-  .convert svg{width:20px;height:20px;}
-
-  /* ===== 价值四卡 ===== */
-  .values{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
-  .val{padding:30px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);
-    transition:transform .18s ease,box-shadow .18s ease;}
-  .val:hover{transform:translateY(-3px);box-shadow:var(--shadow-sm);}
-  .val .ic{width:46px;height:46px;border-radius:12px;background:var(--alt);
-    display:inline-flex;align-items:center;justify-content:center;color:var(--ink);margin-bottom:18px;}
-  .val .ic svg{width:23px;height:23px;}
-  .val h3{font-size:21px;font-weight:700;margin-bottom:8px;}
-  .val p{color:var(--ink2);font-size:15.5px;line-height:1.6;}
-
-  /* ===== 效果 · 真实案例 ===== */
-  .cases{column-count:2;column-gap:18px;}
-  .case{break-inside:avoid;margin-bottom:18px;padding:24px 26px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);display:flex;flex-direction:column;gap:13px;}
-  .case-tag{align-self:flex-start;height:27px;padding:0 12px;border-radius:999px;background:var(--alt);color:var(--ink2);font-size:12.5px;font-weight:650;display:inline-flex;align-items:center;}
-  .case-label{color:var(--ink3);font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
-  .c-from{margin-top:5px;padding:11px 13px 11px 15px;border-left:2px solid var(--line);border-radius:0 10px 10px 0;background:var(--bg);color:var(--ink3);font-size:14.5px;line-height:1.62;white-space:pre-line;}
-  .c-from del{opacity:.5;text-decoration:line-through;text-decoration-thickness:1px;}
-  .c-to{margin-top:5px;padding:12px 14px 12px 15px;border-left:2px solid var(--ok);border-radius:0 10px 10px 0;background:var(--ok-soft);color:var(--ink);font-size:15.5px;line-height:1.62;font-weight:600;white-space:pre-line;}
-  .c-to mark{background:var(--ok-soft);color:var(--ok);padding:0 4px;border-radius:4px;font-weight:700;}
-  .cap-row{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:28px;}
-  .cap-chip{height:32px;padding:0 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--ink2);font-size:13.5px;font-weight:550;display:inline-flex;align-items:center;}
-
-  /* ===== 浅灰区块 ===== */
-  .soft{background:var(--alt);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);}
-
-  /* ===== 怎么工作：流程 4 步 ===== */
-  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:46px;}
-  .step{position:relative;padding:24px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);}
-  .step .num{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;
-    display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;margin-bottom:14px;}
-  .step h3{font-size:17px;font-weight:650;margin-bottom:6px;}
-  .step p{color:var(--ink2);font-size:14px;line-height:1.55;}
-  .step .arr{position:absolute;right:-11px;top:50%;transform:translateY(-50%);z-index:2;color:var(--ink3);
-    width:22px;height:22px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;}
-  .step .arr svg{width:14px;height:14px;}
-
-  /* ===== 今日概览面板 ===== */
-  .panel{max-width:980px;margin:0 auto;}
-  .panel .win-top{background:#fff;}
-  .panel-body{padding:26px;}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
-  .stat{padding:18px;border:1px solid var(--line2);border-radius:13px;background:var(--bg);}
-  .stat .n{font-size:30px;font-weight:780;letter-spacing:-.02em;}
-  .stat .n small{font-size:15px;font-weight:600;color:var(--ink3);margin-left:2px;}
-  .stat .l{margin-top:4px;color:var(--ink3);font-size:13px;font-weight:500;}
-  .recent{border:1px solid var(--line2);border-radius:13px;overflow:hidden;}
-  .recent .rh{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line2);font-size:13.5px;font-weight:650;color:var(--ink2);}
-  .recent .rh .more{color:var(--ink3);font-weight:500;}
-  .rec-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:14px 16px;border-bottom:1px solid var(--line2);}
-  .rec-row:last-child{border-bottom:0;}
-  .rec-row .f{color:var(--ink3);font-size:14px;} .rec-row .f .um{opacity:.55;}
-  .rec-row .t{color:var(--ink);font-size:14.5px;font-weight:500;}
-  .panel-foot{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
-  .svc{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:999px;background:var(--bg);border:1px solid var(--line2);font-size:13px;font-weight:600;color:var(--ink2);}
-  .svc .g{width:7px;height:7px;border-radius:50%;background:var(--ok);}
-
-
-  /* ===== 安全边界（深色 band）===== */
-  .secure{background:var(--dark);color:#fff;border:0;}
-  .secure .kicker{color:rgba(255,255,255,.5);}
-  .secure h2{color:#fff;}
-  .secure .sec-head p{color:rgba(255,255,255,.66);}
-  .sflow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid rgba(255,255,255,.13);border-radius:var(--r);overflow:hidden;background:rgba(255,255,255,.02);}
-  .sstep{padding:26px;border-left:1px solid rgba(255,255,255,.11);}
-  .sstep:first-child{border-left:0;}
-  .sstep .si{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;}
-  .sstep .si svg{width:19px;height:19px;}
-  .sstep b{display:block;font-size:16px;margin-bottom:7px;}
-  .sstep p{color:rgba(255,255,255,.6);font-size:13.5px;line-height:1.55;}
-  .boundary{display:flex;gap:13px;margin-top:22px;padding:18px 20px;border:1px solid rgba(255,255,255,.13);border-radius:13px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.78);font-size:14.5px;line-height:1.6;}
-  .boundary svg{width:20px;height:20px;color:var(--ok);flex:none;margin-top:2px;}
-  .boundary b{color:#fff;font-weight:650;}
-
-  /* ===== 进阶能力 ===== */
-  .adv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
-  .advc{padding:28px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);}
-  .advc .ah{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
-  .advc .ai{width:40px;height:40px;border-radius:11px;background:var(--alt);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;flex:none;}
-  .advc .ai svg{width:20px;height:20px;}
-  .advc h3{font-size:18px;font-weight:700;}
-  .advc>p{color:var(--ink2);font-size:14.5px;line-height:1.6;}
-  .model-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:15px;}
-  .tagm{height:30px;padding:0 12px;border-radius:8px;background:var(--alt);border:1px solid var(--line2);
-    font-size:12.5px;font-weight:600;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);}
-  .tagm.on{background:var(--ink);color:#fff;border-color:var(--ink);}
-  .hotword{margin-top:15px;border:1px solid var(--line2);border-radius:11px;overflow:hidden;font-family:var(--mono);font-size:13px;}
-  .hotword .hw{display:flex;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--line2);color:var(--ink2);}
-  .hotword .hw:last-child{border-bottom:0;}
-  .hotword .hw b{color:var(--ink);font-weight:600;}
-  .hotword .hw .w{color:var(--ok);}
-
-  /* ===== 上手三步 ===== */
-  .start{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
-  .scard{padding:28px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);}
-  .scard .sn{font-size:13px;font-weight:700;color:var(--ink3);letter-spacing:.04em;}
-  .scard h3{font-size:19px;font-weight:700;margin:12px 0 8px;}
-  .scard p{color:var(--ink2);font-size:14.5px;line-height:1.6;}
-  .scard .links{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
-  .scard .links a{display:inline-flex;align-items:center;gap:7px;color:var(--ink);font-size:13.5px;font-weight:600;}
-  .scard .links a svg{width:14px;height:14px;color:var(--ink3);}
-  .scard .links a:hover{color:var(--ok);}
-
-  /* ===== FAQ ===== */
-  .faq{display:flex;flex-direction:column;gap:14px;max-width:760px;margin:0 auto;}
-  details{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--card);overflow:hidden;}
-  summary{cursor:pointer;padding:20px 22px;list-style:none;font-weight:650;font-size:16px;
-    display:flex;justify-content:space-between;align-items:center;gap:14px;}
-  summary::-webkit-details-marker{display:none;}
-  summary .plus{width:20px;height:20px;flex:none;position:relative;transition:transform .2s ease;}
-  summary .plus::before,summary .plus::after{content:"";position:absolute;background:var(--ink3);border-radius:2px;}
-  summary .plus::before{top:9px;left:2px;right:2px;height:2px;}
-  summary .plus::after{left:9px;top:2px;bottom:2px;width:2px;transition:opacity .2s ease;}
-  details[open] summary .plus{transform:rotate(180deg);}
-  details[open] summary .plus::after{opacity:0;}
-  details p{padding:0 22px 22px;color:var(--ink2);font-size:15px;line-height:1.62;}
-  details p code{font-family:var(--mono);font-size:.88em;background:var(--alt);padding:2px 6px;border-radius:5px;color:var(--ink);}
-
-  /* ===== 结尾 CTA ===== */
-  .final{padding:30px 0 100px;}
-  .final-box{position:relative;overflow:hidden;padding:64px 40px;border-radius:24px;background:var(--ink);color:#fff;text-align:center;}
-  .final-box::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 80% at 50% 0%, rgba(255,255,255,.08), rgba(255,255,255,0) 70%);}
-  .final-box>*{position:relative;z-index:1;}
-  .final-box h2{color:#fff;font-size:clamp(28px,4vw,40px);max-width:680px;margin:0 auto;}
-  .final-box p{margin:18px auto 0;max-width:540px;color:rgba(255,255,255,.66);font-size:17px;}
-  .final-box .cta{margin-top:32px;}
-  .final-box .btn{background:#fff;color:var(--ink);border-color:#fff;}
-  .final-box .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.28);}
-  .final-box .btn.ghost:hover{background:rgba(255,255,255,.08);}
-
-  /* ===== 价格 ===== */
-  .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1080px;margin:0 auto;}
-  .pcard{position:relative;padding:32px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);display:flex;flex-direction:column;}
-  .pcard.feat{border-color:var(--ink);box-shadow:var(--shadow-sm);}
-  .pcard .ptag{align-self:flex-start;height:26px;padding:0 13px;border-radius:999px;background:var(--alt);color:var(--ink2);font-size:12.5px;font-weight:650;display:inline-flex;align-items:center;margin-bottom:18px;}
-  .pcard .ptags{display:flex;gap:7px;flex-wrap:wrap;align-self:flex-start;margin-bottom:18px;}
-  .pcard .ptags .ptag{margin-bottom:0;align-self:auto;}
-  .pcard.feat .ptag{background:var(--ink);color:#fff;}
-  .pcard .price{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
-  .pcard .price .amt{font-size:42px;font-weight:800;letter-spacing:-.03em;}
-  .pcard .price .was{color:var(--ink3);font-size:21px;font-weight:650;text-decoration:line-through;text-decoration-thickness:2px;}
-  .pcard .price .off{align-self:center;height:23px;padding:0 10px;border-radius:999px;background:rgba(46,135,98,.12);color:var(--ok);font-size:12.5px;font-weight:750;display:inline-flex;align-items:center;letter-spacing:.01em;}
-  .pcard .price .per{color:var(--ink3);font-size:15px;font-weight:600;}
-  .pcard .pdesc{color:var(--ink2);font-size:15px;margin:10px 0 20px;}
-  .pcard ul{margin:0 0 24px;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;flex:1;}
-  .pcard li{display:flex;gap:10px;color:var(--ink2);font-size:14.5px;line-height:1.5;}
-  .pcard li b{color:var(--ink);font-weight:650;}
-  .pcard li svg{width:17px;height:17px;color:var(--ok);flex:none;margin-top:2px;}
-  .pcard .btn{width:100%;}
-  /* 3.0：定价区开源说明条 + 会员卡里的「一次性买一年」次级链接 */
-  .pay-cn.oss{margin:0 auto 26px;max-width:720px;}
-  .pay-cn.oss a{color:var(--ink);font-weight:650;white-space:nowrap;}
-  .pcard .plink{display:block;text-align:center;margin-top:12px;color:var(--ink2);font-size:14px;font-weight:550;}
-  .pcard .plink:hover{color:var(--ink);}
-  .sec-head p,.pay-cn div,.pcard li span{text-wrap:pretty;}   /* 少出现单字、单个箭头掉到下一行 */
-  .pay-cn{max-width:560px;margin:26px auto 0;display:flex;gap:12px;align-items:flex-start;
-    padding:15px 18px;border:1px solid var(--ok);border-radius:13px;background:var(--ok-soft);
-    color:var(--ink2);font-size:14.5px;line-height:1.55;text-align:left;}
-  .pay-cn .flag{font-size:20px;line-height:1.45;flex:none;}
-  .pay-cn b{display:block;margin-bottom:2px;color:var(--ink);font-weight:700;}
-  .pnote{text-align:center;color:var(--ink3);font-size:13.5px;margin-top:12px;}
-
-  /* ===== Footer ===== */
-  footer{padding:40px 0;border-top:1px solid var(--line2);color:var(--ink3);font-size:14px;}
-  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;align-items:center;}
-  footer a{color:var(--ink2);} footer a:hover{color:var(--ink);}
-  footer .fl{display:flex;gap:20px;flex-wrap:wrap;}
-
-  /* ===== 滚动入场动画 ===== */
-  .reveal{opacity:0;transform:translateY(20px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1);}
-  .reveal.in{opacity:1;transform:none;}
-  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none;}.wave i,.rec .tag .live{animation:none;}}
-
-  /* hero 入场 */
-  .hero-inner>*{opacity:0;animation:rise .8s cubic-bezier(.16,1,.3,1) forwards;}
-  .hero-inner>.eyebrow{animation-delay:.05s}
-  .hero-inner>h1{animation-delay:.14s}
-  .hero-inner>.sub{animation-delay:.24s}
-  .hero-inner>.cta{animation-delay:.34s}
-  .hero-inner>.trust{animation-delay:.42s}
-  .hero-inner>.demo{animation-delay:.5s}
-  @keyframes rise{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:none;}}
-  @media(prefers-reduced-motion:reduce){.hero-inner>*{opacity:1;animation:none;}}
-
-  /* ===== 响应式 ===== */
-  @media(max-width:960px){
-    .ba-grid{grid-template-columns:1fr;}
-    .flow,.stats,.start{grid-template-columns:repeat(2,1fr);}
-    .step .arr{display:none;}
-  }
-  @media(max-width:760px){
-    section{padding:72px 0;}
-    .nav-links{display:none;}
-    .demo-body,.values,.adv,.pricing{grid-template-columns:1fr;}
-    .cases{column-count:1;}
-    .rec{border-bottom:1px solid var(--line2);}
-    .convert{transform:translate(-50%,-50%) rotate(90deg);}
-    .sflow{grid-template-columns:1fr 1fr;}
-    .sstep:nth-child(3){border-left:0;}
-    .rec-row{grid-template-columns:1fr;gap:6px;}
-    .rec-row .t{padding-top:2px;}
-  }
-  @media(max-width:520px){
-    .wrap{width:calc(100% - 36px);}
-    h1{font-size:32px;line-height:1.14;}
-    .hb{display:none;}
-    .flow,.stats,.start,.sflow{grid-template-columns:1fr;}
-    .sstep{border-left:0;border-top:1px solid rgba(255,255,255,.11);}
-    .sstep:first-child{border-top:0;}
-    .nav-cta .btn:not(.primary){display:none;}
-    .nav-cta .gh{display:none;}
-    .final-box{padding:48px 24px;}
-    .cta .btn{width:100%;}
-  }
-</style>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23ffffff'/%3E%3Cg fill='%231D1D1F'%3E%3Crect x='5.25' y='9.77' width='1.73' height='4.43' rx='0.87'/%3E%3Crect x='8.18' y='7.85' width='1.73' height='8.27' rx='0.87'/%3E%3Crect x='11.13' y='6.47' width='1.73' height='11.04' rx='0.87'/%3E%3Crect x='14.06' y='8.39' width='1.73' height='7.2' rx='0.87'/%3E%3Crect x='16.99' y='10.05' width='1.73' height='3.87' rx='0.87'/%3E%3C/g%3E%3C/svg%3E">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Typefree — 更懂中文的开源 AI 语音输入</title>
+<meta name="description" content="Typefree 是更懂中文的开源 AI 语音输入，不用注册登录。按住快捷键或鼠标说话，松手时口水词已经删掉、句子已经理顺，整理好的文字直接落在光标处。新用户 7 天免费试用；自带 API Key 永久免费；不想配置就开会员。">
+<script>/* 语言自动跳转 + 兼容旧链接：App 里写死了 typefree.app/#pricing，旧首页锚点 #how / #security 也有外链 */
+(function(){var P="zh-Hans",I=0,pages={"zh-Hans":["index.html","pricing.html"],"zh-Hant":["index.zh-Hant.html","pricing.zh-Hant.html"],"en":["index.en.html","pricing.en.html"]};
+try{var w=null;try{w=localStorage.getItem("tf_lang");}catch(e){}
+if(!pages[w]){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}
+var h=location.hash,alias={"#how":"#demo","#security":"#open"};if(alias[h])h=alias[h];
+if(I===0&&h==="#pricing"){location.replace(pages[w][1]);return;}
+if(w!==P){location.replace(pages[w][I]+h);return;}
+if(h!==location.hash)history.replaceState(null,"",h);}catch(e){}})();</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23111113'/%3E%3Cg fill='%23fff'%3E%3Crect x='5.25' y='9.77' width='1.73' height='4.43' rx='0.87'/%3E%3Crect x='8.18' y='7.85' width='1.73' height='8.27' rx='0.87'/%3E%3Crect x='11.13' y='6.47' width='1.73' height='11.04' rx='0.87'/%3E%3Crect x='14.06' y='8.39' width='1.73' height='7.2' rx='0.87'/%3E%3Crect x='16.99' y='10.05' width='1.73' height='3.87' rx='0.87'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css?v=20260917-6">
+<link rel="stylesheet" href="home.css?v=20260917-6">
 </head>
 <body>
 
-<!-- ===================== 导航 ===================== -->
-<nav id="nav">
-  <div class="wrap">
-    <a class="brand" href="#top">
-      <span class="logo"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="5.25" y="9.77" width="1.73" height="4.43" rx="0.87"/><rect x="8.18" y="7.85" width="1.73" height="8.27" rx="0.87"/><rect x="11.13" y="6.47" width="1.73" height="11.04" rx="0.87"/><rect x="14.06" y="8.39" width="1.73" height="7.2" rx="0.87"/><rect x="16.99" y="10.05" width="1.73" height="3.87" rx="0.87"/></svg></span>
-      <span>Typefree</span>
-    </a>
-    <div class="nav-links">
-      <a href="#effect">效果</a>
-      <a href="#how">原理</a>
-      <a href="#security">安全</a>
-      <a href="#pricing">价格</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24" fill="currentColor"><rect x="5.25" y="9.77" width="1.73" height="4.43" rx="0.87"/><rect x="8.18" y="7.85" width="1.73" height="8.27" rx="0.87"/><rect x="11.13" y="6.47" width="1.73" height="11.04" rx="0.87"/><rect x="14.06" y="8.39" width="1.73" height="7.2" rx="0.87"/><rect x="16.99" y="10.05" width="1.73" height="3.87" rx="0.87"/></symbol>
+  <symbol id="i-gh" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 3 3H7l3-3z"/><path d="M12 12v9"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html"><span class="brand-mark"><svg><use href="#i-logo"/></svg></span>Typefree</a>
+    <nav class="nav-links" aria-label="主导航">
+      <a href="#demo">怎么用</a>
+      <a href="#cases">真实效果</a>
+      <a href="#open">开源与隐私</a>
+      <a href="pricing.html">价格</a>
       <a href="setup-guide.html">配置教程</a>
-    </div>
-    <div class="nav-cta">
-      <a class="gh" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener" aria-label="GitHub"><svg class="ghm" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
-      <div class="langsw" id="langsw">
-        <a href="index.html" data-l="zh-Hans">简</a>
-        <a href="index.zh-Hant.html" data-l="zh-Hant">繁</a>
-        <a href="index.en.html" data-l="en">EN</a>
-      </div>
-      <a class="btn primary" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下载 Mac 版</a>
-    </div>
-  </div>
-</nav>
-
-<span id="top"></span>
-
-<!-- ===================== Hero ===================== -->
-<header class="hero">
-  <div class="wrap hero-inner">
-    <div class="eyebrow"><span class="dot"></span><b>开源免费</b> · 隐私优先 · 自带 API Key</div>
-    <h1>更懂中文的 AI 语音输入，<br class="hb">把口语变成<span class="grey">能直接用的</span>文字。</h1>
-    <p class="sub">按住快捷键说话，松手即自动识别、去掉口水词、理顺句子，整理好的结果直接落到光标处。代码开源，你的话去了哪里，每一步都查得到。</p>
-    <div class="cta">
-      <a class="btn primary lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>免费下载 Mac 版</a>
-      <a class="btn lg" href="#pricing">查看价格 →</a>
-    </div>
-    <div class="trust">
-      <span><i class="g"></i>macOS 14+</span>
-      <span><i class="g"></i>已签名 · 已公证</span>
-      <span><a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg class="ghm" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>开源 · GPL-3.0</a></span>
-    </div>
-
-    <!-- 产品演示卡 -->
-    <div class="demo win">
-      <div class="win-top">
-        <div class="traffic"><i></i><i></i><i></i></div>
-        <div class="win-title">Typefree · 正在整理一段口述</div>
-      </div>
-      <div class="demo-body">
-        <div class="rec">
-          <div class="tag"><span class="live"></span>正在听写</div>
-          <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <p class="raw"><del>我</del>我看了<del>那个</del>流程，我觉得<del>就是</del>他的整体的图标和排版，还有文字<del>的话</del>，我觉得要优化一下，要考虑居中<del>啊</del>，要考虑。排列好看一些，不然我感觉<del>那个</del>背后背景很空，<del>然后</del>文字<del>呢又</del>，<del>很很</del>很紧密，然后还要靠，还有点靠上。就感觉排版不是很好<del>吧</del>。</p>
-        </div>
-        <div class="convert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
-        <div class="out">
-          <div class="tag">整理后输出</div>
-          <div class="out-text">我看了那个流程，觉得整体的图标、排版和文字都需要优化一下。
-
-主要要考虑以下几点：
-1. 考虑居中，让排列更好看一些；
-2. 目前感觉背后背景很空，但文字又很紧密；
-3. 位置还有点靠上。
-
-整体感觉排版不是很好。</div>
-          <div class="chain">
-            <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>云端识别</span>
-            <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>AI 整理</span>
-            <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>自动分段</span>
-          </div>
-        </div>
-      </div>
+    </nav>
+    <div class="nav-end">
+      <div class="langsw" id="langsw" aria-label="语言"><a data-l="zh-Hans" href="index.html">简</a><a data-l="zh-Hant" href="index.zh-Hant.html">繁</a><a data-l="en" href="index.en.html">EN</a></div>
+      <a class="gh" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg><use href="#i-gh"/></svg><span>GitHub</span></a>
+      <a class="btn btn-ink btn-sm" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下载 Mac 版</a>
     </div>
   </div>
 </header>
 
-<!-- ===================== 价值四卡 ===================== -->
-<section>
-  <div class="wrap">
-    <div class="sec-head center reveal">
-      <span class="kicker">为什么选 Typefree</span>
-      <h2>和付费工具一样好用，<br>但代码开源，数据去哪你说了算。</h2>
+<main>
+  <!-- ============ 首屏 ============ -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="kicker">开源 · 更懂中文的 AI 语音输入</span>
+      <h1 class="thesis" id="thesis" aria-label="随口一说，就是成稿。">
+        <span class="ln" aria-hidden="true"><span class="fl" style="--r:-4deg;--y:-.3em">嗯…那个</span>随口<span class="fl" style="--r:3deg;--y:.35em">呃，就是</span>一说，<span class="fl" style="--r:-3deg;--y:-.2em">然后</span></span>
+        <span class="ln" aria-hidden="true"><span class="fl" style="--r:3.5deg;--y:.3em">其实吧</span>就是<span class="fl" style="--r:-3.5deg;--y:-.35em">怎么说呢</span>成稿。<span class="fl" style="--r:4deg;--y:.25em">你懂吧？</span><span class="caret"></span></span>
+      </h1>
+      <p class="hero-sub">按住快捷键或鼠标说话。松手时，口水词已经删掉、句子已经理顺，整理好的文字直接落在光标处。</p>
+      <div class="hero-cta">
+        <a class="btn btn-ink btn-lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg><use href="#i-down"/></svg>免费下载 Mac 版</a>
+        <a class="btn btn-lg" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg><use href="#i-gh"/></svg>在 GitHub 看源码</a>
+      </div>
+      <p class="hero-meta"><b>不用注册，不用登录</b> · 新用户 7 天免费 · macOS 14+ · 开源 GPL-3.0</p>
     </div>
-    <div class="values">
-      <div class="val reveal">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
-        <h3>开源透明</h3>
-        <p>代码全部公开（GPL-3.0）。录音、识别、整理、回填，每一步数据去了哪里都查得到，也可以自己编译。</p>
-      </div>
-      <div class="val reveal">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-        <h3>数据本地优先</h3>
-        <p>录音、历史记录、API 凭证默认保存在你自己的设备上；用自己的 Key 时，请求直达服务商，不经过我们。</p>
-      </div>
-      <div class="val reveal">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
-        <h3>自带云服务（BYOK）</h3>
-        <p>用你自己的火山 / 通义账号，费用走你自己的账户，我们不中转、不计费。</p>
-      </div>
-      <div class="val reveal">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-        <h3>稳定可靠</h3>
-        <p>每次更新前都经过严格测试，长期放进工作流里也放心。</p>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- ===================== 效果 Before/After ===================== -->
-<section id="effect" class="soft">
-  <div class="wrap">
-    <div class="sec-head reveal">
+    <!-- 演示舞台 -->
+    <div class="stage" id="demo">
+      <div class="screen" id="screen" aria-label="Typefree 使用演示动画" role="img">
+        <div class="menubar"><b>Typefree</b><span>文件</span><span>编辑</span><span>显示</span>
+          <span class="mb-end"><svg><use href="#i-logo"/></svg><span>9:41</span></span>
+        </div>
+
+        <!-- 场景一：按住说话 -->
+        <div class="scene" data-scene="talk">
+          <div class="win win-chat">
+            <div class="win-bar"><i></i><i></i><i></i><span>项目群</span></div>
+            <div class="w-log"><div class="w-msg">明天的会几点开？</div></div>
+            <div class="w-input"><span class="w-input-text" data-ph="发消息…"></span></div>
+          </div>
+        </div>
+
+        <!-- 场景二：问 AI -->
+        <div class="scene" data-scene="ask">
+          <div class="win win-doc">
+            <div class="win-bar"><i></i><i></i><i></i><span class="url">knowledge.example.com</span></div>
+            <div class="doc">
+              <h5>用 RAG 搭建企业知识库的五个步骤</h5>
+              <p>RAG 是现在最常用的知识库做法：把文档切成小段存起来，提问时先找出最相关的几段，再交给大模型组织回答。</p>
+              <div class="ph" style="width:92%"></div><div class="ph" style="width:78%"></div><div class="ph" style="width:85%"></div>
+            </div>
+            <div class="w-blank"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-q"><span class="panel-q-text">RAG 是什么意思？</span><span class="ic"><svg><use href="#i-pin"/></svg><svg><use href="#i-x"/></svg></span></div>
+            <div class="panel-a"></div>
+          </div>
+        </div>
+
+        <!-- 场景三：用英文 -->
+        <div class="scene" data-scene="trans">
+          <div class="win win-chat">
+            <div class="win-bar"><i></i><i></i><i></i><span>Global Team</span></div>
+            <div class="w-log"><div class="w-msg">Hi! Are we still meeting tomorrow?</div></div>
+            <div class="w-input"><span class="w-input-text" data-ph="发消息…"></span></div>
+          </div>
+        </div>
+
+        <div class="chip"><svg><use href="#i-mic"/></svg><span class="chip-text"></span></div>
+        <div class="capsule"><i></i><i></i><i></i><i></i><i></i><span class="lbl"></span></div>
+        <div class="cursor"><svg viewBox="0 0 20 28"><path d="M2 2v20.5l5.2-5 3.5 8.1 3.4-1.5-3.4-7.9H18z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="ring"></span></div>
+      </div>
+
+      <div class="stabs" role="tablist" aria-label="演示切换">
+        <button class="stab" role="tab" data-i="0"><span class="bar"></span><b>按住说话</b><span>松手就是整理好的文字</span></button>
+        <button class="stab" role="tab" data-i="1"><span class="bar"></span><b>随时问 AI</b><span>在空白处按住，问一句</span></button>
+        <button class="stab" role="tab" data-i="2"><span class="bar"></span><b>句尾说「用英文」</b><span>这一句直接出英文</span></button>
+      </div>
+      <p class="stage-note">界面演示动画</p>
+    </div>
+
+    <div class="wrap">
+      <dl class="facts">
+        <div class="fact"><dt>开源</dt><dd class="v">GPL-3.0</dd><dd>代码全部公开，可以自己编译</dd></div>
+        <div class="fact"><dt>账号</dt><dd class="v">不需要</dd><dd>打开就能说，不用手机号、不用邮箱</dd></div>
+        <div class="fact"><dt>费用</dt><dd class="v">先免费 7 天</dd><dd>之后自带 Key 永久免费，或开会员</dd></div>
+        <div class="fact"><dt>隐私</dt><dd class="v">不留你说的话</dd><dd>历史和 Key 都留在你的 Mac 上</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============ 真实效果 ============ -->
+  <section class="sec" id="cases">
+    <div class="wrap">
       <span class="kicker">真实效果</span>
-      <h2>它不是录音稿，<br>是你本来就想发出去的那句话。</h2>
-      <p>下面四段都是用<strong>真实产品链路</strong>跑出的效果示例——左边随口一说，右边是 Typefree 自动整理后的结果：删口水词、改口误、理顺句子、分段列点、规范数字和术语。</p>
-    </div>
-    <div class="cases">
-      <div class="case reveal">
-        <span class="case-tag">改口 · 自动修正</span>
-        <div>
-          <span class="case-label">随口说</span>
-          <p class="c-from">我周五下午可以过去，<del>不对，周五不行，</del>是周四下午，三点以后都可以，你帮我约一下。</p>
-        </div>
-        <div>
-          <span class="case-label">整理后</span>
-          <p class="c-to">我周四下午三点以后都可以，你帮我约一下。</p>
-        </div>
-      </div>
-      <div class="case reveal">
-        <span class="case-tag">日记 · 随手记</span>
-        <div>
-          <span class="case-label">随口说</span>
-          <p class="c-from">我最近<del>其实</del>发现在家里办公<del>的话</del>效率不是特别高，因为<del>嗯，这个</del>环境过于熟悉和放松，办公过程中<del>老是容易那个，就是。</del>捣鼓<del>捣鼓</del>这个，捣鼓<del>捣鼓</del>那个，上个厕所，喝口水，老是容易分神，工作效率比较低。<del>因为我发现</del>我在<del>外面</del>咖啡厅<del>的时候，我觉得</del>工作效率会高很多，注意力集中很多。<del>效率也高。</del>所以我<del>最近</del>打算<del>都在面，那个就是我</del>去咖啡厅办公，<del>以后打算咖啡厅办公会</del>效果好一些。而且最近<del>他</del>刚好<del>家里在刚好</del>楼上邻居在装修。</p>
-        </div>
-        <div>
-          <span class="case-label">整理后</span>
-          <p class="c-to">我最近发现，在家里办公效率不是特别高。因为环境过于熟悉和放松，办公过程中老是容易分神：一会儿捣鼓这个，一会儿捣鼓那个，还要上厕所、喝口水，导致工作效率比较低。&#10;&#10;相比之下，我在咖啡厅办公时，注意力会更集中，效率也高很多。所以我打算以后去咖啡厅办公，效果应该会好一些。而且刚好最近楼上邻居在装修，家里也比较吵。</p>
-        </div>
-      </div>
-      <div class="case reveal">
-        <span class="case-tag">写代码 · 排查指令</span>
-        <div>
-          <span class="case-label">随口说</span>
-          <p class="c-from">你帮我改一下这个登录页，先别大改，<del>呃不对，</del>先看一下为什么按钮一直转圈。然后如果是前端状态没恢复就修前端，如果是接口没返回就把错误提示补上。还有不要动注册页，最后跑一下测试。</p>
-        </div>
-        <div>
-          <span class="case-label">整理后</span>
-          <p class="c-to">你帮我改一下这个登录页。先别大改，先看一下为什么按钮一直转圈。&#10;&#10;1. 如果是前端状态没恢复，就修前端；&#10;2. 如果是接口没返回，就把错误提示补上。&#10;&#10;还有，不要动注册页，最后跑一下测试。</p>
-        </div>
-      </div>
-      <div class="case reveal">
-        <span class="case-tag">数字 · 金额规范</span>
-        <div>
-          <span class="case-label">随口说</span>
-          <p class="c-from">这个报价我算了一下，基础版大概三千六一年，专业版差不多九千八一年，如果买三年，应该能便宜两成左右。</p>
-        </div>
-        <div>
-          <span class="case-label">整理后</span>
-          <p class="c-to">这个报价我算了一下：&#10;&#10;1. 基础版大概 3600 元一年；&#10;2. 专业版差不多 9800 元一年。&#10;&#10;如果买三年，应该能便宜两成左右。</p>
-        </div>
-      </div>
-    </div>
-    <div class="cap-row reveal">
-      <span class="cap-chip">口语整理</span>
-      <span class="cap-chip">自动分段</span>
-      <span class="cap-chip">列表化</span>
-      <span class="cap-chip">口误修正</span>
-      <span class="cap-chip">数字规范</span>
-      <span class="cap-chip">术语纠正</span>
-      <span class="cap-chip">标点修正</span>
-    </div>
-  </div>
-</section>
+      <h2 class="h2">它不是录音稿，<br>是你本来就想发出去的那句话。</h2>
+      <p class="lede">下面四段都是用真实产品链路跑出来的：左边随口一说，右边是 Typefree 整理后的结果。</p>
 
-<!-- ===================== 怎么工作 ===================== -->
-<section id="how">
-  <div class="wrap">
-    <div class="sec-head center reveal">
-      <span class="kicker">怎么工作</span>
-      <h2>四步，从一句话到落字。</h2>
-      <p>整个过程通常一两秒完成，每一步都看得见、查得到。</p>
-    </div>
-    <div class="flow">
-      <div class="step reveal">
-        <span class="num">1</span><h3>本机录音</h3>
-        <p>按住你设定的快捷键采集音频，松手即停，立刻进入处理。</p>
-        <span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+      <div class="cases">
+        <div class="case-tabs" role="tablist" aria-label="案例">
+          <button class="ctab" role="tab" data-case="0" aria-selected="true">改口</button>
+          <button class="ctab" role="tab" data-case="1" aria-selected="false">随手记</button>
+          <button class="ctab" role="tab" data-case="2" aria-selected="false">给 AI 下指令</button>
+          <button class="ctab" role="tab" data-case="3" aria-selected="false">报价数字</button>
+        </div>
+        <div class="board" id="board">
+          <div class="bcol raw">
+            <div class="blabel">随口说</div>
+            <p class="raw-text"></p>
+          </div>
+          <div class="bmid"><span class="arr"><svg><use href="#i-arrow"/></svg></span></div>
+          <div class="bcol clean">
+            <div class="blabel">整理后 <span class="btags"></span></div>
+            <p class="clean-text"></p>
+          </div>
+        </div>
+        <p class="cases-note">划线部分是被删掉的口水词和说错又改口的内容。</p>
       </div>
-      <div class="step reveal">
-        <span class="num">2</span><h3>云端识别</h3>
-        <p>调用你配置的 ASR 服务商，把语音转成文字，并注入你的热词。</p>
-        <span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
-      </div>
-      <div class="step reveal">
-        <span class="num">3</span><h3>AI 整理</h3>
-        <p>较长的内容交给你配置的大模型，去口水词、理顺句子、规范格式。</p>
-        <span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
-      </div>
-      <div class="step reveal">
-        <span class="num">4</span><h3>术语纠正 · 落字</h3>
-        <p>按你的术语表做最后替换，整理好的文字直接粘贴到光标处。</p>
-      </div>
-    </div>
 
-    <div class="panel win reveal">
-      <div class="win-top">
-        <div class="traffic"><i></i><i></i><i></i></div>
-        <div class="win-title">Typefree · 今日概览</div>
-      </div>
-      <div class="panel-body">
-        <div class="stats">
-          <div class="stat"><div class="n">5,042<small>字</small></div><div class="l">今日输入</div></div>
-          <div class="stat"><div class="n">38<small>次</small></div><div class="l">今日会话</div></div>
-          <div class="stat"><div class="n">1.9<small>秒</small></div><div class="l">平均出字</div></div>
-          <div class="stat"><div class="n">216</div><div class="l">累计记录</div></div>
+      <template id="case-data">
+        <div data-tags="口误修正">
+          <p class="r">我周五下午可以过去，<del>不对，周五不行，</del>是周四下午，三点以后都可以，你帮我约一下。</p>
+          <p class="c">我周四下午三点以后都可以，你帮我约一下。</p>
         </div>
-        <div class="recent">
-          <div class="rh"><span>最近识别</span><span class="more">全部记录 →</span></div>
-          <div class="rec-row"><div class="f"><span class="um">嗯</span>这个版本先别急着发，<span class="um">那个</span>等我确认一下数据。</div><div class="t">这个版本先别急着发，等我确认一下数据。</div></div>
-          <div class="rec-row"><div class="f">帮我写个 prompt，<span class="um">就是说</span>让它把会议纪要整理成待办。</div><div class="t">帮我写个 Prompt：把会议纪要整理成待办清单。</div></div>
-          <div class="rec-row"><div class="f">周四上午十点跟 claude 那边对一下 cursor 的方案。</div><div class="t">周四上午 10:00 跟 Claude 那边对一下 Cursor 的方案。</div></div>
+        <div data-tags="去口水词,自动分段">
+          <p class="r">我最近<del>其实</del>发现在家里办公<del>的话</del>效率不是特别高，因为<del>嗯，这个</del>环境过于熟悉和放松，办公过程中<del>老是容易那个，就是。</del>捣鼓<del>捣鼓</del>这个，捣鼓<del>捣鼓</del>那个，上个厕所，喝口水，老是容易分神，工作效率比较低。<del>因为我发现</del>我在<del>外面</del>咖啡厅<del>的时候，我觉得</del>工作效率会高很多，注意力集中很多。<del>效率也高。</del>所以我<del>最近</del>打算<del>都在面，那个就是我</del>去咖啡厅办公，<del>以后打算咖啡厅办公会</del>效果好一些。而且最近<del>他</del>刚好<del>家里在刚好</del>楼上邻居在装修。</p>
+          <p class="c">我最近发现，在家里办公效率不是特别高。因为环境过于熟悉和放松，办公过程中老是容易分神：一会儿捣鼓这个，一会儿捣鼓那个，还要上厕所、喝口水，导致工作效率比较低。&#10;&#10;相比之下，我在咖啡厅办公时，注意力会更集中，效率也高很多。所以我打算以后去咖啡厅办公，效果应该会好一些。而且刚好最近楼上邻居在装修，家里也比较吵。</p>
         </div>
-        <div class="panel-foot">
-          <span class="svc"><i class="g"></i>火山引擎 · 已配置</span>
-          <span class="svc"><i class="g"></i>通义千问 · 已配置</span>
-          <span class="svc"><i class="g"></i>历史本地保留</span>
+        <div data-tags="口误修正,列表化">
+          <p class="r">你帮我改一下这个登录页，先别大改，<del>呃不对，</del>先看一下为什么按钮一直转圈。然后如果是前端状态没恢复就修前端，如果是接口没返回就把错误提示补上。还有不要动注册页，最后跑一下测试。</p>
+          <p class="c">你帮我改一下这个登录页。先别大改，先看一下为什么按钮一直转圈。&#10;&#10;1. 如果是前端状态没恢复，就修前端；&#10;2. 如果是接口没返回，就把错误提示补上。&#10;&#10;还有，不要动注册页，最后跑一下测试。</p>
         </div>
-      </div>
+        <div data-tags="数字规范,列表化">
+          <p class="r">这个报价我算了一下，基础版大概三千六一年，专业版差不多九千八一年，如果买三年，应该能便宜两成左右。</p>
+          <p class="c">这个报价我算了一下：&#10;&#10;1. 基础版大概 3600 元一年；&#10;2. 专业版差不多 9800 元一年。&#10;&#10;如果买三年，应该能便宜两成左右。</p>
+        </div>
+      </template>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ===================== 安全边界（深色）===================== -->
-<section id="security" class="secure">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="kicker">安全</span>
-      <h2>你的话去了哪里，<br>写得清清楚楚。</h2>
-      <p>历史和 API Key 都存在你自己的设备上。用自己的 Key 时，请求直达你配置的服务商；免费试用和会员期间，经我们的服务器转发，只转发、不保存。</p>
-    </div>
-    <div class="sflow reveal">
-      <div class="sstep">
-        <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></span>
-        <b>本机录音</b><p>音频在你的设备上采集，松手后才进入处理流程。</p>
+  <!-- ============ 功能 ============ -->
+  <section class="sec" style="padding-top:40px" id="features">
+    <div class="wrap">
+      <div class="head-center">
+        <span class="kicker">不止是打字</span>
+        <h2 class="h2">手不离鼠标，<br>也能说、能问、能翻译。</h2>
       </div>
-      <div class="sstep">
-        <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
-        <b>去向清楚</b><p>自带 Key 时直达你配置的服务商；试用和会员经我们的服务器转发，不保存录音和文字。</p>
-      </div>
-      <div class="sstep">
-        <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 7.8 8 9 4.6-1.2 8-4 8-9V5Z"/></svg></span>
-        <b>凭证留本地</b><p>API Key、历史记录、原始音频优先保存在你自己的设备上。</p>
-      </div>
-      <div class="sstep">
-        <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-        <b>本地回填</b><p>整理结果经术语纠正后，直接粘贴回你的光标处。</p>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- ===================== 进阶能力 ===================== -->
-<section>
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="kicker">进阶</span>
-      <h2>给愿意调的人，留足了空间。</h2>
-      <p>小白照默认就能用；专业用户可以换模型、调词库、查历史，把它精确地嵌进自己的工作流。</p>
-    </div>
-    <div class="adv">
-      <div class="advc reveal">
-        <div class="ah">
-          <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></span>
-          <h3>润色模型自动选</h3>
+      <div class="feats">
+        <!-- 1 鼠标长按 -->
+        <div class="feat">
+          <div class="feat-copy">
+            <p class="say"><b>鼠标按住，就能说。</b>不想记快捷键，就在输入框里按住鼠标约半秒，开始说话。说到一半想松手，往下拖一点锁定，说完点 ✓；不想要了，往外拖远，亮红光后松开就取消。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="hold-steps">
+              <div class="hold"><span class="mini-cap"><i></i><i></i><i></i><i></i></span><div class="hold-txt"><b>按住约半秒</b><span>开始说话，松手就出字</span></div></div>
+              <div class="hold"><span class="mini-cap locked"><span class="btn-x"><svg><use href="#i-x"/></svg></span><span class="bars"><i></i><i></i><i></i></span><span class="btn-ok"><svg><use href="#i-ok"/></svg></span></span><div class="hold-txt"><b>往下拖一点</b><span>亮绿光 = 已锁定，松手接着说，说完点 ✓</span></div></div>
+              <div class="hold"><span class="mini-cap cancel"><i></i><i></i><i></i><i></i></span><div class="hold-txt"><b>往外拖远</b><span>亮红光时松开，这一段就取消</span></div></div>
+            </div>
+          </div>
         </div>
-        <p>识别用火山引擎 BigASR；润色用通义千问，模型按质量和速度自动选，也可以不润色直出。</p>
-        <div class="model-row">
-          <span class="tagm on">通义千问 · 质量优先</span>
-          <span class="tagm">通义千问 · 速度优先</span>
-          <span class="tagm">不润色 · 直出</span>
-        </div>
-      </div>
-      <div class="advc reveal">
-        <div class="ah">
-          <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></span>
-          <h3>热词与术语表</h3>
-        </div>
-        <p>把容易识别错的产品名、人名、英文工具名加进词库，可带权重。识别和整理都会优先认它们。</p>
-        <div class="hotword">
-          <div class="hw"><b>Cursor</b><span class="w">权重 10</span></div>
-          <div class="hw"><b>Typefree</b><span class="w">权重 8</span></div>
-          <div class="hw"><b>克劳德 → Claude</b><span class="w">术语纠正</span></div>
-        </div>
-      </div>
-      <div class="advc reveal">
-        <div class="ah">
-          <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span>
-          <h3>历史可查可重放</h3>
-        </div>
-        <p>每条记录都存在本地，含识别原文、整理结果、用时和用量。可换个模型或加上新热词，重新整理同一段。</p>
-      </div>
-      <div class="advc reveal">
-        <div class="ah">
-          <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></span>
-          <h3>原始音频保留</h3>
-        </div>
-        <p>可选保留每次的原始录音（macOS），随时回听核对。保留时长自定义——1 天、1 周、1 月或永久。</p>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- ===================== 价格 ===================== -->
-<section id="pricing">
-  <div class="wrap">
-    <div class="sec-head center reveal">
-      <span class="kicker">价格</span>
-      <h2>软件开源免费，<br>会员买的是省心。</h2>
-      <p>先免费试 7 天；之后自带 API Key 永久免费，不想折腾就开会员。</p>
-    </div>
-    <div class="pay-cn oss reveal">
-      <span class="flag">🔓</span>
-      <div><b>Typefree 是开源软件</b>代码全部公开在 GitHub（GPL-3.0），可以自己编译使用。<br>会员费用于识别和润色的服务器与模型开销。 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">查看源码 →</a></div>
-    </div>
-    <div class="pricing reveal">
-      <div class="pcard">
-        <span class="ptag">新用户</span>
-        <div class="price"><span class="amt">免费</span><span class="per">· 7 天试用</span></div>
-        <p class="pdesc">下载即用，零配置，新用户专享。</p>
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>7 天共 10,000 字输入</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>识别 + AI 润色，<b>费用由我们承担</b></span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>不用填任何 Key，按一下就出字</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>到期后开会员，或填自己的 Key</span></li>
-        </ul>
-        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">免费下载 Mac 版</a>
-      </div>
-      <div class="pcard feat">
-        <div class="ptags"><span class="ptag">会员</span><span class="ptag">免配置</span></div>
-        <div class="price"><span class="amt">¥188</span><span class="per">/ 年</span></div>
-        <p class="pdesc">不用申请任何 API Key，装好就能用。</p>
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>识别 + AI 润色 + 问 AI，<b>全部包含</b></span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>合理使用范围内<b>不限字数</b></span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>银行卡按年自动续费，随时可取消</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>到期后仍可填自己的 Key，永久免费</span></li>
-        </ul>
-        <a class="btn primary lg tf-buy" href="#pricing" data-price="pri_01m2fpzfg8ejvhbgcjmdtx311r">开通会员 · ¥188/年</a>
-        <a class="plink tf-buy" href="#pricing" data-price="pri_01m2fq07sfsdnk49jzfs013pcc">用微信买一年（不自动续费）→</a>
-      </div>
-      <div class="pcard">
-        <span class="ptag">永久免费</span>
-        <div class="price"><span class="amt">免费</span><span class="per">· 不限时间</span></div>
-        <p class="pdesc">填入你自己的 API Key，长期免费用。</p>
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>不限字数</b>，永久免费</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>完整识别 + AI 整理 + 术语纠正</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>用量由服务商计费，我们不中转</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>多识别 / 润色服务商自由切换</span></li>
-        </ul>
-        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">免费下载 Mac 版</a>
-      </div>
-    </div>
-    <div class="pay-cn">
-      <span class="flag">🇨🇳</span>
-      <div><b>想用微信付款？</b>微信只能按年一次性购买：点会员卡片里的「用微信买一年」。付款页没看到微信的话，把「国家 / 地区」改成「中国」。</div>
-    </div>
-    <div class="pay-cn">
-      <span class="flag">⏳</span>
-      <div><b>付完款后请别担心：</b>微信付款会跳转，付完可能跳回首页、页面看起来没变化，都是正常的。授权码约 5 分钟内会自动发到你付款时填写的邮箱（记得翻垃圾箱），请不要重复付款。</div>
-    </div>
-    <p class="pnote">支持 微信 / 银行卡 付款，由 Paddle 安全结算。会员需要 Typefree 3.0 或更新版本。</p>
-  </div>
-</section>
+        <!-- 2 问 AI -->
+        <div class="feat flip">
+          <div class="feat-copy">
+            <p class="say"><b>看到不懂的，按住问一句。</b>不用切窗口、不用复制。在空白处按住鼠标说出问题，回答出现在屏幕右上角；按住回答还能接着问，想留住就点图钉。</p>
+          </div>
+          <div class="mock mock-ask" aria-hidden="true">
+            <div class="page">
+              <h5>用 RAG 搭建企业知识库的五个步骤</h5>
+              <div class="ph" style="width:94%"></div><div class="ph" style="width:88%"></div><div class="ph" style="width:70%"></div>
+              <div class="ph" style="width:90%;margin-top:28px"></div><div class="ph" style="width:82%"></div>
+            </div>
+            <div class="ask-card">
+              <div class="q">RAG 是什么意思？<span class="ic"><svg><use href="#i-pin"/></svg><svg><use href="#i-x"/></svg></span></div>
+              <p>RAG 就是「检索增强生成」：先从资料里找出和问题相关的内容，再交给大模型组织成回答。回答有依据，资料更新了也不用重新训练模型。</p>
+              <div class="follow"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <span class="ask-hint">按住回答 · 接着问</span>
+          </div>
+        </div>
 
-<!-- ===================== 上手三步 ===================== -->
-<section id="start" class="soft">
-  <div class="wrap">
-    <div class="sec-head center reveal">
+        <!-- 3 句尾口令 -->
+        <div class="feat">
+          <div class="feat-copy">
+            <p class="say"><b>句尾说「用英文」，这句就是英文。</b>口令由程序规则识别，不靠模型猜。也可以在「探索」页固定一种输出语言，不用每次都说。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="say-line"><svg><use href="#i-mic"/></svg><span id="said">明天下午三点开会，记得带上电脑，</span><span class="roll"><span class="roll-in" id="roll"><span>用英文</span><span>用日文</span><span>用韩文</span></span></span></div>
+            <div class="out">
+              <div class="out-label">输入到光标处</div>
+              <div class="out-text" id="outText">Meeting at 3 p.m. tomorrow — remember to bring your laptop.</div>
+            </div>
+            <div class="langs" id="langs">
+              <span class="is-on">英文</span><span>日文</span><span>韩文</span><span>中文</span><span class="opt">法语</span><span class="opt">德语</span><span class="opt">西班牙语</span>
+            </div>
+            <p class="langs-note">虚线的语言默认关闭，在「探索」页打开后可用</p>
+          </div>
+        </div>
+
+        <!-- 4 越用越准 -->
+        <div class="feat flip">
+          <div class="feat-copy">
+            <p class="say"><b>越用，越认得你的词。</b>识别错的人名、产品名，你改过一次，下次自动认对；常用的词也可以自己加进词库。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="learn">
+              <p class="t">周四上午十点跟 <mark>克劳德</mark> 那边对一下 <mark>cursor</mark> 的方案。</p>
+              <p class="t">周四上午 10:00 跟 <ins>Claude</ins> 那边对一下 <ins>Cursor</ins> 的方案。</p>
+            </div>
+            <div class="vocab">
+              <div class="vrow"><span class="from">克劳德</span><svg><use href="#i-arrow"/></svg><span>Claude</span><span class="tag">你改过</span></div>
+              <div class="vrow"><span>Cursor</span><span class="tag">词库</span></div>
+              <div class="vrow"><span>Typefree</span><span class="tag">词库</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="adv">
+        <p class="adv-h">想自己调的，也都在设置里</p>
+        <dl class="adv-grid">
+          <div><dt>润色模型</dt><dd>自动 · 质量优先或速度优先，也可以选「不优化」，直接输出识别原文</dd></div>
+          <div><dt>个人词库</dt><dd>把常被认错的人名、产品名加进去；还内置了一批科技词</dd></div>
+          <div><dt>历史记录</dt><dd>每一条都能重试、编辑文字、导出音频</dd></div>
+          <div><dt>保存多久</dt><dd>24 小时、一周、一个月，或全部保留，自己定</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 开源与数据去向 ============ -->
+  <section class="sec night" id="open">
+    <div class="wrap">
+      <span class="kicker">开源与隐私</span>
+      <h2 class="h2">你的话去了哪里，<br>每一步都查得到。</h2>
+      <p class="lede">没有账号，不用注册登录；代码全部公开在 GitHub。录音、识别、整理、回填，每一步数据去了哪里，都可以自己核对。</p>
+
+      <div class="route" id="route" data-mode="byok">
+        <div class="seg" role="group" aria-label="使用方式">
+          <button aria-pressed="true" data-mode="byok">用自己的 Key</button>
+          <button aria-pressed="false" data-mode="relay">免费试用 · 会员</button>
+        </div>
+        <div class="path">
+          <div class="node"><b>你的 Mac</b><span>录音、历史、Key<br>都留在本机</span></div>
+          <div class="wire"><i></i><i></i><i></i></div>
+          <div class="node n-relay"><b>Typefree 服务器</b><span class="st" data-skip="这一步跳过" data-relay="只转发，不保存"></span></div>
+          <div class="wire"><i></i><i></i><i></i></div>
+          <div class="node"><b>服务商</b><span>火山引擎识别<br>通义千问整理</span></div>
+        </div>
+        <div class="route-say">
+          <p data-for="byok">用自己的 Key：音频直接发给你选的服务商，不经过我们的服务器，费用走你自己的账户。</p>
+          <p data-for="relay">免费试用和会员：经我们的服务器转发，不保存录音和文字；只记字数、时长这类数字用来算额度，90 天后自动删除。</p>
+        </div>
+      </div>
+
+      <div class="open-grid">
+        <div class="ocell"><b>不用账号</b><p>没有注册、没有登录。试用打开就能用；会员只用一个授权码；反馈也不用留邮箱。</p></div>
+        <div class="ocell"><b>Key 存在钥匙串</b><p>API Key 只保存在本机钥匙串，不上传。</p></div>
+        <div class="ocell"><b>历史加密存本机</b><p>每次输入都在本机加密保存，可以导出；保留多久自己定。</p></div>
+        <a class="ocell repo" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">
+          <span class="name"><svg><use href="#i-gh"/></svg>kdsz001/typefree</span>
+          <ul>
+            <li><code>mac/</code>macOS App 完整源码（Swift）</li>
+            <li><code>GPL-3.0</code>可以自由使用、修改、自己编译</li>
+          </ul>
+          <span class="go">在 GitHub 查看源码 →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 三步开始 ============ -->
+  <section class="sec">
+    <div class="wrap">
       <span class="kicker">开始使用</span>
-      <h2>三步上手，不把复杂留给第一次打开的人。</h2>
-      <p>新手按步骤装好、授权即可；专业用户再进一步调服务商、热词和术语表。</p>
+      <h2 class="h2">装好，授权，就能说。</h2>
+      <div class="steps">
+        <div class="step"><span class="num">一</span><b>下载安装</b><p>下载已签名、已公证的安装包，拖进「应用程序」。新用户 7 天免费试用，不用填任何 Key。</p></div>
+        <div class="step"><span class="num">二</span><b>打开两个权限</b><p>按提示打开麦克风和辅助功能权限，Typefree 才能听到你说话、把字放进光标处。</p></div>
+        <div class="step"><span class="num">三</span><b>按住说话</b><p>在任意输入框按住快捷键或鼠标，说完松手，整理好的文字就在光标处。</p></div>
+      </div>
+      <p class="steps-more">想自己配 Key、长期免费用？<a href="setup-guide.html">跟着图文教程，5 分钟搞定 →</a></p>
     </div>
-    <div class="start">
-      <div class="scard reveal">
-        <div class="sn">STEP 01</div>
-        <h3>下载并安装</h3>
-        <p>下载已签名、已公证的 DMG，拖进"应用程序"即可。新用户 7 天免费试用、零配置，到期后开通会员，或填自己的 Key 永久免费。</p>
-        <div class="links">
-          <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>下载 Mac 版 DMG</a>
-        </div>
-      </div>
-      <div class="scard reveal">
-        <div class="sn">STEP 02</div>
-        <h3>配置服务商凭证</h3>
-        <p>填入识别和润色的 API Key——你自己在火山引擎和通义申请，Typefree 不中转、不计费；开通会员的可以跳过这步。<b>第一次不会弄？跟着图文教程，5 分钟搞定。</b></p>
-        <div class="links">
-          <a href="setup-guide.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>手把手图文教程 · 5 分钟拿到 API Key</a>
-          <a href="https://console.volcengine.com/speech/new/overview?projectName=default" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>火山引擎 · 语音识别</a>
-          <a href="https://bailian.console.aliyun.com" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>通义千问 · 大模型</a>
-        </div>
-      </div>
-      <div class="scard reveal">
-        <div class="sn">STEP 03</div>
-        <h3>授权后开始说话</h3>
-        <p>给麦克风和辅助功能权限，在任意输入框按住快捷键，说完松手——文字就落在光标处了。</p>
-        <div class="links">
-          <a href="#how"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>看它怎么工作</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- ===================== FAQ ===================== -->
-<section>
-  <div class="wrap">
-    <div class="sec-head center reveal">
-      <span class="kicker">常见问题</span>
-      <h2>提前回答最容易误解的几个问题。</h2>
-    </div>
-    <div class="faq">
-      <details open class="reveal"><summary>和系统自带的听写有什么区别？<span class="plus"></span></summary><p>系统听写更像逐字转录，"嗯、那个"也会照打。Typefree 会在识别后整理语言——去口水词、理顺句子、规范数字标点，让输出可以直接发送或当作 Prompt。</p></details>
-      <details class="reveal"><summary>Typefree 是开源的吗？<span class="plus"></span></summary><p>是。Mac 版代码以 GPL-3.0 协议公开在 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a>，每一步数据去了哪里都能自己核对，也可以自己编译使用（自己编译的版本需要填自己的 API Key）。「Typefree」名称和图标不在开源授权范围内。</p></details>
-      <details class="reveal"><summary>怎么收费？可以先免费试用吗？<span class="plus"></span></summary><p>可以。新用户有 7 天免费试用，零配置、费用我们承担（7 天共 10,000 字）。之后两种选择：填入你自己的 API Key，永久免费、不限字数；或开通会员（¥188/年），不用配置任何 Key。银行卡开通每年自动续费、随时可取消；微信付款是一次性买一年，不会自动扣费。</p></details>
-      <details class="reveal"><summary>它是完全离线的吗？<span class="plus"></span></summary><p>不是。识别和整理需要调用云端的语音识别和大模型服务。Typefree 强调的是本地优先、代码开源、数据去向透明——而不是"断网也能用"。</p></details>
-      <details class="reveal"><summary>支持哪些服务商和模型？<span class="plus"></span></summary><p>识别用火山引擎 BigASR；润色用通义千问（模型自动选），也可以选择"不润色、直接输出原文"。</p></details>
-      <details class="reveal"><summary>不太会配 API 的人能用吗？<span class="plus"></span></summary><p>能。开通会员就不用配置任何 Key，装好就能说话；想自己配，也有 5 分钟图文教程。</p></details>
-      <details class="reveal"><summary>我的录音和数据安全吗？<span class="plus"></span></summary><p>历史记录和 API 凭证默认存在你自己的设备上（macOS 在 <code>~/.config/voicepolish/</code>）。用自己的 Key 时，请求只发往你配置的服务商，不经过我们；免费试用和会员期间，经我们的服务器转发，只转发、不保存录音和文字。代码开源，可以自己核对。</p></details>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== 结尾 CTA ===================== -->
-<div class="final">
-  <div class="wrap">
-    <div class="final-box reveal">
-      <h2>把语音输入，变成你可信赖的日常工具。</h2>
-      <p>适合在意数据边界的人：代码开源，先免费用着；嫌配置麻烦，再开会员。</p>
-      <div class="cta">
-        <a class="btn lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>免费下载 Mac 版</a>
-        <a class="btn ghost lg" href="#pricing">查看价格 →</a>
+  <!-- ============ 价格速览 ============ -->
+  <section class="sec" style="padding-top:0">
+    <div class="wrap">
+      <div class="price-band">
+        <div class="pb"><div class="k">新用户</div><div class="p">免费 <small>7 天</small></div><p>零配置，识别和整理的费用由我们承担</p></div>
+        <div class="pb"><div class="k">自带 Key</div><div class="p">永久免费</div><p>填你自己的 API Key，不限字数</p></div>
+        <div class="pb"><div class="k">会员</div><div class="p">¥188 <small>/ 年</small></div><p>识别、整理、问 AI 全包，不用申请 Key</p></div>
+        <div class="pb-go"><a class="btn btn-ink" href="pricing.html">看价格详情</a></div>
       </div>
     </div>
-  </div>
-</div>
+  </section>
 
-<!-- ===================== Footer ===================== -->
-<footer>
-  <div class="wrap">
-    <span>© 2026 Typefree</span>
-    <div class="fl">
-      <a href="#pricing">价格</a>
-      <a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下载</a>
-      <a class="gh" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg class="ghm" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub 源码</a>
-      <a href="recover.html">找回授权码</a>
-      <a href="refund.html">退款政策</a>
-      <a href="privacy.html">隐私政策</a>
-      <a href="terms.html">服务条款</a>
-      <a href="mailto:ray@typefree.app">联系我们</a>
+  <!-- ============ 常见问题 ============ -->
+  <section class="sec" style="padding-top:40px" id="faq">
+    <div class="wrap">
+      <h2 class="h2">常见问题</h2>
+      <div class="faq">
+        <details><summary>和系统自带的听写有什么区别？</summary><div class="ans">系统听写更像逐字转录，「嗯、那个」也会照打。Typefree 会在识别后整理语言——去口水词、理顺句子、规范数字和标点，让输出可以直接发送，或者直接当作给 AI 的指令。</div></details>
+        <details><summary>Typefree 是开源的吗？</summary><div class="ans">是。Mac 版代码以 GPL-3.0 协议公开在 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a>，每一步数据去了哪里都能自己核对，也可以自己编译使用（自己编译的版本需要填自己的 API Key）。「Typefree」名称和图标不在开源授权范围内。</div></details>
+        <details><summary>怎么收费？可以先免费试用吗？</summary><div class="ans">可以。新用户有 7 天免费试用，零配置、费用由我们承担（7 天共 10,000 字）。之后两种选择：填入你自己的 API Key，永久免费、不限字数；或开通会员（¥188/年），不用配置任何 Key。详见 <a href="pricing.html">价格</a>。</div></details>
+        <details><summary>支持哪些服务商和模型？</summary><div class="ans">识别用火山引擎；润色用通义千问，模型按质量或速度自动选，也可以选「不优化」，直接输出识别原文。</div></details>
+        <details><summary>它是完全离线的吗？</summary><div class="ans">不是。识别和整理需要调用云端的语音识别和大模型服务。Typefree 强调的是本地优先、代码开源、数据去向透明，而不是「断网也能用」。</div></details>
+        <details><summary>需要注册账号吗？</summary><div class="ans">不需要。Typefree 没有账号系统：下载打开就能说，试用不用填任何信息。开通会员时，付款页填一个邮箱用来接收授权码，把授权码填进 App 就行。有问题可以在 App 的「反馈」页直接说，也不用登录、不用留邮箱。</div></details>
+        <details><summary>不太会配 API 的人能用吗？</summary><div class="ans">能。开通会员就不用配置任何 Key，装好就能说话；想自己配，也有 <a href="setup-guide.html">5 分钟图文教程</a>。</div></details>
+        <details><summary>我的录音和数据安全吗？</summary><div class="ans">历史记录加密保存在你自己的 Mac 上（<code>~/.config/voicepolish/</code>），API Key 存在系统钥匙串里。用自己的 Key 时，请求只发往你配置的服务商，不经过我们；免费试用和会员期间，经我们的服务器转发，只转发、不保存录音和文字。</div></details>
+      </div>
     </div>
+  </section>
+
+  <!-- ============ 结尾 ============ -->
+  <section class="finale">
+    <div class="wrap">
+      <div class="idle-cap" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <h2 class="h2">说完，就写好了。</h2>
+      <p>先免费用 7 天，不用填任何 Key。</p>
+      <div class="row">
+        <a class="btn btn-ink btn-lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg><use href="#i-down"/></svg>免费下载 Mac 版</a>
+        <a class="btn btn-lg" href="pricing.html">看价格</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="index.html"><span class="brand-mark"><svg><use href="#i-logo"/></svg></span>Typefree</a>
+        <p>更懂中文的开源 AI 语音输入。随口一说，就是成稿。</p>
+      </div>
+      <div><h4>产品</h4><ul><li><a href="#demo">怎么用</a></li><li><a href="#cases">真实效果</a></li><li><a href="pricing.html">价格</a></li><li><a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下载</a></li></ul></div>
+      <div><h4>帮助</h4><ul><li><a href="setup-guide.html">配置教程</a></li><li><a href="recover.html">找回授权码</a></li><li><a href="mailto:ray@typefree.app">联系我们</a></li></ul></div>
+      <div><h4>开源</h4><ul><li><a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub 源码</a></li><li><a href="https://github.com/kdsz001/typefree/issues" target="_blank" rel="noopener">提问题</a></li></ul></div>
+      <div><h4>条款</h4><ul><li><a href="privacy.html">隐私政策</a></li><li><a href="terms.html">服务条款</a></li><li><a href="refund.html">退款政策</a></li></ul></div>
+    </div>
+    <div class="foot-bottom"><span>© 2026 Typefree</span><span>macOS 14+ · 已签名 · 已公证</span></div>
   </div>
 </footer>
 
 <script>
-  // 导航滚动描边
-  const nav=document.getElementById('nav');
-  const onScroll=()=>nav.classList.toggle('scrolled',window.scrollY>8);
-  onScroll(); window.addEventListener('scroll',onScroll,{passive:true});
-
-  // 滚动入场
-  const io=new IntersectionObserver((es)=>{
-    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
-  },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
-  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-
-  // 锚点跳转修复：URL 带 #pricing 等锚点时，等资源加载完精确定位到目标；没有锚点才强制回顶部
-  if(location.hash.length>1){
-    var jumpToHash=function(){try{var el=document.querySelector(location.hash);if(el)el.scrollIntoView({behavior:'auto'});}catch(e){}};
-    jumpToHash();
-    window.addEventListener('load',jumpToHash);
-  }else{
-    window.scrollTo(0,0);
-    window.addEventListener('load',()=>window.scrollTo(0,0));
-  }
-
-  // 语言切换器：标记当前 + 记住选择
-  (function(){var P="zh-Hans";var sw=document.getElementById('langsw');if(!sw)return;
-    sw.querySelectorAll('a').forEach(function(a){
-      if(a.dataset.l===P)a.classList.add('on');
-      a.addEventListener('click',function(){try{localStorage.setItem('tf_lang',this.dataset.l);}catch(e){}});
-    });})();
+window.TF_HOME = {
+  talk: { words: [{ t: '嗯，', f: 1 }, { t: '明天下午' }, { t: '那个，', f: 1 }, { t: '三点开会，' }, { t: '就是', f: 1 }, { t: '记得带上电脑' }], busy: '整理中', out: '明天下午三点开会，记得带上电脑。' },
+  ask: { words: [{ t: 'RAG\u00a0' }, { t: '是什么' }, { t: '意思？' }], busy: '思考中', answer: 'RAG 就是「检索增强生成」：先从资料里找出和问题相关的内容，再交给大模型组织成回答。回答有依据，资料更新了也不用重新训练模型。' },
+  trans: { words: [{ t: '明天下午' }, { t: '三点开会，' }, { t: '记得带上电脑，' }, { t: '用英文', cmd: 1 }], tag: '→ EN', out: 'Meeting at 3 p.m. tomorrow — remember to bring your laptop.' },
+  roll: [
+    { said: '明天下午三点开会，记得带上电脑，', out: 'Meeting at 3 p.m. tomorrow — remember to bring your laptop.', lang: 0 },
+    { said: '谢谢你今天帮忙，', out: '今日は手伝ってくれてありがとう。', lang: 1 },
+    { said: '谢谢你今天帮忙，', out: '오늘 도와주셔서 감사합니다.', lang: 2 }
+  ]
+};
 </script>
-<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
-<script>
-  try{
-    Paddle.Initialize({ token: "live_dc739a05249f479cbf1d379bda6" });
-    document.querySelectorAll(".tf-buy").forEach(function(b){
-      b.addEventListener("click", function(e){
-        e.preventDefault();
-        // ⚠ 不要给 Checkout.open 传 customer.address 预设国家：Paddle 校验要求 customer 必须带
-        // email 或 id（买家付款前我们拿不到），只传 address 会当场抛错、结账框弹不出来（2026-06-11 实测）。
-        // 挂梯子用户看不到微信支付的问题改由 pnote 文案引导（付款页把「国家」选成中国）。
-        Paddle.Checkout.open({
-          settings: { successUrl: "https://typefree.app/thanks.html" },
-          items:[{ priceId: b.dataset.price, quantity:1 }] });
-      });
-    });
-  }catch(err){ console.error("Paddle init failed", err); }
-</script>
+<script src="site.js?v=20260917-6"></script>
+<script src="home.js?v=20260917-6"></script>
 </body>
 </html>
