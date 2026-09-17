@@ -31,8 +31,8 @@ In any app's text field, hold a hotkey or the left mouse button and talk. When y
 - **Hold the mouse to talk** — no hotkey needed; drag down a little to lock if you want to let go mid-sentence, drag far away to cancel
 - **Ask AI anywhere** — hold the mouse on empty space and ask; the answer appears in the top-right corner, with follow-ups and pinning
 - **Voice translation** — end your sentence with "in Chinese" (or "Japanese", "Korean"…) and it is typed in that language
-- **Learns your words** — proper nouns, names and product terms get more accurate over time; corrections you make are applied next time
-- **History** — everything you dictate is stored encrypted on your Mac, searchable and exportable
+- **Learns from your fixes** — correct a misheard name or product term once and it is recognized next time; you can also add words to your vocabulary
+- **History** — everything you dictate is stored encrypted on your Mac, exportable, kept as long as you choose
 - **Multiple providers** — Volcengine for speech recognition, Qwen for cleanup, with the model picked automatically by quality and speed
 
 Chinese and English speech are both supported. The cleanup prompts are tuned first for Chinese, so that is where it shines most.
@@ -61,7 +61,7 @@ No window switching, no copying: hold the mouse on some empty space and ask. Hol
   <img src="readme-assets/en-translate.gif" width="768" alt="End your sentence with “in Chinese” and it is typed in Chinese">
 </p>
 
-Commands are matched by rule, not guessed by the model. English, Chinese, Japanese and Korean are on by default; French, German and Spanish can be enabled in Settings. You can also fix one output language so you never have to say the command.
+Commands are matched by rule, not guessed by the model. English, Chinese, Japanese and Korean are on by default; French, German and Spanish can be enabled on the Explore page. You can also fix one output language so you never have to say the command.
 
 ## Privacy
 
