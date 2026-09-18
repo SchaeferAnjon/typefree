@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-Hant" data-lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Typefree — 更懂中文的開源 AI 語音輸入</title>
+<meta name="description" content="Typefree 是更懂中文的開源 AI 語音輸入，不用註冊登入。按住快捷鍵或滑鼠說話，鬆手時口水詞已經刪掉、句子已經理順，整理好的文字直接落在游標處。新使用者 7 天免費試用；自帶 API Key 永久免費；不想配置就開會員。">
+<script>/* 語言自動跳轉 + 兼容舊連結：App 裡寫死了 typefree.app/#pricing，舊首頁錨點 #how / #security 也有外鏈 */
+(function(){var P="zh-Hant",I=0,pages={"zh-Hans":["index.html","pricing.html"],"zh-Hant":["index.zh-Hant.html","pricing.zh-Hant.html"],"en":["index.en.html","pricing.en.html"]};
+try{var w=null;try{w=localStorage.getItem("tf_lang");}catch(e){}
+if(!pages[w]){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}
+var h=location.hash,alias={"#how":"#demo","#security":"#open"};if(alias[h])h=alias[h];
+if(I===0&&h==="#pricing"){location.replace(pages[w][1]);return;}
+if(w!==P){location.replace(pages[w][I]+h);return;}
+if(h!==location.hash)history.replaceState(null,"",h);}catch(e){}})();</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23111113'/%3E%3Cg fill='%23fff'%3E%3Crect x='5.25' y='9.77' width='1.73' height='4.43' rx='0.87'/%3E%3Crect x='8.18' y='7.85' width='1.73' height='8.27' rx='0.87'/%3E%3Crect x='11.13' y='6.47' width='1.73' height='11.04' rx='0.87'/%3E%3Crect x='14.06' y='8.39' width='1.73' height='7.2' rx='0.87'/%3E%3Crect x='16.99' y='10.05' width='1.73' height='3.87' rx='0.87'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css?v=20260917-6">
+<link rel="stylesheet" href="home.css?v=20260917-6">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24" fill="currentColor"><rect x="5.25" y="9.77" width="1.73" height="4.43" rx="0.87"/><rect x="8.18" y="7.85" width="1.73" height="8.27" rx="0.87"/><rect x="11.13" y="6.47" width="1.73" height="11.04" rx="0.87"/><rect x="14.06" y="8.39" width="1.73" height="7.2" rx="0.87"/><rect x="16.99" y="10.05" width="1.73" height="3.87" rx="0.87"/></symbol>
+  <symbol id="i-gh" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 3 3H7l3-3z"/><path d="M12 12v9"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.zh-Hant.html"><span class="brand-mark"><svg><use href="#i-logo"/></svg></span>Typefree</a>
+    <nav class="nav-links" aria-label="主導航">
+      <a href="#demo">怎麼用</a>
+      <a href="#cases">真實效果</a>
+      <a href="#open">開源與隱私</a>
+      <a href="pricing.zh-Hant.html">價格</a>
+      <a href="setup-guide.zh-Hant.html">配置教程</a>
+    </nav>
+    <div class="nav-end">
+      <div class="langsw" id="langsw" aria-label="語言"><a data-l="zh-Hans" href="index.html">簡</a><a data-l="zh-Hant" href="index.zh-Hant.html">繁</a><a data-l="en" href="index.en.html">EN</a></div>
+      <a class="gh" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg><use href="#i-gh"/></svg><span>GitHub</span></a>
+      <a class="btn btn-ink btn-sm" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下載 Mac 版</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 首屏 ============ -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="kicker">開源 · 更懂中文的 AI 語音輸入</span>
+      <h1 class="thesis" id="thesis" aria-label="隨口一說，就是成稿。">
+        <span class="ln" aria-hidden="true"><span class="fl" style="--r:-4deg;--y:-.3em">嗯…那個</span>隨口<span class="fl" style="--r:3deg;--y:.35em">呃，就是</span>一說，<span class="fl" style="--r:-3deg;--y:-.2em">然後</span></span>
+        <span class="ln" aria-hidden="true"><span class="fl" style="--r:3.5deg;--y:.3em">其實吧</span>就是<span class="fl" style="--r:-3.5deg;--y:-.35em">怎麼說呢</span>成稿。<span class="fl" style="--r:4deg;--y:.25em">你懂吧？</span><span class="caret"></span></span>
+      </h1>
+      <p class="hero-sub">按住快捷鍵或滑鼠說話。鬆手時，口水詞已經刪掉、句子已經理順，整理好的文字直接落在游標處。</p>
+      <div class="hero-cta">
+        <a class="btn btn-ink btn-lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg><use href="#i-down"/></svg>免費下載 Mac 版</a>
+        <a class="btn btn-lg" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener"><svg><use href="#i-gh"/></svg>在 GitHub 看原始碼</a>
+      </div>
+      <p class="hero-meta"><b>不用註冊，不用登入</b> · 新使用者 7 天免費 · macOS 14+ · 開源 GPL-3.0</p>
+    </div>
+
+    <!-- 演示舞台 -->
+    <div class="stage" id="demo">
+      <div class="screen" id="screen" aria-label="Typefree 使用演示動畫" role="img">
+        <div class="menubar"><b>Typefree</b><span>檔案</span><span>編輯</span><span>顯示方式</span>
+          <span class="mb-end"><svg><use href="#i-logo"/></svg><span>9:41</span></span>
+        </div>
+
+        <!-- 場景一：按住說話 -->
+        <div class="scene" data-scene="talk">
+          <div class="win win-chat">
+            <div class="win-bar"><i></i><i></i><i></i><span>專案群組</span></div>
+            <div class="w-log"><div class="w-msg">明天的會幾點開？</div></div>
+            <div class="w-input"><span class="w-input-text" data-ph="傳訊息…"></span></div>
+          </div>
+        </div>
+
+        <!-- 場景二：問 AI -->
+        <div class="scene" data-scene="ask">
+          <div class="win win-doc">
+            <div class="win-bar"><i></i><i></i><i></i><span class="url">knowledge.example.com</span></div>
+            <div class="doc">
+              <h5>用 RAG 搭建企業知識庫的五個步驟</h5>
+              <p>RAG 是現在最常用的知識庫做法：把文件切成小段存起來，提問時先找出最相關的幾段，再交給大模型組織回答。</p>
+              <div class="ph" style="width:92%"></div><div class="ph" style="width:78%"></div><div class="ph" style="width:85%"></div>
+            </div>
+            <div class="w-blank"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-q"><span class="panel-q-text">RAG 是什麼意思？</span><span class="ic"><svg><use href="#i-pin"/></svg><svg><use href="#i-x"/></svg></span></div>
+            <div class="panel-a"></div>
+          </div>
+        </div>
+
+        <!-- 場景三：用英文 -->
+        <div class="scene" data-scene="trans">
+          <div class="win win-chat">
+            <div class="win-bar"><i></i><i></i><i></i><span>Global Team</span></div>
+            <div class="w-log"><div class="w-msg">Hi! Are we still meeting tomorrow?</div></div>
+            <div class="w-input"><span class="w-input-text" data-ph="傳訊息…"></span></div>
+          </div>
+        </div>
+
+        <div class="chip"><svg><use href="#i-mic"/></svg><span class="chip-text"></span></div>
+        <div class="capsule"><i></i><i></i><i></i><i></i><i></i><span class="lbl"></span></div>
+        <div class="cursor"><svg viewBox="0 0 20 28"><path d="M2 2v20.5l5.2-5 3.5 8.1 3.4-1.5-3.4-7.9H18z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="ring"></span></div>
+      </div>
+
+      <div class="stabs" role="tablist" aria-label="演示切換">
+        <button class="stab" role="tab" data-i="0"><span class="bar"></span><b>按住說話</b><span>鬆手就是整理好的文字</span></button>
+        <button class="stab" role="tab" data-i="1"><span class="bar"></span><b>隨時問 AI</b><span>在空白處按住，問一句</span></button>
+        <button class="stab" role="tab" data-i="2"><span class="bar"></span><b>句尾說「用英文」</b><span>這一句直接出英文</span></button>
+      </div>
+      <p class="stage-note">介面演示動畫</p>
+    </div>
+
+    <div class="wrap">
+      <dl class="facts">
+        <div class="fact"><dt>開源</dt><dd class="v">GPL-3.0</dd><dd>程式碼全部公開，可以自己編譯</dd></div>
+        <div class="fact"><dt>帳號</dt><dd class="v">不需要</dd><dd>開啟就能說，不用手機號碼、不用信箱</dd></div>
+        <div class="fact"><dt>費用</dt><dd class="v">先免費 7 天</dd><dd>之後自帶 Key 永久免費，或開會員</dd></div>
+        <div class="fact"><dt>隱私</dt><dd class="v">不留你說的話</dd><dd>歷史和 Key 都留在你的 Mac 上</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============ 真實效果 ============ -->
+  <section class="sec" id="cases">
+    <div class="wrap">
+      <span class="kicker">真實效果</span>
+      <h2 class="h2">它不是錄音稿，<br>是你本來就想發出去的那句話。</h2>
+      <p class="lede">下面四段都是用真實產品鏈路跑出來的：左邊隨口一說，右邊是 Typefree 整理後的結果。</p>
+
+      <div class="cases">
+        <div class="case-tabs" role="tablist" aria-label="案例">
+          <button class="ctab" role="tab" data-case="0" aria-selected="true">改口</button>
+          <button class="ctab" role="tab" data-case="1" aria-selected="false">隨手記</button>
+          <button class="ctab" role="tab" data-case="2" aria-selected="false">給 AI 下指令</button>
+          <button class="ctab" role="tab" data-case="3" aria-selected="false">報價數字</button>
+        </div>
+        <div class="board" id="board">
+          <div class="bcol raw">
+            <div class="blabel">隨口說</div>
+            <p class="raw-text"></p>
+          </div>
+          <div class="bmid"><span class="arr"><svg><use href="#i-arrow"/></svg></span></div>
+          <div class="bcol clean">
+            <div class="blabel">整理後 <span class="btags"></span></div>
+            <p class="clean-text"></p>
+          </div>
+        </div>
+        <p class="cases-note">畫線部分是被刪掉的口水詞和說錯又改口的內容。</p>
+      </div>
+
+      <template id="case-data">
+        <div data-tags="口誤修正">
+          <p class="r">我週五下午可以過去，<del>不對，週五不行，</del>是週四下午，三點以後都可以，你幫我約一下。</p>
+          <p class="c">我週四下午三點以後都可以，你幫我約一下。</p>
+        </div>
+        <div data-tags="去口水詞,自動分段">
+          <p class="r">我最近<del>其實</del>發現在家裡辦公<del>的話</del>效率不是特別高，因為<del>嗯，這個</del>環境過於熟悉和放鬆，辦公過程中<del>老是容易那個，就是。</del>搗鼓<del>搗鼓</del>這個，搗鼓<del>搗鼓</del>那個，上個廁所，喝口水，老是容易分神，工作效率比較低。<del>因為我發現</del>我在<del>外面</del>咖啡廳<del>的時候，我覺得</del>工作效率會高很多，注意力集中很多。<del>效率也高。</del>所以我<del>最近</del>打算<del>都在面，那個就是我</del>去咖啡廳辦公，<del>以後打算咖啡廳辦公會</del>效果好一些。而且最近<del>他</del>剛好<del>家裡在剛好</del>樓上鄰居在裝修。</p>
+          <p class="c">我最近發現，在家裡辦公效率不是特別高。因為環境過於熟悉和放鬆，辦公過程中老是容易分神：一會兒搗鼓這個，一會兒搗鼓那個，還要上廁所、喝口水，導致工作效率比較低。&#10;&#10;相比之下，我在咖啡廳辦公時，注意力會更集中，效率也高很多。所以我打算以後去咖啡廳辦公，效果應該會好一些。而且剛好最近樓上鄰居在裝修，家裡也比較吵。</p>
+        </div>
+        <div data-tags="口誤修正,列表化">
+          <p class="r">你幫我改一下這個登入頁，先別大改，<del>呃不對，</del>先看一下為什麼按鈕一直轉圈。然後如果是前端狀態沒恢復就修前端，如果是介面沒返回就把錯誤提示補上。還有不要動註冊頁，最後跑一下測試。</p>
+          <p class="c">你幫我改一下這個登入頁。先別大改，先看一下為什麼按鈕一直轉圈。&#10;&#10;1. 如果是前端狀態沒恢復，就修前端；&#10;2. 如果是介面沒返回，就把錯誤提示補上。&#10;&#10;還有，不要動註冊頁，最後跑一下測試。</p>
+        </div>
+        <div data-tags="數字規範,列表化">
+          <p class="r">這個報價我算了一下，基礎版大概三千六一年，專業版差不多九千八一年，如果買三年，應該能便宜兩成左右。</p>
+          <p class="c">這個報價我算了一下：&#10;&#10;1. 基礎版大概 3600 元一年；&#10;2. 專業版差不多 9800 元一年。&#10;&#10;如果買三年，應該能便宜兩成左右。</p>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- ============ 功能 ============ -->
+  <section class="sec" style="padding-top:40px" id="features">
+    <div class="wrap">
+      <div class="head-center">
+        <span class="kicker">不止是打字</span>
+        <h2 class="h2">手不離滑鼠，<br>也能說、能問、能翻譯。</h2>
+      </div>
+
+      <div class="feats">
+        <!-- 1 滑鼠長按 -->
+        <div class="feat">
+          <div class="feat-copy">
+            <p class="say"><b>滑鼠按住，就能說。</b>不想記快捷鍵，就在輸入框裡按住滑鼠約半秒，開始說話。說到一半想鬆手，往下拖一點鎖定，說完點 ✓；不想要了，往外拖遠，亮紅光後鬆開就取消。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="hold-steps">
+              <div class="hold"><span class="mini-cap"><i></i><i></i><i></i><i></i></span><div class="hold-txt"><b>按住約半秒</b><span>開始說話，鬆手就出字</span></div></div>
+              <div class="hold"><span class="mini-cap locked"><span class="btn-x"><svg><use href="#i-x"/></svg></span><span class="bars"><i></i><i></i><i></i></span><span class="btn-ok"><svg><use href="#i-ok"/></svg></span></span><div class="hold-txt"><b>往下拖一點</b><span>亮綠光 = 已鎖定，鬆手接著說，說完點 ✓</span></div></div>
+              <div class="hold"><span class="mini-cap cancel"><i></i><i></i><i></i><i></i></span><div class="hold-txt"><b>往外拖遠</b><span>亮紅光時鬆開，這一段就取消</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2 問 AI -->
+        <div class="feat flip">
+          <div class="feat-copy">
+            <p class="say"><b>看到不懂的，按住問一句。</b>不用切視窗、不用複製。在空白處按住滑鼠說出問題，回答出現在螢幕右上角；按住回答還能接著問，想留住就點圖釘。</p>
+          </div>
+          <div class="mock mock-ask" aria-hidden="true">
+            <div class="page">
+              <h5>用 RAG 搭建企業知識庫的五個步驟</h5>
+              <div class="ph" style="width:94%"></div><div class="ph" style="width:88%"></div><div class="ph" style="width:70%"></div>
+              <div class="ph" style="width:90%;margin-top:28px"></div><div class="ph" style="width:82%"></div>
+            </div>
+            <div class="ask-card">
+              <div class="q">RAG 是什麼意思？<span class="ic"><svg><use href="#i-pin"/></svg><svg><use href="#i-x"/></svg></span></div>
+              <p>RAG 就是「檢索增強生成」：先從資料裡找出和問題相關的內容，再交給大模型組織成回答。回答有依據，資料更新了也不用重新訓練模型。</p>
+              <div class="follow"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <span class="ask-hint">按住回答 · 接著問</span>
+          </div>
+        </div>
+
+        <!-- 3 句尾口令 -->
+        <div class="feat">
+          <div class="feat-copy">
+            <p class="say"><b>句尾說「用英文」，這句就是英文。</b>口令由程式規則辨識，不靠模型猜。也可以在「探索」頁固定一種輸出語言，不用每次都說。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="say-line"><svg><use href="#i-mic"/></svg><span id="said">明天下午三點開會，記得帶上電腦，</span><span class="roll"><span class="roll-in" id="roll"><span>用英文</span><span>用日文</span><span>用韓文</span></span></span></div>
+            <div class="out">
+              <div class="out-label">輸入到游標處</div>
+              <div class="out-text" id="outText">Meeting at 3 p.m. tomorrow — remember to bring your laptop.</div>
+            </div>
+            <div class="langs" id="langs">
+              <span class="is-on">英文</span><span>日文</span><span>韓文</span><span>中文</span><span class="opt">法語</span><span class="opt">德語</span><span class="opt">西班牙語</span>
+            </div>
+            <p class="langs-note">虛線的語言預設關閉，在「探索」頁開啟後可用</p>
+          </div>
+        </div>
+
+        <!-- 4 越用越准 -->
+        <div class="feat flip">
+          <div class="feat-copy">
+            <p class="say"><b>越用，越認得你的詞。</b>辨識錯的人名、產品名，你改過一次，下次自動認對；常用的詞也可以自己加進詞庫。</p>
+          </div>
+          <div class="mock" aria-hidden="true">
+            <div class="learn">
+              <p class="t">週四上午十點跟 <mark>克勞德</mark> 那邊對一下 <mark>cursor</mark> 的方案。</p>
+              <p class="t">週四上午 10:00 跟 <ins>Claude</ins> 那邊對一下 <ins>Cursor</ins> 的方案。</p>
+            </div>
+            <div class="vocab">
+              <div class="vrow"><span class="from">克勞德</span><svg><use href="#i-arrow"/></svg><span>Claude</span><span class="tag">你改過</span></div>
+              <div class="vrow"><span>Cursor</span><span class="tag">詞庫</span></div>
+              <div class="vrow"><span>Typefree</span><span class="tag">詞庫</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="adv">
+        <p class="adv-h">想自己調的，也都在設定裡</p>
+        <dl class="adv-grid">
+          <div><dt>潤色模型</dt><dd>自動 · 品質優先或速度優先，也可以選「不優化」，直接輸出辨識原文</dd></div>
+          <div><dt>個人詞庫</dt><dd>把常被認錯的人名、產品名加進去；還內建了一批科技詞</dd></div>
+          <div><dt>歷史記錄</dt><dd>每一條都能重試、編輯文字、匯出音訊</dd></div>
+          <div><dt>保存多久</dt><dd>24 小時、一週、一個月，或全部保留，自己定</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 開源與資料去向 ============ -->
+  <section class="sec night" id="open">
+    <div class="wrap">
+      <span class="kicker">開源與隱私</span>
+      <h2 class="h2">你的話去了哪裡，<br>每一步都查得到。</h2>
+      <p class="lede">沒有帳號，不用註冊登入；程式碼全部公開在 GitHub。錄音、辨識、整理、回填，每一步資料去了哪裡，都可以自己核對。</p>
+
+      <div class="route" id="route" data-mode="byok">
+        <div class="seg" role="group" aria-label="使用方式">
+          <button aria-pressed="true" data-mode="byok">用自己的 Key</button>
+          <button aria-pressed="false" data-mode="relay">免費試用 · 會員</button>
+        </div>
+        <div class="path">
+          <div class="node"><b>你的 Mac</b><span>錄音、歷史、Key<br>都留在本機</span></div>
+          <div class="wire"><i></i><i></i><i></i></div>
+          <div class="node n-relay"><b>Typefree 伺服器</b><span class="st" data-skip="這一步跳過" data-relay="只轉發，不保存"></span></div>
+          <div class="wire"><i></i><i></i><i></i></div>
+          <div class="node"><b>服務商</b><span>火山引擎辨識<br>通義千問整理</span></div>
+        </div>
+        <div class="route-say">
+          <p data-for="byok">用自己的 Key：音訊直接發給你選的服務商，不經過我們的伺服器，費用走你自己的帳戶。</p>
+          <p data-for="relay">免費試用和會員：經我們的伺服器轉發，不保存錄音和文字；只記字數、時長這類數字用來算額度，90 天後自動刪除。</p>
+        </div>
+      </div>
+
+      <div class="open-grid">
+        <div class="ocell"><b>不用帳號</b><p>沒有註冊、沒有登入。試用開啟就能用；會員只用一個授權碼；回饋也不用留信箱。</p></div>
+        <div class="ocell"><b>Key 存在鑰匙圈</b><p>API Key 只保存在本機鑰匙圈，不上傳。</p></div>
+        <div class="ocell"><b>歷史加密存本機</b><p>每次輸入都在本機加密保存，可以匯出；保留多久自己定。</p></div>
+        <a class="ocell repo" href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">
+          <span class="name"><svg><use href="#i-gh"/></svg>kdsz001/typefree</span>
+          <ul>
+            <li><code>mac/</code>macOS App 完整原始碼（Swift）</li>
+            <li><code>GPL-3.0</code>可以自由使用、修改、自己編譯</li>
+          </ul>
+          <span class="go">在 GitHub 查看原始碼 →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 三步開始 ============ -->
+  <section class="sec">
+    <div class="wrap">
+      <span class="kicker">開始使用</span>
+      <h2 class="h2">裝好，授權，就能說。</h2>
+      <div class="steps">
+        <div class="step"><span class="num">一</span><b>下載安裝</b><p>下載已簽名、已公證的安裝檔，拖進「應用程式」。新使用者 7 天免費試用，不用填任何 Key。</p></div>
+        <div class="step"><span class="num">二</span><b>開啟兩個權限</b><p>按提示開啟麥克風和輔助功能權限，Typefree 才能聽到你說話、把字放進游標處。</p></div>
+        <div class="step"><span class="num">三</span><b>按住說話</b><p>在任意輸入框按住快捷鍵或滑鼠，說完鬆手，整理好的文字就在游標處。</p></div>
+      </div>
+      <p class="steps-more">想自己設定 Key、長期免費用？<a href="setup-guide.zh-Hant.html">跟著圖文教程，5 分鐘搞定 →</a></p>
+    </div>
+  </section>
+
+  <!-- ============ 價格速覽 ============ -->
+  <section class="sec" style="padding-top:0">
+    <div class="wrap">
+      <div class="price-band">
+        <div class="pb"><div class="k">新使用者</div><div class="p">免費 <small>7 天</small></div><p>免設定，辨識和整理的費用由我們承擔</p></div>
+        <div class="pb"><div class="k">自帶 Key</div><div class="p">永久免費</div><p>填你自己的 API Key，不限字數</p></div>
+        <div class="pb"><div class="k">會員</div><div class="p">¥188 <small>/ 年</small></div><p>辨識、整理、問 AI 全包，不用申請 Key</p></div>
+        <div class="pb-go"><a class="btn btn-ink" href="pricing.zh-Hant.html">看價格詳情</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 常見問題 ============ -->
+  <section class="sec" style="padding-top:40px" id="faq">
+    <div class="wrap">
+      <h2 class="h2">常見問題</h2>
+      <div class="faq">
+        <details><summary>和系統自帶的聽寫有什麼區別？</summary><div class="ans">系統聽寫更像逐字轉錄，「嗯、那個」也會照打。Typefree 會在辨識後整理語言——去口水詞、理順句子、規範數字和標點，讓輸出可以直接發送，或者直接當作給 AI 的指令。</div></details>
+        <details><summary>Typefree 是開源的嗎？</summary><div class="ans">是。Mac 版程式碼以 GPL-3.0 授權公開在 <a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub</a>，每一步資料去了哪裡都能自己核對，也可以自己編譯使用（自己編譯的版本需要填自己的 API Key）。「Typefree」名稱和圖示不在開源授權範圍內。</div></details>
+        <details><summary>怎麼收費？可以先免費試用嗎？</summary><div class="ans">可以。新使用者有 7 天免費試用，免設定、費用由我們承擔（7 天共 10,000 字）。之後兩種選擇：填入你自己的 API Key，永久免費、不限字數；或開通會員（¥188/年），不用設定任何 Key。詳見 <a href="pricing.zh-Hant.html">價格</a>。</div></details>
+        <details><summary>支援哪些服務商和模型？</summary><div class="ans">辨識用火山引擎；潤色用通義千問，模型按品質或速度自動選，也可以選「不優化」，直接輸出辨識原文。</div></details>
+        <details><summary>它是完全離線的嗎？</summary><div class="ans">不是。辨識和整理需要呼叫雲端的語音辨識和大模型服務。Typefree 強調的是本地優先、程式碼開源、資料去向透明，而不是「斷網也能用」。</div></details>
+        <details><summary>需要註冊帳號嗎？</summary><div class="ans">不需要。Typefree 沒有帳號系統：下載開啟就能說，試用不用填任何資訊。開通會員時，付款頁填一個信箱用來接收授權碼，把授權碼填進 App 就行。有問題可以在 App 的「回饋」頁直接說，也不用登入、不用留信箱。</div></details>
+        <details><summary>不太會設定 API 的人能用嗎？</summary><div class="ans">能。開通會員就不用設定任何 Key，裝好就能說話；想自己設定，也有 <a href="setup-guide.zh-Hant.html">5 分鐘圖文教程</a>。</div></details>
+        <details><summary>我的錄音和資料安全嗎？</summary><div class="ans">歷史記錄加密保存在你自己的 Mac 上（<code>~/.config/voicepolish/</code>），API Key 存在系統鑰匙圈裡。用自己的 Key 時，請求只發往你設定的服務商，不經過我們；免費試用和會員期間，經我們的伺服器轉發，只轉發、不保存錄音和文字。</div></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 結尾 ============ -->
+  <section class="finale">
+    <div class="wrap">
+      <div class="idle-cap" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <h2 class="h2">說完，就寫好了。</h2>
+      <p>先免費用 7 天，不用填任何 Key。</p>
+      <div class="row">
+        <a class="btn btn-ink btn-lg" href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg"><svg><use href="#i-down"/></svg>免費下載 Mac 版</a>
+        <a class="btn btn-lg" href="pricing.zh-Hant.html">看價格</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="index.zh-Hant.html"><span class="brand-mark"><svg><use href="#i-logo"/></svg></span>Typefree</a>
+        <p>更懂中文的開源 AI 語音輸入。隨口一說，就是成稿。</p>
+      </div>
+      <div><h4>產品</h4><ul><li><a href="#demo">怎麼用</a></li><li><a href="#cases">真實效果</a></li><li><a href="pricing.zh-Hant.html">價格</a></li><li><a href="https://github.com/kdsz001/typefree/releases/latest/download/Typefree.dmg">下載</a></li></ul></div>
+      <div><h4>幫助</h4><ul><li><a href="setup-guide.zh-Hant.html">配置教程</a></li><li><a href="recover.zh-Hant.html">找回授權碼</a></li><li><a href="mailto:ray@typefree.app">聯絡我們</a></li></ul></div>
+      <div><h4>開源</h4><ul><li><a href="https://github.com/kdsz001/typefree" target="_blank" rel="noopener">GitHub 原始碼</a></li><li><a href="https://github.com/kdsz001/typefree/issues" target="_blank" rel="noopener">提問題</a></li></ul></div>
+      <div><h4>條款</h4><ul><li><a href="privacy.zh-Hant.html">隱私政策</a></li><li><a href="terms.zh-Hant.html">服務條款</a></li><li><a href="refund.zh-Hant.html">退款政策</a></li></ul></div>
+    </div>
+    <div class="foot-bottom"><span>© 2026 Typefree</span><span>macOS 14+ · 已簽名 · 已公證</span></div>
+  </div>
+</footer>
+
+<script>
+window.TF_HOME = {
+  talk: { words: [{ t: '嗯，', f: 1 }, { t: '明天下午' }, { t: '那個，', f: 1 }, { t: '三點開會，' }, { t: '就是', f: 1 }, { t: '記得帶上電腦' }], busy: '整理中', out: '明天下午三點開會，記得帶上電腦。' },
+  ask: { words: [{ t: 'RAG\u00a0' }, { t: '是什麼' }, { t: '意思？' }], busy: '思考中', answer: 'RAG 就是「檢索增強生成」：先從資料裡找出和問題相關的內容，再交給大模型組織成回答。回答有依據，資料更新了也不用重新訓練模型。' },
+  trans: { words: [{ t: '明天下午' }, { t: '三點開會，' }, { t: '記得帶上電腦，' }, { t: '用英文', cmd: 1 }], tag: '→ EN', out: 'Meeting at 3 p.m. tomorrow — remember to bring your laptop.' },
+  roll: [
+    { said: '明天下午三點開會，記得帶上電腦，', out: 'Meeting at 3 p.m. tomorrow — remember to bring your laptop.', lang: 0 },
+    { said: '謝謝你今天幫忙，', out: '今日は手伝ってくれてありがとう。', lang: 1 },
+    { said: '謝謝你今天幫忙，', out: '오늘 도와주셔서 감사합니다.', lang: 2 }
+  ]
+};
+</script>
+<script src="site.js?v=20260917-6"></script>
+<script src="home.js?v=20260917-6"></script>
+</body>
+</html>

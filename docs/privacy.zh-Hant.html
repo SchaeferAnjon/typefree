@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>隱私政策 · Typefree</title>
+<meta name="description" content="Typefree 隱私政策：本地優先，你的錄音、文字、API 憑證都儲存在你自己的裝置上。">
+<style>
+ :root{--bg:#FCFCFD;--alt:#F5F5F7;--ink:#1D1D1F;--ink2:#515154;--ink3:#86868B;--line:rgba(0,0,0,.09);--line2:rgba(0,0,0,.06);--ok:#2E8762;--sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;--maxw:760px;}
+ *{box-sizing:border-box;}
+ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.72;-webkit-font-smoothing:antialiased;}
+ a{color:var(--ink);text-decoration:none;} a:hover{color:var(--ok);}
+ .wrap{width:min(var(--maxw),calc(100% - 48px));margin:0 auto;}
+ nav{position:sticky;top:0;z-index:10;background:rgba(252,252,253,.82);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line2);}
+ nav .wrap{display:flex;align-items:center;justify-content:space-between;min-height:60px;gap:16px;}
+ .brand{font-weight:700;font-size:17px;letter-spacing:-.01em;}
+ .nav-links{display:flex;gap:18px;color:var(--ink2);font-size:14px;flex-wrap:wrap;}
+ .nav-links a:hover{color:var(--ink);}
+ main{padding:54px 0 80px;}
+ h1{font-size:clamp(28px,5vw,34px);font-weight:800;letter-spacing:-.02em;margin:0 0 6px;}
+ .updated{color:var(--ink3);font-size:13.5px;}
+ .doclang{font-size:13px;font-weight:700;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;margin:64px 0 0;padding-top:30px;border-top:1px solid var(--line);}
+ .doclang:first-of-type{margin-top:34px;border-top:0;padding-top:0;}
+ h2{font-size:19px;font-weight:750;margin:34px 0 8px;letter-spacing:-.01em;}
+ p{margin:0 0 12px;color:var(--ink2);font-size:15.5px;}
+ ul{margin:0 0 14px;padding-left:20px;color:var(--ink2);font-size:15.5px;} li{margin:6px 0;}
+ strong{color:var(--ink);font-weight:650;}
+ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--alt);padding:2px 6px;border-radius:5px;color:var(--ink);}
+ footer{border-top:1px solid var(--line2);padding:28px 0;color:var(--ink3);font-size:13.5px;}
+ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+ footer a{color:var(--ink2);}
+
+ .langsw{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:4px;}
+ .langsw a{padding:5px 8px;font-size:12px;font-weight:600;color:var(--ink3);border-left:1px solid var(--line2);}
+ .langsw a:first-child{border-left:0;}
+ .langsw a.on{color:var(--ink);background:var(--alt);}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23ffffff'/%3E%3Cg fill='%231D1D1F'%3E%3Crect x='5.25' y='9.77' width='1.73' height='4.43' rx='0.87'/%3E%3Crect x='8.18' y='7.85' width='1.73' height='8.27' rx='0.87'/%3E%3Crect x='11.13' y='6.47' width='1.73' height='11.04' rx='0.87'/%3E%3Crect x='14.06' y='8.39' width='1.73' height='7.2' rx='0.87'/%3E%3Crect x='16.99' y='10.05' width='1.73' height='3.87' rx='0.87'/%3E%3C/g%3E%3C/svg%3E">
+<script>(function(){var P="zh-Hant";try{var s=localStorage.getItem("tf_lang");var w=s;if(!w){var n=(navigator.language||"").toLowerCase();w=n.indexOf("en")===0?"en":/hant|tw|hk|mo/.test(n)?"zh-Hant":"zh-Hans";}if(w!==P){var m={"zh-Hans":"privacy.html","zh-Hant":"privacy.zh-Hant.html","en":"privacy.en.html"};var t=m[w];var cur=location.pathname.split("/").pop();if(t&&t!==cur){location.replace(t);}}}catch(e){}})();</script>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="index.zh-Hant.html">Typefree</a>
+  <div class="nav-links">
+    <a href="pricing.zh-Hant.html">價格</a>
+    <a href="refund.zh-Hant.html">退款</a>
+    <a href="privacy.zh-Hant.html">隱私</a>
+    <a href="terms.zh-Hant.html">條款</a>
+    <span class="langsw"><a href="privacy.html" data-l="zh-Hans">简</a><a href="privacy.zh-Hant.html" data-l="zh-Hant">繁</a><a href="privacy.en.html" data-l="en">EN</a></span>
+  </div>
+</div></nav>
+
+<main><div class="wrap">
+  <h1>隱私政策</h1>
+  <p class="updated">最後更新：2026 年 9 月 17 日</p>
+
+  <h2>一句話總結</h2>
+  <p>Typefree <strong>在你自己的裝置上本地執行，程式碼開源</strong>。你的錄音、轉寫文字、歷史記錄和 API 憑證<strong>預設都儲存在你的裝置上</strong>——我們沒有儲存這些內容的伺服器。（免費試用和會員期間，辨識與整理請求會經過我們的伺服器轉發，詳見下方<strong>「免費試用與會員期間的資料處理」</strong>。）</p>
+
+  <h2>我們是誰</h2>
+  <p>Typefree 是由獨立開發者 Ray開發的語音輸入工具。如有隱私相關問題，可聯絡 <a href="mailto:ray@typefree.app">ray@typefree.app</a>。</p>
+
+  <h2>你的語音和文字如何被處理</h2>
+  <ul>
+    <li><strong>錄音在本地採集</strong>：按住快捷鍵時音訊在你的裝置上錄製，放開後才進入處理。</li>
+    <li><strong>辨識與整理由第三方服務商完成</strong>：語音辨識和 AI 整理由第三方服務（如火山引擎、阿里雲百鍊等）處理。<strong>用你自己的 API Key 時</strong>，請求由你的裝置<strong>直接發往這些服務商，不經過 Typefree 的伺服器</strong>；免費試用和會員期間的處理方式不同，詳見下方說明。這部分內容的處理受對應服務商各自隱私政策約束，建議你一併查閱。</li>
+    <li><strong>歷史與憑證留在本地</strong>：辨識歷史和原始音訊（可選保留）加密儲存在你裝置的本地目錄（macOS 位於 <code>~/.config/voicepolish/</code>），API 憑證儲存在系統鑰匙圈。是否保留、保留多久由你設定。</li>
+  </ul>
+
+  <h2>免費試用與會員期間的資料處理</h2>
+  <p>為了讓你無需任何設定即可使用，<strong>新用戶 7 天免費試用期間</strong>和<strong>會員有效期內</strong>，語音辨識和 AI 整理（含問 AI）的請求會經過<strong>我們營運的伺服器</strong>轉發給上述第三方服務商。在這一模式下：</p>
+  <ul>
+    <li>我們只記錄額度計算、合理使用與反濫用所必需的<strong>最少資訊</strong>：裝置標識（硬體標識的單向雜湊，不含你的真實身分）、IP 位址、每次請求的音訊時長、字數與時間，以及 App 與系統版本號；會員還會記錄授權碼的單向雜湊（無法還原），用於按會員統計用量。請求記錄保留 90 天後自動刪除。</li>
+    <li>我們<strong>不儲存、不查看、也不分析你的錄音、辨識文字或整理後的文字</strong>——這些內容僅被即時轉發，處理完即丟棄。</li>
+    <li>App 與試用服務通訊時，可能附帶回報此前用自己 Key 時的<strong>字數與次數彙總</strong>（只有數字，不含任何內容），用於了解活躍度。</li>
+    <li>試用結束或會員到期後，填入自己的 API Key，請求即恢復為<strong>「直達服務商、不經過我們」</strong>。</li>
+  </ul>
+
+  <h2>購買與授權</h2>
+  <p>購買透過我們的支付服務商 <strong>Paddle</strong>（Paddle.com Market Ltd，作為 Merchant of Record / 經銷商）處理。你的支付資訊由 Paddle 按其隱私政策收集與處理，我們不接觸你的完整支付卡資訊。啟用授權碼時，App 會向我們的授權伺服器（api.typefree.app，託管於 Cloudflare）發送：<strong>授權碼、裝置指紋（硬體標識的單向雜湊，無法還原）、Mac 機型與 macOS 版本號</strong>，用於執行「一碼一臺 Mac」的授權限制、校驗會員有效期和售後支援（<a href="recover.zh-Hant.html">找回授權碼 / 換機重置</a>）。啟用後，App 會每隔幾天向授權伺服器確認一次授權狀態（只發送授權碼和裝置指紋）。</p>
+
+  <h2>App 內「回饋」頁</h2>
+  <p>App 側欄的「回饋」頁讓你不用登入、不留信箱就能和開發者對話。你在這裡點「傳送」時，以下內容會發到我們的伺服器（api.typefree.app，託管於 Cloudflare）並保存，用於回覆你和排查問題：</p>
+  <ul>
+    <li>你寫的文字和你附上的截圖。</li>
+    <li>為了定位「某個軟體裡不好用」這類問題而自動附帶的：App 與 macOS 版本號、你電腦的名稱、最近一次錄音時所在的軟體名，以及 App 最近約 120 行執行日誌（日誌記錄的是軟體名、時間和耗時，<strong>不包含你說過的話或辨識出的文字</strong>）。</li>
+    <li>只有當你主動點擊「附上最後的轉錄」按鈕時，才會一併傳送最後一次的辨識文字和那段錄音；不點則不傳。</li>
+  </ul>
+  <p>這些內容只用於回覆你和排查問題，只有開發者本人能看到，不會用於其他用途。新回饋會透過飛書通知開發者，通知裡含電腦名稱和訊息開頭的一小段文字。你可以隨時來信要求我們刪除你的回饋記錄。</p>
+
+  <h2>買斷版退款申請</h2>
+  <p>3.0 之前購買買斷版的用戶可透過<a href="refund-request.html">退款申請頁</a>申請退款。提交時我們會記錄你填寫的<strong>授權碼、購買信箱、支付寶帳號與姓名（選填）、留言</strong>以及提交時的 IP 位址，僅用於核對身分並完成轉帳。退款處理完成後 30 天內，支付寶帳號與姓名會從伺服器自動刪除；你也可以隨時來信要求立即刪除。</p>
+
+  <h2>本網站</h2>
+  <p>typefree.app 是託管在 GitHub Pages / Cloudflare 上的靜態網站，<strong>不設定追蹤型 Cookie、不接入第三方廣告或行為分析</strong>。託管方可能按其各自政策保留標準的伺服器訪問日誌（如 IP、訪問時間）用於安全與運維。</p>
+
+  <h2>你的權利</h2>
+  <p>由於我們基本不持有你的個人資料，你對裝置上的資料擁有完全控制權，可隨時刪除。你透過「回饋」頁傳來的內容，可隨時來信要求我們刪除。涉及購買的資料可聯絡我們或 Paddle 處理。任何隱私請求，請寄信至 <a href="mailto:ray@typefree.app">ray@typefree.app</a>。</p>
+
+  <h2>政策變更</h2>
+  <p>本政策如有更新，會在本頁發布並更新頂部日期。</p>
+</div></main>
+
+<footer><div class="wrap">
+  <span>© 2026 Typefree</span>
+  <a href="mailto:ray@typefree.app">ray@typefree.app</a>
+</div></footer>
+<script>(function(){var P="zh-Hant";var sw=document.querySelector(".langsw");if(!sw)return;sw.querySelectorAll("a").forEach(function(a){if(a.dataset.l===P)a.classList.add("on");a.addEventListener("click",function(){try{localStorage.setItem("tf_lang",this.dataset.l);}catch(e){}});});})();</script>
+</body>
+</html>
