@@ -219,5 +219,14 @@
             <description><![CDATA[<h3>反馈改成工单，视频上长按不再误触发</h3><ul><li><strong>反馈页改成工单</strong>：每个问题单独提交一个工单，可选「使用问题」「功能建议」或「其他」，在工单里和开发者来回沟通；处理完会标为「已结束」，有新问题再提交新工单。</li><li><strong>视频画面上长按不再触发问 AI</strong>：在网页视频画面上按住，交给网页自己处理（比如 YouTube 长按 2 倍速），也不会再把外放的视频声音录去提问；标题、评论区等地方照常能问。</li><li><strong>可以隐藏 Dock 图标</strong>：「设置 → 外观」新增「在 Dock 中显示」开关，关掉后只在菜单栏显示图标。</li><li><strong>试用额度按 7 天总额显示</strong>：侧栏进度条显示 7 天里一共用了多少字，不再显示每天上限。</li><li><strong>「撤销」按钮缩短为 5 秒</strong>：取消语音输入后，撤销按钮 5 秒后自动消失（原来 9 秒）。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.3/Typefree-3.0.3.dmg" sparkle:edSignature="6jHYjPb5MgFqIhywYjE1mLKiU0v6K8QxzhtAGjIqYAU/YVags+DPc/4viyJ34IB8J64PFAqcuAWsJ8QSuQxuAg==" length="2737912" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.4</title>
+            <sparkle:version>3.0.4</sparkle:version>
+            <sparkle:shortVersionString>3.0.4</sparkle:shortVersionString>
+            <pubDate>Fri, 18 Sep 2026 11:08:49 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>更新提示更清楚，界面细节修正</h3><ul><li><strong>更新弹窗改好了</strong>：多了下载进度条，按钮直接写「立即更新 / 放到后台 / 安装并重启」，点了不会窗口一闪就没、让人以为更新好了；窗口也改到屏幕正中间，更新说明能看到更多内容。</li><li><strong>左上角不再挤在一起</strong>：有新版本时改用一个小红点提示，「创世用户」标签不会再被挤得换行、压住 Typefree 这个名字。</li><li><strong>少数 Mac 上的闪退</strong>：切回 Typefree 时，如果权限和用量都没变化，就不再白重建一次设置页面——这一步在部分 macOS 15 上会闪退。</li><li><strong>设置存不下来时留下线索</strong>：万一配置文件写不进去（每次打开都要重新设置、快捷键改不了），现在会记进日志，发反馈时能直接查到原因。</li><li><strong>设置窗里也能用鼠标长按说话</strong>：在工单等输入框里按住鼠标就能说话，之前按住没反应。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.4/Typefree-3.0.4.dmg" sparkle:edSignature="fvF4bB/HZseBNxypi5Onw9ZdhxBflr3lImdBbrIyiHLlUcBSwr1E+TYXKC/WZNRu+u2a2KGtzLYivSEoWvSdDQ==" length="2745378" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
