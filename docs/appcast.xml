@@ -228,5 +228,14 @@
             <description><![CDATA[<h3>更新提示更清楚，界面细节修正</h3><ul><li><strong>更新弹窗改好了</strong>：多了下载进度条，按钮直接写「立即更新 / 放到后台 / 安装并重启」，点了不会窗口一闪就没、让人以为更新好了；窗口也改到屏幕正中间，更新说明能看到更多内容。</li><li><strong>左上角不再挤在一起</strong>：有新版本时改用一个小红点提示，「创世用户」标签不会再被挤得换行、压住 Typefree 这个名字。</li><li><strong>少数 Mac 上的闪退</strong>：切回 Typefree 时，如果权限和用量都没变化，就不再白重建一次设置页面——这一步在部分 macOS 15 上会闪退。</li><li><strong>设置存不下来时留下线索</strong>：万一配置文件写不进去（每次打开都要重新设置、快捷键改不了），现在会记进日志，发反馈时能直接查到原因。</li><li><strong>设置窗里也能用鼠标长按说话</strong>：在工单等输入框里按住鼠标就能说话，之前按住没反应。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.4/Typefree-3.0.4.dmg" sparkle:edSignature="fvF4bB/HZseBNxypi5Onw9ZdhxBflr3lImdBbrIyiHLlUcBSwr1E+TYXKC/WZNRu+u2a2KGtzLYivSEoWvSdDQ==" length="2745378" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.5</title>
+            <sparkle:version>3.0.5</sparkle:version>
+            <sparkle:shortVersionString>3.0.5</sparkle:shortVersionString>
+            <pubDate>Fri, 18 Sep 2026 11:30:03 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>修正「检查更新」窗口关不掉</h3><ul><li><strong>「已是最新版本」窗口的「好」点不动</strong>：3.0.4 引入的问题，点了没反应、窗口关不掉，只能重启 App。已修好，另外这个窗口现在按 Esc 也能关。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.5/Typefree-3.0.5.dmg" sparkle:edSignature="PLN/RjdQJDC4aX4IBqW9xaJ4HbjwHxLTzCoj4Gej8HqJlpHMylygYT3v8zzkZBo1OykxdoCpEL4kwgwUZNt7Cw==" length="2745696" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
