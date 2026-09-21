@@ -850,11 +850,15 @@ public class AIPolisher {
         messages.append(["role": "user", "content": question])
 
         let forceSearch = Self.isTimeSensitive(question)
-        debugLog?("Ask route=\(route.rawValue) provider=\(provider.name) model=\(provider.model) forceSearch=\(forceSearch) history=\(history.count)")
+        // 转千问联网的那一问不思考：它要的是查到的事实，再想几秒不值
+        let thinking = route == .qwenSearch ? nil : AskThinkingSettings.current
+        debugLog?("Ask route=\(route.rawValue) provider=\(provider.name) model=\(provider.model) forceSearch=\(forceSearch) thinking=\(thinking?.rawValue ?? "off") history=\(history.count)")
         func makeBody(_ model: String, search: Bool) -> [String: Any] {
             var body: [String: Any] = ["model": model, "messages": messages, "stream": true]
             if provider.name == "qwen" {
-                body["top_p"] = 0.8; body["temperature"] = 0.5; body["enable_thinking"] = false
+                body["top_p"] = 0.8; body["temperature"] = 0.5
+                AskVision.applyThinkingSettings(in: &body, provider: "qwen", model: model, thinking: thinking)
+                if thinking != nil { body["max_tokens"] = AskVision.thinkingMaxTokens }
                 if search {
                     body["enable_search"] = true
                     if forceSearch { body["search_options"] = ["forced_search": true] }
@@ -862,8 +866,9 @@ public class AIPolisher {
             } else {
                 body["temperature"] = 0.5
                 // 关思考万一没生效，思考内容占 max_tokens，给 1200 会被截断，所以多留余量
-                body["max_tokens"] = AskVision.forcesThinking(model: model) ? 2048 : 1200
-                AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
+                body["max_tokens"] = thinking != nil ? AskVision.thinkingMaxTokens
+                    : (AskVision.forcesThinking(model: model) ? 2048 : 1200)
+                AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model, thinking: thinking)
             }
             if offerSearchTool { body["tools"] = AskSearch.tools() }
             return body
@@ -949,10 +954,11 @@ public class AIPolisher {
         // 但 2026-09-21 本机实测千问 enable_search + forced_search + 两张 image_url 能同时用，
         // 而且搜索结果确实被用上了（关掉搜索同一问就答成两年前的旧数据），所以走千问联网时照样带图。
         let search = route == .qwenSearch
+        let thinking = search ? nil : AskThinkingSettings.current
         func makeBody(_ model: String) -> [String: Any] {
-            var body: [String: Any] = ["model": model, "messages": messages, "stream": true,
-                                       "temperature": 0.5, "max_tokens": AskVision.maxTokens(provider: provider.name)]
-            AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
+            var body: [String: Any] = ["model": model, "messages": messages, "stream": true, "temperature": 0.5,
+                                       "max_tokens": thinking != nil ? AskVision.thinkingMaxTokens : AskVision.maxTokens(provider: provider.name)]
+            AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model, thinking: thinking)
             if search {
                 body["enable_search"] = true
                 body["search_options"] = ["forced_search": true]
@@ -961,7 +967,7 @@ public class AIPolisher {
             return body
         }
 
-        debugLog?("Ask vision route=\(route.rawValue) provider=\(provider.name) models=\(candidates.joined(separator: ",")) search=\(search ? "on" : "off") history=\(history.count) \(screen.sizeSummary)")
+        debugLog?("Ask vision route=\(route.rawValue) provider=\(provider.name) models=\(candidates.joined(separator: ",")) search=\(search ? "on" : "off") thinking=\(thinking?.rawValue ?? "off") history=\(history.count) \(screen.sizeSummary)")
 
         func attempt(_ index: Int) {
             guard index < candidates.count else {
@@ -970,7 +976,8 @@ public class AIPolisher {
             }
             let model = candidates[index]
             streamChat(url: url, apiKey: provider.apiKey, body: makeBody(model),
-                       timeout: AskVision.requestTimeout, onPartial: onPartial,
+                       // 开了思考，难题可能想很久，30 秒不够
+                       timeout: thinking != nil ? 120 : AskVision.requestTimeout, onPartial: onPartial,
                        onThinking: onThinking,
                        searchToolName: offerSearchTool ? AskSearch.toolName : nil,
                        onStats: { reasoningChars, firstTokenMs in

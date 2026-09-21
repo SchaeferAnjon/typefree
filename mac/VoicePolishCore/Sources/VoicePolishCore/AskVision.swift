@@ -297,14 +297,42 @@ extension AskVision {
     /// 智谱官方文档写 GLM-5.3 系列「强制思考不能关闭」，但 2026-09-21 在 Coding Plan 端点上用
     /// glm-5.3-flash 实测 thinking disabled 是生效的：纯文本 3.9 秒降到 1.1 秒、reasoning 0 字；
     /// 带图 1.8 秒、reasoning 12 字。所以智谱一律照发 disabled，以实测为准。
-    public static func applyThinkingSettings(in body: inout [String: Any], provider: String, model: String) {
+    /// thinking 为 nil = 关思考（润色永远关；问 AI 默认关，用户在设置里开了才传档位进来）。
+    ///
+    /// 开思考时各家的写法（2026-09-21）：
+    /// - DeepSeek：thinking enabled + reasoning_effort（low / high / max，官方默认 high）。思考模式不支持 temperature，要去掉。
+    ///   本机实测带两张图：关思考首字 1.1 秒；开了之后 2 到 4 秒，三档在简单题上差别不大，难题上高档位想得更久。
+    ///   https://api-docs.deepseek.com/guides/thinking_mode
+    /// - 智谱：thinking enabled + reasoning_effort（low / high / max）。
+    /// - 千问：enable_thinking + thinking_budget（思考最多用多少 token；最高档不设上限）。
+    /// - 豆包：只有开关，没有档位。
+    public static func applyThinkingSettings(in body: inout [String: Any], provider: String, model: String,
+                                             thinking: AskThinkingEffort? = nil) {
+        guard let thinking else {
+            switch provider {
+            case "qwen": body["enable_thinking"] = false
+            default: body["thinking"] = ["type": "disabled"]
+            }
+            return
+        }
         switch provider {
         case "qwen":
-            body["enable_thinking"] = false
+            body["enable_thinking"] = true
+            if let budget = thinking.qwenBudget { body["thinking_budget"] = budget }
+        case "deepseek":
+            body["thinking"] = ["type": "enabled"]
+            body["reasoning_effort"] = thinking.rawValue
+            body.removeValue(forKey: "temperature")
+        case "zhipu":
+            body["thinking"] = ["type": "enabled"]
+            body["reasoning_effort"] = thinking.rawValue
         default:
-            body["thinking"] = ["type": "disabled"]
+            body["thinking"] = ["type": "enabled"]
         }
     }
+
+    /// 开了思考时的输出上限：思考内容也算在 max_tokens 里，沿用不思考时的 600 会在想的过程中就被截断
+    public static let thinkingMaxTokens = 8192
 
     /// 文档声称关不掉思考的那一族（GLM-5.3 系列；GLM-5.2 / 5.1 / 5-Turbo / 4.7 在 Coding Plan 端点上
     /// 会被自动路由到 5.3）。实测能关，这里只用来给 max_tokens 多留一份余量：
@@ -387,4 +415,41 @@ public enum AskThreading {
             .trimmingCharacters(in: CharacterSet(charactersIn: " ，,。.：:、！!").union(.whitespacesAndNewlines))
         return (rest, true)
     }
+}
+
+/// 问 AI 回答前要不要先思考，以及想多深。关着最快；开了之后难题（要看图推理、要算的）答得更准，每问多等几秒。
+public enum AskThinkingEffort: String, CaseIterable, Sendable {
+    case low, high, max
+
+    public var displayName: String {
+        switch self {
+        case .low: return "低"
+        case .high: return "高"
+        case .max: return "最高"
+        }
+    }
+
+    /// 千问用 token 预算表达强度；最高档不设上限
+    var qwenBudget: Int? {
+        switch self {
+        case .low: return 1024
+        case .high: return 4096
+        case .max: return nil
+        }
+    }
+}
+
+public enum AskThinkingSettings {
+    public static let enabledKey = "ask_thinking_enabled"
+    public static let effortKey = "ask_thinking_effort"
+    public static let defaultEffort = AskThinkingEffort.high
+
+    public static var isEnabled: Bool { VoicePolishConfig.shared.bool(forKey: enabledKey, defaultValue: false) }
+
+    public static var effort: AskThinkingEffort {
+        VoicePolishConfig.shared.string(forKey: effortKey).flatMap(AskThinkingEffort.init(rawValue:)) ?? defaultEffort
+    }
+
+    /// 这一问实际用的档位；nil = 不思考
+    public static var current: AskThinkingEffort? { isEnabled ? effort : nil }
 }

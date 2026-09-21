@@ -3817,6 +3817,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         stack.addArrangedSubview(hotkeyCard)
         stack.setCustomSpacing(24, after: hotkeyCard)
 
+        let askTitle = sectionTitle("问 AI")
+        stack.addArrangedSubview(askTitle)
+        stack.setCustomSpacing(8, after: askTitle)
+        let askCard = makeAskThinkingCard()
+        stack.addArrangedSubview(askCard)
+        stack.setCustomSpacing(24, after: askCard)
+
         let overlayTitle = sectionTitle("录音浮窗")
         stack.addArrangedSubview(overlayTitle)
         stack.setCustomSpacing(8, after: overlayTitle)
@@ -5559,7 +5566,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                                                 desc: "按下那一刻鼠标指在哪，AI 就重点看哪。按住说、松开结束；或轻点一下开始、再点一下结束。"),
                                makeAskHotkeyRow(.plain,
                                                 desc: "不截屏，更快一点，屏幕上的内容也不会发出去。"),
-                               makeAskScreenshotRow()]) {
+                               makeAskScreenshotRow(),
+                               makeAskThinkingToggleRow(),
+                               makeAskThinkingEffortRow()]) {
             self.makeExploreHelp("""
             怎么用：按住快捷键说出问题，松开就提问；不想一直按着，就轻点一下开始、说完再点一下结束。按住期间按 Esc 取消。回答显示在屏幕右上角，按住回答面板继续说话可以追问。
 
@@ -5625,6 +5634,54 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return makeAskCursorRow(title: "倾听模式",
                                 desc: "用触控板时选「点一下开始」更省力，不用一直按着。",
                                 control: popup)
+    }
+
+    /// 设置页「问 AI」栏：回答前要不要先思考、想多深
+    private func makeAskThinkingCard() -> NSView {
+        let card = makeCard()
+        let column = NSStackView()
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 12
+        column.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
+        for row in [makeAskThinkingToggleRow(), makeAskThinkingEffortRow()] {
+            column.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -40).isActive = true
+        }
+        mount(column, in: card)
+        return card
+    }
+
+    private func makeAskThinkingToggleRow() -> NSView {
+        let toggle = VPToggle(theme: theme, target: self, action: #selector(askThinkingChanged(_:)))
+        toggle.setOn(AskThinkingSettings.isEnabled, animated: false)
+        toggle.setAccessibilityLabel("回答前先思考")
+        return makeAskCursorRow(title: "回答前先思考",
+                                desc: "关着最快（约 1 秒出字）。打开后要看图推理、要计算的难题答得更准，每问多等 1 到 3 秒，难题更久。联网查询的那一问不受影响。",
+                                control: toggle)
+    }
+
+    private func makeAskThinkingEffortRow() -> NSView {
+        let items = AskThinkingEffort.allCases.map { VPDropdown.Item(value: $0.rawValue, title: $0.displayName) }
+        let popup = VPDropdown(items: items, selectedValue: AskThinkingSettings.effort.rawValue,
+                               trackBg: theme.card,
+                               trackBorder: Self.dropdownBorder,
+                               textColor: theme.text, chevronColor: theme.text3)
+        popup.onSelect = { [weak self] value in
+            self?.config.save(value: value, forKey: AskThinkingSettings.effortKey)
+        }
+        popup.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        popup.alphaValue = AskThinkingSettings.isEnabled ? 1 : 0.45
+        return makeAskCursorRow(title: "思考强度",
+                                desc: AskThinkingSettings.isEnabled
+                                    ? "越高想得越久、越细。简单问题三档差别不大，难题上才拉开。"
+                                    : "打开「回答前先思考」后生效。",
+                                control: popup)
+    }
+
+    @objc private func askThinkingChanged(_ sender: VPToggle) {
+        config.save(bool: sender.isOn, forKey: AskThinkingSettings.enabledKey)
+        invalidate(.settings, .explore)
     }
 
     private func makeAskScreenshotRow() -> NSView {

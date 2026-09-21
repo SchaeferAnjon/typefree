@@ -266,4 +266,23 @@ final class AskVisionTests: XCTestCase {
         let plain = AskVision.closeUpRect(center: CGPoint(x: 2000, y: 1100), imagePixelSize: screen, windowRect: nil, scale: 2)
         XCTAssertEqual(plain.midX, 2000, accuracy: 1)
     }
+
+    func testThinkingEffortIsWrittenPerProvider() {
+        var deepseek: [String: Any] = ["temperature": 0.5]
+        AskVision.applyThinkingSettings(in: &deepseek, provider: "deepseek", model: "deepseek-flash", thinking: .max)
+        XCTAssertEqual((deepseek["thinking"] as? [String: String])?["type"], "enabled")
+        XCTAssertEqual(deepseek["reasoning_effort"] as? String, "max")
+        XCTAssertNil(deepseek["temperature"], "DeepSeek 思考模式不支持 temperature")
+
+        var qwen: [String: Any] = [:]
+        AskVision.applyThinkingSettings(in: &qwen, provider: "qwen", model: "qwen3.8-flash", thinking: .low)
+        XCTAssertEqual(qwen["enable_thinking"] as? Bool, true)
+        XCTAssertEqual(qwen["thinking_budget"] as? Int, 1024)
+
+        // 不传档位 = 关思考，和以前一样（润色走这条）
+        var off: [String: Any] = ["temperature": 0.1]
+        AskVision.applyThinkingSettings(in: &off, provider: "deepseek", model: "deepseek-flash")
+        XCTAssertEqual((off["thinking"] as? [String: String])?["type"], "disabled")
+        XCTAssertNotNil(off["temperature"])
+    }
 }
