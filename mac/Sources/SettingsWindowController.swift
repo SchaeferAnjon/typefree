@@ -5674,7 +5674,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         popup.alphaValue = AskThinkingSettings.isEnabled ? 1 : 0.45
         return makeAskCursorRow(title: "思考强度",
                                 desc: AskThinkingSettings.isEnabled
-                                    ? "越高想得越久、越细。简单问题三档差别不大，难题上才拉开。"
+                                    ? "越高想得越久、越细。最多等它想 8 / 15 / 30 秒（低 / 高 / 最高），到点还没答就直接给一个不思考的快答案。"
                                     : "打开「回答前先思考」后生效。",
                                 control: popup)
     }

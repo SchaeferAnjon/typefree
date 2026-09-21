@@ -429,6 +429,15 @@ public enum AskThinkingEffort: String, CaseIterable, Sendable {
         }
     }
 
+    /// 最多等它想多久。到点还没开始回答就掐掉，关思考重问：宁可要一个快答案，也不能让人干等一分钟
+    public var deadline: TimeInterval {
+        switch self {
+        case .low: return 8
+        case .high: return 15
+        case .max: return 30
+        }
+    }
+
     /// 千问用 token 预算表达强度；最高档不设上限
     var qwenBudget: Int? {
         switch self {
