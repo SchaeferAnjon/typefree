@@ -300,6 +300,12 @@ enum RecordingHotkeyShortcut {
     }
 }
 
+/// 这是不是自己从源码改过、编出来的版本（Info.plist 里 TFSelfBuilt=true）。
+/// 自编版不接官方的自动更新（一更新，改动就被官方包盖掉了），也不往原作者的工单系统里提反馈。
+enum AppBuild {
+    static let isSelfBuilt = Bundle.main.object(forInfoDictionaryKey: "TFSelfBuilt") as? Bool ?? false
+}
+
 /// 问 AI 的快捷键。两套：看屏幕问（默认右 Option，按下那一刻鼠标指在哪，截图上的标记就在哪）、
 /// 纯提问（不截屏，默认不设，用户自己录）。都只旁听键盘、不拦任何事件，
 /// 不像「修饰键 + 点击」那样要站在全系统鼠标点击的必经之路上。

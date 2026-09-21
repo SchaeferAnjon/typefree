@@ -25,8 +25,11 @@ class StatusBarController {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "打开 Typefree", action: #selector(openSettingsCenter), keyEquivalent: "")
             .target = self
-        menu.addItem(withTitle: "检查更新…", action: #selector(AppDelegate.checkForUpdates(_:)), keyEquivalent: "")
-            .target = delegate
+        // 自编版不接官方更新，菜单里就不放这一项
+        if !AppBuild.isSelfBuilt {
+            menu.addItem(withTitle: "检查更新…", action: #selector(AppDelegate.checkForUpdates(_:)), keyEquivalent: "")
+                .target = delegate
+        }
         menu.addItem(NSMenuItem.separator())
         menu.addItem(micItem)
         rebuildMicSubmenu()

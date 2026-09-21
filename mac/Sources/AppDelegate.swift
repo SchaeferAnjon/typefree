@@ -985,6 +985,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
     /// 菜单栏「检查更新…」转发到 Sparkle。
     @objc func checkForUpdates(_ sender: Any?) {
+        guard !AppBuild.isSelfBuilt else { return }
         updateUserDriver.beginUserInitiatedCheck()
         updater.checkForUpdates()
     }
@@ -1142,17 +1143,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         // （之前只能靠右键菜单粘贴）。
         setupMainMenu()
 
-        do {
-            try updater.start()
-            if updater.automaticallyChecksForUpdates,
-               updater.allowsAutomaticUpdates,
-               !updater.automaticallyDownloadsUpdates {
-                updater.automaticallyDownloadsUpdates = true
+        // 自编版不接官方更新：一更新，自己的改动就被官方包盖掉了
+        if AppBuild.isSelfBuilt {
+            debugLog("Self-built: Sparkle updater not started")
+        } else {
+            do {
+                try updater.start()
+                if updater.automaticallyChecksForUpdates,
+                   updater.allowsAutomaticUpdates,
+                   !updater.automaticallyDownloadsUpdates {
+                    updater.automaticallyDownloadsUpdates = true
+                }
+                // Info.plist 中仍保持每天检查一次；这里不额外强制每次启动弹检查。
+                debugLog("Sparkle updater started")
+            } catch {
+                debugLog("Sparkle updater failed: \(error.localizedDescription)")
             }
-            // Info.plist 中仍保持每天检查一次；这里不额外强制每次启动弹检查。
-            debugLog("Sparkle updater started")
-        } catch {
-            debugLog("Sparkle updater failed: \(error.localizedDescription)")
         }
 
         // 启动时只在「从未问过」时申请；已拒绝的不自动跳系统设置——

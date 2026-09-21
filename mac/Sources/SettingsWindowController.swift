@@ -1492,8 +1492,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let unread = SupportChatService.shared.unreadCount
         let groups: [(String?, [(Page, String?)])] = [
             ("工作台", [(.home, nil), (.history, historyCount > 0 ? "\(historyCount)" : nil)]),
-            ("配置", [(.vocabulary, vocabCount > 0 ? "\(vocabCount)" : nil), (.model, nil), (.explore, nil), (.settings, nil),
-                     (.support, unread > 0 ? "\(unread) 条新回复" : nil)]),
+            // 「反馈」是往原作者的工单系统里提单：自编版的问题不该发给他，这一页不放
+            ("配置", [(.vocabulary, vocabCount > 0 ? "\(vocabCount)" : nil), (.model, nil), (.explore, nil), (.settings, nil)]
+                     + (AppBuild.isSelfBuilt ? [] : [(.support, unread > 0 ? "\(unread) 条新回复" : nil)])),
             (nil, [(.about, nil)]),
         ]
 
@@ -3795,6 +3796,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let hotkeyTitle = sectionTitle("快捷键")
         stack.addArrangedSubview(hotkeyTitle)
         stack.setCustomSpacing(8, after: hotkeyTitle)
+        let hotkeyKeysCard = makeHotkeyKeysCard()
+        stack.addArrangedSubview(hotkeyKeysCard)
+        stack.setCustomSpacing(10, after: hotkeyKeysCard)
         let hotkeyCard = makeHotkeyBehaviorCard()
         stack.addArrangedSubview(hotkeyCard)
         stack.setCustomSpacing(24, after: hotkeyCard)
@@ -4268,7 +4272,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             chipLabel.bottomAnchor.constraint(equalTo: chip.bottomAnchor, constant: -4),
         ])
 
-        let text = label("❶ 识别用「火山引擎（豆包）」 ＋ ❷ 优化用「千问 · 自动选择」，不知道怎么选就按这个来。",
+        let text = label("❶ 识别用「火山引擎（豆包）」 ＋ ❷ 优化用「DeepSeek」最快；再填一个千问 Key，问 AI 就能联网。",
                          size: 13, weight: .medium, color: theme.text)
         text.maximumNumberOfLines = 0
         text.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -4689,6 +4693,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                 caption: "deepseek-flash 快且够用（默认，问 AI 看屏幕也用它）；deepseek-v4-pro 质量更好但更慢。")
             container.addArrangedSubview(modelRow)
             modelRow.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            if let qwenField = dashscopeAPIKeyField {
+                qwenField.removeFromSuperview()
+                let qwenRow = makeFieldRow(label: "千问 API Key（可选，问 AI 联网用）", control: qwenField,
+                                           placeholder: "填了之后，需要最新信息的问题会自动联网")
+                container.addArrangedSubview(qwenRow)
+                qwenRow.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            }
             let searchHint = label("DeepSeek 的 API 不能联网。同时填了千问 Key 时，需要最新信息的问题会由它自己判断、自动转给千问联网回答；也可以用「搜一下……」开头直接联网。",
                                    size: 11.5, weight: .regular, color: theme.text3)
             searchHint.maximumNumberOfLines = 0
@@ -5175,6 +5186,30 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         invalidate(.explore)
     }
 
+    /// 设置页「快捷键」栏里的三个键：开始说话、看屏幕问 AI、只提问。和首页是同一套选择按钮
+    private func makeHotkeyKeysCard() -> NSView {
+        let card = makeCard()
+        let column = NSStackView()
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 12
+        column.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
+
+        let recordingPicker = makeHotkeyPickerButton(compact: true)
+        recordingPicker.font = .systemFont(ofSize: 14, weight: .semibold)
+        let rows: [NSView] = [
+            makeAskCursorRow(title: "开始说话", desc: "听写：说的话整理好后粘贴到光标处。", control: recordingPicker),
+            makeAskHotkeyRow(.screen, desc: "按下那一刻鼠标指在哪，AI 就重点看哪。回答浮窗还在时再按就是追问。"),
+            makeAskHotkeyRow(.plain, desc: "不截屏，更快一点，屏幕上的内容也不会发出去。"),
+        ]
+        for row in rows {
+            column.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -40).isActive = true
+        }
+        mount(column, in: card)
+        return card
+    }
+
     private func makeHotkeyBehaviorCard() -> NSView {
         let card = makeCard()
 
@@ -5652,7 +5687,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         toggle.setAccessibilityLabel("随时问 AI")
         return makeExploreCard(id: "ask", title: "空白处长按问 AI",
                                summary: "不按任何键，在空白处按住说话就能提问。", control: toggle, demo: .ask) {
-            self.makeExploreHelp("开始提问：在页面空白处按住鼠标左键说出问题，松开后显示回答。这条路径不拦截点击，所以输入框、按钮和链接上不触发；想在它们上面提问，用上面的「指针问 AI」。\n\n继续追问：按住回答面板继续说话，AI 会结合当前话题回答。\n\n管理浮窗：点图钉可固定回答；未固定时，点外面会收起，鼠标移回可展开。回答支持复制。\n\n查看记录：对话保存在「历史记录」中，同一话题的多轮问答合并展示。\n\nAI 看到什么：开着「让 AI 看屏幕」时，这条路径同样会把指针所在的那块屏幕一起发给模型。\n\n所用模型：使用「模型」中配置的润色模型；千问支持联网搜索。")
+            self.makeExploreHelp("开始提问：在页面空白处按住鼠标左键说出问题，松开后显示回答。这条路径不拦截点击，所以输入框、按钮和链接上不触发；想在它们上面提问，用上面的「问 AI 快捷键」。\n\n继续追问：按住回答面板继续说话，AI 会结合当前话题回答。\n\n管理浮窗：点图钉可固定回答；未固定时，点外面会收起，鼠标移回可展开。回答支持复制。\n\n查看记录：对话保存在「历史记录」中，同一话题的多轮问答合并展示。\n\nAI 看到什么：开着「让 AI 看屏幕」时，这条路径同样会把指针所在的那块屏幕一起发给模型。\n\n所用模型：使用「模型」中配置的润色模型；千问支持联网搜索。")
         }
     }
 
@@ -7002,6 +7037,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             hasPendingUpdate = true
         } else {
             hasPendingUpdate = false
+        }
+        if AppBuild.isSelfBuilt {
+            // 自编版：不接官方更新（一更新改动就被官方包盖掉），把这件事写明白，别放一个点了会出事的按钮
+            let note = label("自编版 · 基于官方 \(Bundle.main.appVersionString) 源码修改，不接收官方自动更新。\n要更新：在源码目录拉取上游改动、重新构建。",
+                             size: 12, weight: .regular, color: theme.text3)
+            note.alignment = .center
+            note.maximumNumberOfLines = 0
+            logoStack.addArrangedSubview(note)
+            mount(logoStack, in: card)
+            stack.addArrangedSubview(card)
+            return
         }
         let updateButton = VPButton(title: hasPendingUpdate ? "查看新版本" : "检查更新…", style: .secondary, size: .regular,
                                     theme: theme, target: self, action: #selector(checkForUpdatesTapped(_:)))

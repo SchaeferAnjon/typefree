@@ -38,6 +38,8 @@
 	<key>SUAutomaticallyUpdate</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>TFSelfBuilt</key>
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://typefree.app/appcast.xml</string>
