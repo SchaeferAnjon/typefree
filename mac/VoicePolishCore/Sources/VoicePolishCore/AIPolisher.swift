@@ -122,6 +122,9 @@ public class AIPolisher {
             return PolishSelection(provider: "qwen", model: (saved?.isEmpty == false) ? saved! : "qwen3.6-flash")
         case "zhipu":
             return PolishSelection(provider: "zhipu", model: config.string(forKey: "zhipu_polish_model") ?? ZhipuEndpoint.defaultModel)
+        case "deepseek":
+            let saved = config.string(forKey: DeepSeekEndpoint.modelConfigKey)
+            return PolishSelection(provider: "deepseek", model: (saved?.isEmpty == false) ? saved! : DeepSeekEndpoint.defaultModel)
         default:
             let saved = config.string(forKey: "doubao_polish_model")
             return PolishSelection(provider: "doubao", model: (saved?.isEmpty == false) ? saved! : defaultDoubaoPolishModel)
@@ -434,6 +437,13 @@ public class AIPolisher {
             let model = (saved?.isEmpty == false) ? saved! : PolishModelRouter.autoValue
             let url = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
             return ("qwen", url, model, key)
+        case "deepseek":
+            guard let key = config.string(forKey: DeepSeekEndpoint.secretKey, envKey: DeepSeekEndpoint.envKey),
+                  !key.isEmpty else { return nil }
+            let saved = config.string(forKey: DeepSeekEndpoint.modelConfigKey)
+            let model = (saved?.isEmpty == false) ? saved! : DeepSeekEndpoint.defaultModel
+            guard let url = DeepSeekEndpoint.chatCompletions else { return nil }
+            return ("deepseek", url, model, key)
         case "zhipu":
             guard let key = config.string(forKey: "zhipu_api_key", envKey: "ZHIPU_API_KEY"),
                   !key.isEmpty else { return nil }
@@ -494,10 +504,11 @@ public class AIPolisher {
                 // 关思考万一没生效，思考内容也算进 max_tokens，给小了会在思考阶段被截断，所以多留余量
                 body["max_tokens"] = AskVision.forcesThinking(model: model) ? 4096 : 2000
                 AskVision.applyThinkingSettings(in: &body, provider: "zhipu", model: model)
-            } else {  // doubao
+            } else {  // doubao / deepseek
                 body["temperature"] = 0.1
                 body["max_tokens"] = 2000
-                body["thinking"] = ["type": "disabled"]  // 关闭深度思考：润色不需要，且更快
+                // 关闭深度思考：润色不需要，且更快。DeepSeek 默认开着思考，GetNewWord 因此慢到过 31 秒
+                AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
             }
             return body
         }
@@ -722,26 +733,70 @@ public class AIPolisher {
                        history: [(question: String, answer: String)] = [],
                        screen: AskScreenContext? = nil,
                        onPartial: ((String) -> Void)? = nil,
+                       onRouteNote: ((String) -> Void)? = nil,
                        onThinking: (() -> Void)? = nil,
                        onStats: ((String) -> Void)? = nil,
                        completion: @escaping (Result<String, Error>) -> Void) {
-        if let screen, let provider = polishProvider() {
-            answerWithScreen(question: question, history: history, screen: screen, provider: provider,
-                             onPartial: onPartial, onThinking: onThinking, onStats: onStats, completion: completion)
+        let ownProvider = polishProvider()
+        let qwenKey = VoicePolishConfig.shared.string(forKey: "dashscope_api_key", envKey: "DASHSCOPE_API_KEY") ?? ""
+        let searchProvider: (name: String, url: URL, model: String, apiKey: String)? = {
+            guard !qwenKey.isEmpty, let url = AskVision.qwenChatCompletions else { return nil }
+            return ("qwen", url, AskVision.searchModel, qwenKey)
+        }()
+
+        // 转给千问联网回答：三家里只有它能真的搜。这一问不带图：2026-09-21 实测千问联网不带图首字 2.1 秒，
+        // 带一张图 4.8 到 6.8 秒，带两张 4.7 到 9.3 秒且很不稳。屏幕上下文改由 query 带过去：
+        // 那是当前模型看完屏幕后写的搜索词（指着一张显卡问「这个多少钱」，query 就是显卡型号 + 价格）。
+        // decidedMs：当前模型判断「要联网」花了多久（显式口令直接走这里时为 nil）。
+        func askQwenSearch(_ provider: (name: String, url: URL, model: String, apiKey: String), decidedMs: Int?, query: String?) {
+            debugLog?("Ask route=qwen-search model=\(provider.model) decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") hasQuery=\(query?.isEmpty == false)")
+            onRouteNote?(AskSearch.searchingNotice)
+            var announced = false
+            let partial: (String) -> Void = { text in
+                if !announced { announced = true; onRouteNote?(AskSearch.searchedNotice) }
+                onPartial?(text)
+            }
+            let stats: (String) -> Void = { line in
+                onStats?("decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") " + line)
+            }
+            answerDirectText(question: AskSearch.searchQuestion(question, query: query), history: history, provider: provider,
+                             route: .qwenSearch, offerSearchTool: false, onPartial: partial,
+                             onThinking: onThinking, onStats: stats, completion: completion)
+        }
+
+        // 用户明说要联网（「搜一下……」）：不用问模型，直接走千问
+        if let searchProvider, ownProvider?.name != "qwen", AskSearch.hasExplicitSearchPrefix(question) {
+            askQwenSearch(searchProvider, decidedMs: nil, query: nil)
             return
         }
 
-        var messages: [[String: Any]] = [["role": "system", "content": Self.askSystemPrompt + "\n" + Self.askTimeLine()]]
-        for turn in history.suffix(6) {
-            messages.append(["role": "user", "content": turn.question])
-            messages.append(["role": "assistant", "content": turn.answer])
+        // 其余问题带一个 web_search 函数工具让当前模型自己判断：它一调用，这条流就被掐掉、
+        // 以 needsWebSearch 失败返回，这里接住转千问；它直接回答则和平时完全一样，不多花时间。
+        let offerTool = AskSearch.shouldOfferTool(provider: ownProvider?.name, hasQwenKey: searchProvider != nil)
+        let routed: (Result<String, Error>) -> Void = { result in
+            if case .failure(let err) = result, case PolishError.needsWebSearch(let ms, let query) = err, let searchProvider {
+                askQwenSearch(searchProvider, decidedMs: ms, query: query)
+                return
+            }
+            completion(result)
         }
-        messages.append(["role": "user", "content": question])
+
+        if let screen, let provider = ownProvider {
+            answerWithScreen(question: question, history: history, screen: screen, provider: provider,
+                             route: .direct, offerSearchTool: offerTool, onPartial: onPartial,
+                             onThinking: onThinking, onStats: onStats, completion: routed)
+            return
+        }
 
         // 会员优先走会员：有自己的 Key 也走托管问答（与润色同一条规则）
-        let ownProvider = polishProvider()
         let preferHosted = ownProvider != nil && HostedRoute.current(ownKeyConfigured: true) == .member
         guard let provider = ownProvider, !preferHosted else {
+            var messages: [[String: Any]] = [["role": "system", "content": Self.askSystemPrompt + "\n" + Self.askTimeLine()]]
+            for turn in history.suffix(6) {
+                messages.append(["role": "user", "content": turn.question])
+                messages.append(["role": "assistant", "content": turn.answer])
+            }
+            messages.append(["role": "user", "content": question])
             let providerSetting = VoicePolishConfig.shared.string(forKey: "polish_provider")
             let hostedRoute = HostedRoute.current(ownKeyConfigured: ownProvider != nil)
             if !Self.isPolishDisabled(provider: providerSetting) && hostedRoute != .none {
@@ -767,12 +822,35 @@ public class AIPolisher {
             completion(.failure(PolishError.noAPIKey))
             return
         }
-        // 千问联网默认由模型自己判断要不要搜，它觉得会答的就不搜、答案可能过期；
-        // 问题里带时效词时强制搜，其他问题维持智能判断。
-        // 搜索档位一律用默认，别指定 search_strategy="standard"：它只拿回默认档约一半的资料、结果偏旧
-        // （2026-09-11 实测「美联储主席是谁」standard 档 3 次都答成已卸任的前任，默认档每次都对）。
+        answerDirectText(question: question, history: history, provider: provider, route: .direct,
+                         offerSearchTool: offerTool, onPartial: onPartial, onThinking: onThinking,
+                         onStats: onStats, completion: routed)
+    }
+
+    /// 纯文字提问（不带屏幕内容）：用指定通道流式回答。
+    /// 千问联网默认由模型自己判断要不要搜，它觉得会答的就不搜、答案可能过期；
+    /// 问题里带时效词时强制搜，其他问题维持智能判断。
+    /// 搜索档位一律用默认，别指定 search_strategy="standard"：它只拿回默认档约一半的资料、结果偏旧
+    /// （2026-09-11 实测「美联储主席是谁」standard 档 3 次都答成已卸任的前任，默认档每次都对）。
+    private func answerDirectText(question: String,
+                                  history: [(question: String, answer: String)],
+                                  provider: (name: String, url: URL, model: String, apiKey: String),
+                                  route: AskVision.AskRoute,
+                                  offerSearchTool: Bool,
+                                  onPartial: ((String) -> Void)?,
+                                  onThinking: (() -> Void)?,
+                                  onStats: ((String) -> Void)?,
+                                  completion: @escaping (Result<String, Error>) -> Void) {
+        let system = Self.askSystemPrompt + (offerSearchTool ? AskSearch.toolPromptSuffix : "") + "\n" + Self.askTimeLine()
+        var messages: [[String: Any]] = [["role": "system", "content": system]]
+        for turn in history.suffix(6) {
+            messages.append(["role": "user", "content": turn.question])
+            messages.append(["role": "assistant", "content": turn.answer])
+        }
+        messages.append(["role": "user", "content": question])
+
         let forceSearch = Self.isTimeSensitive(question)
-        debugLog?("Ask provider=\(provider.name) model=\(provider.model) forceSearch=\(forceSearch) history=\(history.count)")
+        debugLog?("Ask route=\(route.rawValue) provider=\(provider.name) model=\(provider.model) forceSearch=\(forceSearch) history=\(history.count)")
         func makeBody(_ model: String, search: Bool) -> [String: Any] {
             var body: [String: Any] = ["model": model, "messages": messages, "stream": true]
             if provider.name == "qwen" {
@@ -787,9 +865,11 @@ public class AIPolisher {
                 body["max_tokens"] = AskVision.forcesThinking(model: model) ? 2048 : 1200
                 AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
             }
+            if offerSearchTool { body["tools"] = AskSearch.tools() }
             return body
         }
-        let candidates: [String] = provider.name == "qwen"
+        // 联网这一问模型已经定死，不走自动路由
+        let candidates: [String] = (provider.name == "qwen" && route == .direct)
             ? (PolishModelRouter.isAuto(provider.model) ? PolishModelRouter.candidates(for: provider.model) : [provider.model])
             : [provider.model]
         func attempt(_ index: Int, search: Bool) {
@@ -799,13 +879,18 @@ public class AIPolisher {
             }
             let model = candidates[index]
             streamChat(url: provider.url, apiKey: provider.apiKey, body: makeBody(model, search: search),
-                       onPartial: onPartial, onThinking: onThinking) { [weak self] result in
+                       onPartial: onPartial, onThinking: onThinking,
+                       searchToolName: offerSearchTool ? AskSearch.toolName : nil,
+                       onStats: { reasoningChars, firstTokenMs in
+                           let first = firstTokenMs.map { "\($0)ms" } ?? "n/a"
+                           onStats?("route=\(route.rawValue) model=\(model) vision=0 search=\(search ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
+                       }) { [weak self] result in
                 switch result {
                 case .success(let text):
                     if !text.isEmpty { TrialManager.shared.recordSelfKeyUsage(chars: text.count) }
                     completion(.success(text))
                 case .failure(let err):
-                    if case PolishError.quotaExhausted = err {
+                    if case PolishError.quotaExhausted = err, index + 1 < candidates.count {
                         PolishModelRouter.markExhausted(model)
                         self?.debugLog?("Ask: \(model) 额度类失败，降级到下一个")
                         attempt(index + 1, search: search)
@@ -828,12 +913,17 @@ public class AIPolisher {
                                   history: [(question: String, answer: String)],
                                   screen: AskScreenContext,
                                   provider: (name: String, url: URL, model: String, apiKey: String),
+                                  route: AskVision.AskRoute,
+                                  offerSearchTool: Bool,
                                   onPartial: ((String) -> Void)?,
                                   onThinking: (() -> Void)?,
                                   onStats: ((String) -> Void)?,
                                   completion: @escaping (Result<String, Error>) -> Void) {
         let override = AskAtCursorSettings.visionModelOverride
-        let all = AskVision.visionCandidates(provider: provider.name, override: override)
+        // 联网这一问模型已经定死（AskVision.searchModel），不走视觉候选表
+        let all = route == .qwenSearch
+            ? [provider.model]
+            : AskVision.visionCandidates(provider: provider.name, override: override)
         // 沿用润色那套额度标记：某个模型免费额度用完了就跳过，冷却到期自动再试
         let fresh = all.filter { !PolishModelRouter.isExhausted($0) }
         let candidates = fresh.isEmpty ? all : fresh
@@ -843,7 +933,8 @@ public class AIPolisher {
         }
 
         var messages: [[String: Any]] = [
-            ["role": "system", "content": Self.askSystemPrompt + AskVision.screenPromptSuffix + "\n" + Self.askTimeLine()]
+            ["role": "system", "content": Self.askSystemPrompt + AskVision.screenPromptSuffix
+                + (offerSearchTool ? AskSearch.toolPromptSuffix : "") + "\n" + Self.askTimeLine()]
         ]
         for turn in history.suffix(6) {
             messages.append(["role": "user", "content": turn.question])
@@ -854,16 +945,23 @@ public class AIPolisher {
                                                                 overviewJPEG: screen.overviewJPEG,
                                                                 closeUpJPEG: screen.closeUpJPEG)])
 
-        // 带图时不开联网搜索：智谱的视觉请求 schema 里根本没有 web_search 这个工具类型，
-        // 千问也没承诺图文混合时能同时搜，稳妥起见一律关掉，日志里记一笔
+        // 一般情况下带图不开联网：智谱的视觉请求 schema 里根本没有 web_search 这个工具类型。
+        // 但 2026-09-21 本机实测千问 enable_search + forced_search + 两张 image_url 能同时用，
+        // 而且搜索结果确实被用上了（关掉搜索同一问就答成两年前的旧数据），所以走千问联网时照样带图。
+        let search = route == .qwenSearch
         func makeBody(_ model: String) -> [String: Any] {
             var body: [String: Any] = ["model": model, "messages": messages, "stream": true,
                                        "temperature": 0.5, "max_tokens": AskVision.maxTokens(provider: provider.name)]
             AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
+            if search {
+                body["enable_search"] = true
+                body["search_options"] = ["forced_search": true]
+            }
+            if offerSearchTool { body["tools"] = AskSearch.tools() }
             return body
         }
 
-        debugLog?("Ask vision provider=\(provider.name) models=\(candidates.joined(separator: ",")) search=off history=\(history.count) \(screen.sizeSummary)")
+        debugLog?("Ask vision route=\(route.rawValue) provider=\(provider.name) models=\(candidates.joined(separator: ",")) search=\(search ? "on" : "off") history=\(history.count) \(screen.sizeSummary)")
 
         func attempt(_ index: Int) {
             guard index < candidates.count else {
@@ -874,9 +972,10 @@ public class AIPolisher {
             streamChat(url: url, apiKey: provider.apiKey, body: makeBody(model),
                        timeout: AskVision.requestTimeout, onPartial: onPartial,
                        onThinking: onThinking,
+                       searchToolName: offerSearchTool ? AskSearch.toolName : nil,
                        onStats: { reasoningChars, firstTokenMs in
                            let first = firstTokenMs.map { "\($0)ms" } ?? "n/a"
-                           onStats?("model=\(model) vision=1 search=off reasoning=\(reasoningChars)ch firstToken=\(first)")
+                           onStats?("route=\(route.rawValue) model=\(model) vision=1 search=\(search ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
                        }) { [weak self] result in
                 switch result {
                 case .success(let text):
@@ -901,6 +1000,7 @@ public class AIPolisher {
                             timeout: TimeInterval = 90,
                             onPartial: ((String) -> Void)?,
                             onThinking: (() -> Void)? = nil,
+                            searchToolName: String? = nil,
                             onStats: ((Int, Int?) -> Void)? = nil,
                             completion: @escaping (Result<String, Error>) -> Void) {
         var request = URLRequest(url: url)
@@ -910,7 +1010,8 @@ public class AIPolisher {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.timeoutInterval = timeout
         do { request.httpBody = try JSONSerialization.data(withJSONObject: body) } catch { completion(.failure(error)); return }
-        let reader = SSEReader(onPartial: onPartial, onThinking: onThinking, onStats: onStats, completion: completion)
+        let reader = SSEReader(onPartial: onPartial, onThinking: onThinking,
+                               searchToolName: searchToolName, onStats: onStats, completion: completion)
         StreamHub.shared.send(request, reader: reader)
     }
 
@@ -930,6 +1031,7 @@ public class AIPolisher {
 
         func send(_ request: URLRequest, reader: SSEReader) {
             let task = session.dataTask(with: request)
+            reader.task = task   // 模型改口要联网时，解析器要能立刻掐掉这条流
             lock.lock(); readers[task.taskIdentifier] = reader; lock.unlock()
             task.resume()
         }
@@ -978,6 +1080,8 @@ public class AIPolisher {
         private let onPartial: ((String) -> Void)?
         /// 模型开始吐思考内容了（智谱 GLM-5.3 系列关不掉思考），只在第一段时回调一次
         private let onThinking: (() -> Void)?
+        /// 非 nil = 这条流带了函数工具，拼出这个名字就中止，交给上层转千问联网
+        private let searchToolName: String?
         /// (思考内容字数, 首字耗时 ms)。关得掉思考的模型这里应该是 0，不是 0 说明参数没生效。
         private let onStats: ((Int, Int?) -> Void)?
         private let completion: (Result<String, Error>) -> Void
@@ -989,13 +1093,19 @@ public class AIPolisher {
         private var finished = false
         private let startedAt = ProcessInfo.processInfo.systemUptime
         private var firstTokenMs: Int?
+        private var toolCalls = ToolCallAccumulator()
+        /// 已经因为「模型要联网」掐掉这条流：判定耗时记在这里
+        private var searchDecidedMs: Int?
+        weak var task: URLSessionTask?
 
         init(onPartial: ((String) -> Void)?,
              onThinking: (() -> Void)? = nil,
+             searchToolName: String? = nil,
              onStats: ((Int, Int?) -> Void)? = nil,
              completion: @escaping (Result<String, Error>) -> Void) {
             self.onPartial = onPartial
             self.onThinking = onThinking
+            self.searchToolName = searchToolName
             self.onStats = onStats
             self.completion = completion
         }
@@ -1018,6 +1128,15 @@ public class AIPolisher {
                       let choice = (json["choices"] as? [[String: Any]])?.first else { continue }
                 let delta = choice["delta"] as? [String: Any]
                 let message = choice["message"] as? [String: Any]
+                // 模型要联网：不把工具调用当回答显示。不立刻掐流，让它把参数（搜索词）吐完，
+                // 整个工具调用实测 0.1 秒内就结束；搜索词是模型看完屏幕后写的，转千问时要带上。
+                if let target = searchToolName, let delta {
+                    let hit = toolCalls.ingest(delta: delta, lookingFor: target)
+                    if hit, searchDecidedMs == nil {
+                        searchDecidedMs = Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000)
+                    }
+                    if searchDecidedMs != nil { continue }
+                }
                 // 思考内容：关掉之后应该一个字都没有，收到了就说明参数没生效，记进日志好排查
                 if let reasoning = (delta?["reasoning_content"] as? String) ?? (message?["reasoning_content"] as? String),
                    !reasoning.isEmpty {
@@ -1039,6 +1158,11 @@ public class AIPolisher {
         func finish(error: Error?) {
             guard !finished else { return }
             finished = true
+            // 模型发起了联网工具调用：不报错、不给残缺的文字，只告诉上层「这一问要联网」和它想搜什么
+            if let decided = searchDecidedMs {
+                completion(.failure(PolishError.needsWebSearch(decided, toolCalls.searchQuery(for: searchToolName ?? ""))))
+                return
+            }
             let reasoning = reasoningChars
             let first = firstTokenMs
             DispatchQueue.main.async { self.onStats?(reasoning, first) }
@@ -1046,7 +1170,9 @@ public class AIPolisher {
             guard statusCode == 200 else {
                 let json = try? JSONSerialization.jsonObject(with: errorBody) as? [String: Any]
                 let message = AIPolisher.extractAPIErrorMessage(from: json) ?? "HTTP \(statusCode)"
-                completion(.failure(statusCode == 403 ? PolishError.quotaExhausted(message) : PolishError.apiError(message)))
+                // 403 是阿里/火山的额度类失败，402 是 DeepSeek 的「余额不足」
+                let quotaLike = statusCode == 403 || statusCode == 402
+                completion(.failure(quotaLike ? PolishError.quotaExhausted(message) : PolishError.apiError(message)))
                 return
             }
             let text = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1214,6 +1340,8 @@ public class AIPolisher {
         case parseError
         case apiError(String)   // 服务端返回的业务错误（鉴权/限流等），带真实原因
         case quotaExhausted(String)   // 403 额度类失败（免费额度用完即停/欠费），自动路由靠它降级
+        /// 模型自己判断这一问要联网；参数是判定耗时（ms）和它写的搜索词。不会让用户看见，上层拿它转千问。
+        case needsWebSearch(Int, String?)
 
         public var errorDescription: String? {
             switch self {
@@ -1222,6 +1350,7 @@ public class AIPolisher {
             case .parseError: return "润色返回无法解析"
             case .apiError(let msg): return msg
             case .quotaExhausted(let msg): return msg
+            case .needsWebSearch: return "这一问需要联网"
             }
         }
     }
@@ -1262,12 +1391,14 @@ public class AIPolisher {
 
         if c == "invalid_api_key" || c == "invalidapikey" || c == "authenticationerror" || t == "unauthorized"
             || m.contains("incorrect api key") || m.contains("api key format is incorrect")
-            || m.contains("didn't provide an api key") || m.contains("invalid api key") {
+            || m.contains("didn't provide an api key") || m.contains("invalid api key")
+            || m.contains("authentication fails") {   // DeepSeek 的 401 原文
             return "API Key 无效，请检查是否复制完整\(tag)"
         }
         if c == "arrearage" || c == "accountoverdueerror" || c == "insufficient_quota"
             || m.contains("in good standing") || m.contains("arrearage") || m.contains("overdue")
-            || m.contains("quota exceeded") || m.contains("enough balance") {
+            || m.contains("quota exceeded") || m.contains("enough balance")
+            || m.contains("insufficient balance") || m.contains("run out of balance") {   // DeepSeek 的 402 原文
             return "账号欠费或免费额度已用完，请到服务商控制台检查\(tag)"
         }
         if c == "quotaexceeded" || c == "ratelimitexceeded" || c == "throttling" || c.hasPrefix("throttling.")

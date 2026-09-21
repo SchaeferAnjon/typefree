@@ -1541,6 +1541,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         aiPolisher.answer(question: question, history: history, screen: screen, onPartial: { [weak self] partial in
             self?.askSlowHintWork?.cancel()
             self?.answerPanel.updatePartial(partial)
+        }, onRouteNote: { [weak self] note in
+            // 这一问转去联网了：「正在联网查…」→ 出字后换成「已联网查询」。
+            // 已经有「没能看屏幕」的说明时不盖掉它，那条对用户更要紧
+            guard let self, screenNote == nil else { return }
+            DispatchQueue.main.async { self.answerPanel.setNote(note) }
         }, onThinking: { [weak self] in
             // 模型真的开始吐思考内容（关思考没生效）会先沉默一阵：告诉用户它在想，不是卡住了
             guard let self, screenNote == nil else { return }

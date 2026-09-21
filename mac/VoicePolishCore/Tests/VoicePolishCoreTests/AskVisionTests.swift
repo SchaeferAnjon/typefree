@@ -168,4 +168,73 @@ final class AskVisionTests: XCTestCase {
         let summary = AskVision.sizeSummary(overviewJPEG: Data(count: 51_200), closeUpJPEG: Data(count: 153_600))
         XCTAssertEqual(summary, "overview=50KB closeup=150KB")
     }
+
+    // MARK: - 联网路由（模型自己判断）
+
+    func testSearchToolIsOfferedOnlyWhenItCanBeUsed() {
+        XCTAssertTrue(AskSearch.shouldOfferTool(provider: "deepseek", hasQwenKey: true))
+        XCTAssertTrue(AskSearch.shouldOfferTool(provider: "zhipu", hasQwenKey: true))
+        // 没有千问 Key：带了工具也没处转
+        XCTAssertFalse(AskSearch.shouldOfferTool(provider: "deepseek", hasQwenKey: false))
+        // 千问自己就能搜；豆包没验证过认不认 tools；托管通道服务器自己开了联网
+        XCTAssertFalse(AskSearch.shouldOfferTool(provider: "qwen", hasQwenKey: true))
+        XCTAssertFalse(AskSearch.shouldOfferTool(provider: "doubao", hasQwenKey: true))
+        XCTAssertFalse(AskSearch.shouldOfferTool(provider: nil, hasQwenKey: true))
+    }
+
+    func testSearchToolDefinitionIsAValidFunctionTool() throws {
+        let tools = AskSearch.tools()
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertEqual(tools[0]["type"] as? String, "function")   // DeepSeek 对 type=web_search 直接 422
+        let function = try XCTUnwrap(tools[0]["function"] as? [String: Any])
+        XCTAssertEqual(function["name"] as? String, AskSearch.toolName)
+        XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: tools))
+    }
+
+    func testExplicitSearchPrefix() {
+        XCTAssertTrue(AskSearch.hasExplicitSearchPrefix("搜一下海德堡明天的天气"))
+        XCTAssertTrue(AskSearch.hasExplicitSearchPrefix("  联网查查英伟达市值"))
+        XCTAssertFalse(AskSearch.hasExplicitSearchPrefix("这道题选哪个"))
+        XCTAssertFalse(AskSearch.hasExplicitSearchPrefix("帮我解释一下联网是什么意思"))
+    }
+
+    /// 工具名和参数都可能分片到达
+    func testToolCallAccumulatorJoinsFragments() {
+        var acc = ToolCallAccumulator()
+        XCTAssertFalse(acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["name": "web_"]]]], lookingFor: "web_search"))
+        XCTAssertTrue(acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["name": "search", "arguments": "{\"qu"]]]], lookingFor: "web_search"))
+        _ = acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["arguments": "ery\": \"x\"}"]]]], lookingFor: "web_search")
+        XCTAssertEqual(acc.argumentsJSON(at: 0), "{\"query\": \"x\"}")
+    }
+
+    /// 普通出字的块、别的工具名都不算
+    func testToolCallAccumulatorIgnoresContentAndOtherTools() {
+        var acc = ToolCallAccumulator()
+        XCTAssertFalse(acc.ingest(delta: ["content": "你好"], lookingFor: "web_search"))
+        XCTAssertFalse(acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["name": "other_tool"]]]], lookingFor: "web_search"))
+        // 同一块里既有 content 又有工具调用；并排第二个调用才是要找的
+        XCTAssertTrue(acc.ingest(delta: ["content": "我查一下", "tool_calls": [["index": 1, "function": ["name": "web_search"]]]], lookingFor: "web_search"))
+    }
+
+    func testDeepSeekIsAProviderWithThinkingDisabledAndASecretKey() {
+        var body: [String: Any] = [:]
+        AskVision.applyThinkingSettings(in: &body, provider: "deepseek", model: DeepSeekEndpoint.defaultModel)
+        XCTAssertEqual((body["thinking"] as? [String: String])?["type"], "disabled")   // 默认开着思考，GetNewWord 因此慢到过 31 秒
+        XCTAssertEqual(AskVision.visionCandidates(provider: "deepseek", override: nil), ["deepseek-flash"])
+        XCTAssertEqual(AskVision.visionEndpoint(provider: "deepseek")?.absoluteString, "https://api.deepseek.com/chat/completions")
+        XCTAssertTrue(VoicePolishConfig.secretKeys.contains("deepseek_api_key"))
+    }
+
+    /// 搜索词是模型看完屏幕后写的，转千问时靠它带上屏幕上下文（那一问不带图）
+    func testSearchQueryIsExtractedAndAttachedToTheQuestion() {
+        var acc = ToolCallAccumulator()
+        _ = acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["name": "web_search", "arguments": "{\"query\": \"RTX 5090"]]]], lookingFor: "web_search")
+        XCTAssertNil(acc.searchQuery(for: "web_search"), "参数还没吐完，不是合法 JSON")
+        _ = acc.ingest(delta: ["tool_calls": [["index": 0, "function": ["arguments": " 价格\"}"]]]], lookingFor: "web_search")
+        XCTAssertEqual(acc.searchQuery(for: "web_search"), "RTX 5090 价格")
+
+        XCTAssertEqual(AskSearch.searchQuestion("这个多少钱", query: nil), "这个多少钱")
+        XCTAssertTrue(AskSearch.searchQuestion("这个多少钱", query: "RTX 5090 价格").contains("RTX 5090 价格"))
+        XCTAssertTrue(AskSearch.searchQuestion("这个多少钱", query: "RTX 5090 价格").hasPrefix("这个多少钱"))
+    }
 }

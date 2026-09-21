@@ -1122,6 +1122,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private var asrGetKeyButton: NSButton?
     private var dashscopeAPIKeyField: NSSecureTextField?
     private var arkAPIKeyField: NSSecureTextField?
+    private var deepseekAPIKeyField: NSSecureTextField?
     private var polishProviderControl: VPSegmentedControl?
     private var polishKeyContainer: NSStackView?
     private var polishGetKeyButton: NSButton?
@@ -4024,9 +4025,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         // Prepare field instances fresh from config（secret 经 string 路由钥匙串）
         dashscopeAPIKeyField = makeSecureField(config.string(forKey: "dashscope_api_key"))
         arkAPIKeyField = makeSecureField(config.string(forKey: "ark_api_key"))
+        deepseekAPIKeyField = makeSecureField(config.string(forKey: DeepSeekEndpoint.secretKey))
         // bigASRAPIKeyField / bailianKeyField 由识别卡片按服务商动态创建（refreshASRFields）
         // Persist edits as soon as a field loses focus ("改动即时保存")
-        for field in [dashscopeAPIKeyField, arkAPIKeyField] {
+        for field in [dashscopeAPIKeyField, arkAPIKeyField, deepseekAPIKeyField] {
             field?.delegate = self
         }
 
@@ -4353,7 +4355,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         // 自绘分段控件，软填充观感（详见 VPSegmentedControl）
         let current = config.string(forKey: "polish_provider") ?? "qwen"
         // 9-15 Ray：润色只留「百炼 / 不优化」，豆包隐藏；已经选了豆包的老用户仍显示三段
-        polishSegProviders = current == "doubao" ? ["qwen", "doubao", "none"] : ["qwen", "none"]
+        polishSegProviders = current == "doubao"
+            ? ["qwen", "deepseek", "doubao", "none"]
+            : ["qwen", "deepseek", "none"]
         let seg = VPSegmentedControl(
             labels: polishSegProviders.map { Self.polishProviderLabel($0) },
             trackBg: theme.cardAlt,
@@ -4523,11 +4527,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     /// 润色分段当前显示的服务商顺序（豆包默认隐藏，见 buildPolishCard）
-    private var polishSegProviders: [String] = ["qwen", "none"]
+    private var polishSegProviders: [String] = ["qwen", "deepseek", "none"]
 
     private static func polishProviderLabel(_ provider: String) -> String {
         switch provider {
         case "doubao": return "火山引擎（豆包）"
+        case "deepseek": return "DeepSeek"
         case "none": return "不优化"
         default: return "百炼（阿里）"
         }
@@ -4589,6 +4594,30 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             polishGetKeyButton?.identifier = NSUserInterfaceItemIdentifier("https://bailian.console.aliyun.com/")
             polishTestButton?.isEnabled = true
             polishTestButton?.title = "▷ 测试连接"
+        case "deepseek":
+            let rec = label("⚡ 最快。本机实测带截图提问首字约 1.2 秒，润色约 1 秒，比其他几家快一倍以上。", size: 11.5, weight: .medium, color: theme.accent)
+            rec.maximumNumberOfLines = 0
+            container.addArrangedSubview(rec)
+            rec.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            let row = makeFieldRow(label: "DeepSeek API Key", control: deepseekAPIKeyField!,
+                                   placeholder: "请输入 DeepSeek API Key")
+            container.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            let modelRow = makePolishModelRow(
+                configKey: DeepSeekEndpoint.modelConfigKey,
+                presets: [DeepSeekEndpoint.defaultModel, "deepseek-v4-pro"],
+                caption: "deepseek-flash 快且够用（默认，问 AI 看屏幕也用它）；deepseek-v4-pro 质量更好但更慢。")
+            container.addArrangedSubview(modelRow)
+            modelRow.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            let searchHint = label("DeepSeek 的 API 不能联网。同时填了千问 Key 时，需要最新信息的问题会由它自己判断、自动转给千问联网回答；也可以用「搜一下……」开头直接联网。",
+                                   size: 11.5, weight: .regular, color: theme.text3)
+            searchHint.maximumNumberOfLines = 0
+            container.addArrangedSubview(searchHint)
+            searchHint.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
+            polishGetKeyButton?.isHidden = false
+            polishGetKeyButton?.identifier = NSUserInterfaceItemIdentifier(DeepSeekEndpoint.consoleURL)
+            polishTestButton?.isEnabled = true
+            polishTestButton?.title = "▷ 测试连接"
         default: // doubao
             let warn = label("⚠️ 火山引擎（豆包）润色效果一般，建议换「百炼（阿里）」。", size: 11.5, weight: .medium, color: theme.text2)
             warn.maximumNumberOfLines = 0
@@ -4616,6 +4645,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         switch key {
         case "qwen_polish_model": return PolishModelRouter.autoValue
         case "doubao_polish_model": return "doubao-seed-2-0-pro-260215"
+        case DeepSeekEndpoint.modelConfigKey: return DeepSeekEndpoint.defaultModel
         default: return ""
         }
     }
@@ -5235,6 +5265,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if let f = arkAPIKeyField {
             secretOK = config.saveSecret(f.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "ark_api_key") && secretOK
         }
+        if let f = deepseekAPIKeyField {
+            secretOK = config.saveSecret(f.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: DeepSeekEndpoint.secretKey) && secretOK
+        }
         // DashScope Key 在识别(百炼)和优化(通义千问)共用同一 config key，取两处非空的
         let dsBailian = bailianKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let dsPolish = dashscopeAPIKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -5329,7 +5362,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             bailianKeyField?.stringValue = field.stringValue
         }
         let modelFields: [NSTextField?] = [bigASRAPIKeyField, bailianKeyField,
-                                           dashscopeAPIKeyField, arkAPIKeyField]
+                                           dashscopeAPIKeyField, arkAPIKeyField, deepseekAPIKeyField]
         guard modelFields.contains(where: { $0 === field }) else { return }
         persistModelFields()
     }
@@ -7069,6 +7102,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             return !(config.string(forKey: "dashscope_api_key", envKey: "DASHSCOPE_API_KEY") ?? "").isEmpty
         case "zhipu":
             return !(config.string(forKey: "zhipu_api_key", envKey: "ZHIPU_API_KEY") ?? "").isEmpty
+        case "deepseek":
+            return !(config.string(forKey: DeepSeekEndpoint.secretKey, envKey: DeepSeekEndpoint.envKey) ?? "").isEmpty
         case "none":
             return true   // 用户主动选了「不优化」，不是没配置
         default:

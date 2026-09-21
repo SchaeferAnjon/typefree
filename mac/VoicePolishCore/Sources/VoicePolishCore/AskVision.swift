@@ -69,10 +69,15 @@ public enum AskVision {
     ///   https://docs.bigmodel.cn/cn/coding-plan/overview
     /// - 方舟「视觉理解」推荐表里的 Model ID 直接填，不需要接入点 ep-xxx。
     ///   https://www.volcengine.com/docs/82379/1330310
+    /// - DeepSeek 的 deepseek-flash 是 2026-09-21 本机实测最快的一档：同一份负载（两张图约 380KB）
+    ///   首字 1.16 到 1.39 秒、总 1.4 到 1.6 秒，答案全对；智谱 2.3 到 4.0 秒，千问 3.2 到 4.2 秒。
+    ///   https://api-docs.deepseek.com/
+    /// - qwen3-vl-flash 实测虽然 3.1 秒但答错（幻觉），所以放在候选表最后。
     public static func visionCandidates(provider: String, override: String? = nil) -> [String] {
         if let override, !override.isEmpty { return [override] }
         switch provider {
-        case "qwen": return ["qwen3.8-flash", "qwen3.7-flash", "qwen3-vl-plus", "qwen3.8-max"]
+        case "deepseek": return [DeepSeekEndpoint.defaultModel]
+        case "qwen": return ["qwen3.8-flash", "qwen3.7-flash", "qwen3.8-max", "qwen3-vl-flash"]
         case "zhipu": return [ZhipuEndpoint.defaultModel]
         default: return ["doubao-seed-2-1-turbo-260628", "doubao-seed-2-1-lite-260915", "doubao-seed-2-1-pro-260915"]
         }
@@ -87,12 +92,148 @@ public enum AskVision {
     /// 会报 429/1113「余额不足」，那不是没钱，是端点不对。
     public static func visionEndpoint(provider: String) -> URL? {
         switch provider {
-        case "qwen": return URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
+        case "deepseek": return DeepSeekEndpoint.chatCompletions
+        case "qwen": return qwenChatCompletions
         case "zhipu": return ZhipuEndpoint.chatCompletions
         default: return URL(string: "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
         }
     }
 
+    // MARK: - 联网搜索
+
+    /// 千问的 OpenAI 兼容端点。联网走它，见 AskRoute。
+    public static let qwenChatCompletions = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
+
+    /// 联网这一问用哪个模型。2026-09-21 实测 qwen3.8-flash 带图 + enable_search + forced_search
+    /// 首字 4.0 秒左右、确实拿到了当天的汇率；qwen3.7-flash 略快但答得啰嗦，作次选。
+    public static let searchModel = "qwen3.8-flash"
+
+    /// 这一问走哪条路。
+    public enum AskRoute: String, Sendable {
+        /// 走用户当前选的提供方
+        case direct
+        /// 时效问题改走千问 + 联网搜索
+        case qwenSearch = "qwen-search"
+    }
+
+}
+
+/// 联网路由。
+///
+/// 三家能自带 Key 的提供方里只有千问能真的联网（DeepSeek 的 API 不认 web_search 工具，
+/// 智谱 Coding Plan 的 web_search 工具不报错但实际不搜）。所以做法是：给当前模型带一个
+/// web_search 函数工具，让它自己判断这一问要不要查；它一调用就把整问转给千问联网回答。
+///
+/// 不用关键词表判断，因为关键词表一定会漏：「Claude 现在最强的模型是哪个」里没有任何时效词。
+/// 2026-09-21 用 deepseek-flash 实测 12 题全对（6 题该搜的全发起了工具调用，6 题该直答的全直答），
+/// 而且带工具不增加延迟：直答首字 0.5 到 1.0 秒，发起工具调用 0.7 到 1.2 秒返回。
+public enum AskSearch {
+    public static let toolName = "web_search"
+
+    /// 转给千问联网期间在浮窗里显示的状态
+    public static let searchingNotice = "正在联网查…"
+    /// 千问开始出字后换成这句，留在回答上方：让用户知道这条答案是查过的，不是模型凭记忆说的
+    public static let searchedNotice = "已联网查询"
+
+    /// 带给模型的函数工具。只定义一个，调用即转千问，不做「把搜索结果喂回来」的第二轮，
+    /// 省一次往返（千问直接出最终答案）。
+    public static func tools() -> [[String: Any]] {
+        [[
+            "type": "function",
+            "function": [
+                "name": toolName,
+                "description": "联网搜索最新信息。答案可能随时间变化、或涉及近两年的事实时调用。",
+                "parameters": [
+                    "type": "object",
+                    "properties": ["query": ["type": "string", "description": "搜索关键词"]],
+                    "required": ["query"],
+                ],
+            ],
+        ]]
+    }
+
+    /// 带工具时追加到 system prompt 的判定规则。当前时间由 askTimeLine 提供，这里不重复。
+    public static let toolPromptSuffix = """
+
+    你的训练知识有截止日期，可能已经过时。凡是答案可能随时间变化的问题（最新的产品/版本/模型、现任职务、价格、汇率、天气、新闻、赛事结果、近两年发生的事），必须调用 web_search，不要凭记忆回答；常识、概念解释、语言、数学、针对用户屏幕内容的问题直接回答。
+    """
+
+    /// 用户明说要联网：不用问模型，直接走千问。前缀词留在问题里无妨，搜索引擎不在乎。
+    public static let explicitPrefixes = ["联网", "上网查", "上网搜", "搜一下", "查一下", "帮我搜", "帮我查", "搜索一下"]
+
+    /// 转给千问的那一问。搜索词是当前模型看完屏幕后写的，附上它，千问不看图也知道用户指的是什么。
+    public static func searchQuestion(_ question: String, query: String?) -> String {
+        guard let query, !query.isEmpty, query != question else { return question }
+        return "\(question)\n（用户是指着屏幕上的内容问的，助手据此整理出的检索词：\(query)）"
+    }
+
+    public static func hasExplicitSearchPrefix(_ question: String) -> Bool {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        return explicitPrefixes.contains { trimmed.hasPrefix($0) }
+    }
+
+    /// 这家的接口认不认 function 类型的 tools。
+    /// deepseek 与 zhipu（Coding Plan 端点 + glm-5.3-flash）2026-09-21 本机实测都认，判断也准；
+    /// doubao 手上没有 Key 没法验，拿不准就不带工具，它照常直答。
+    public static func supportsFunctionTools(provider: String) -> Bool {
+        provider == "deepseek" || provider == "zhipu"
+    }
+
+    /// 这一问要不要带工具：当前提供方不是千问（千问自己就能搜）、认 tools、且用户配了千问 Key。
+    /// provider 为 nil = 走托管通道，那边服务器自己开了联网，不用带。
+    public static func shouldOfferTool(provider: String?, hasQwenKey: Bool) -> Bool {
+        guard let provider, provider != "qwen", hasQwenKey else { return false }
+        return supportsFunctionTools(provider: provider)
+    }
+}
+
+/// 流式里 tool_calls 增量的拼接。名字和参数都可能分片到达，也可能和 content 同时出现在一个块里；
+/// 同一轮还可能并排发起多个调用（DeepSeek 实测会发两个，index 分别是 0 和 1），所以按 index 分开攒。
+public struct ToolCallAccumulator: Equatable, Sendable {
+    private var names: [Int: String] = [:]
+    private var arguments: [Int: String] = [:]
+
+    public init() {}
+
+    /// 吃一份 choices[0].delta。返回 true = 此刻已经拼出了 target 这个工具名。
+    @discardableResult
+    public mutating func ingest(delta: [String: Any], lookingFor target: String) -> Bool {
+        guard let calls = delta["tool_calls"] as? [[String: Any]] else { return false }
+        var hit = false
+        for call in calls {
+            let index = (call["index"] as? Int) ?? 0
+            guard let function = call["function"] as? [String: Any] else { continue }
+            if let fragment = function["name"] as? String, !fragment.isEmpty {
+                names[index, default: ""] += fragment
+            }
+            if let fragment = function["arguments"] as? String, !fragment.isEmpty {
+                arguments[index, default: ""] += fragment
+            }
+            if names[index] == target { hit = true }
+        }
+        return hit
+    }
+
+    /// 已经拼完整的工具名（调试用）
+    public var completedNames: [String] {
+        names.keys.sorted().compactMap { names[$0] }
+    }
+
+    /// 某个调用攒到的参数 JSON
+    public func argumentsJSON(at index: Int) -> String? { arguments[index] }
+
+    /// 名叫 tool 的那个调用里模型写的搜索词；参数没吐完、不是合法 JSON 时返回 nil
+    public func searchQuery(for tool: String) -> String? {
+        guard let index = names.keys.sorted().first(where: { names[$0] == tool }),
+              let raw = arguments[index], let data = raw.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let query = (json["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !query.isEmpty else { return nil }
+        return query
+    }
+}
+
+extension AskVision {
     // MARK: - 请求组装
 
     /// 带图时追加到 system prompt 后面的说明。模型认画出来的标记比认坐标数字可靠得多，
@@ -151,6 +292,33 @@ public enum AskVision {
     /// 日志用：两张图一共多少 KB（只记数字，绝不记图片内容或 base64）
     public static func sizeSummary(overviewJPEG: Data, closeUpJPEG: Data) -> String {
         "overview=\(overviewJPEG.count / 1024)KB closeup=\(closeUpJPEG.count / 1024)KB"
+    }
+}
+
+/// DeepSeek 端点与默认模型。OpenAI 兼容，图片走 image_url + data URL（2026-09-21 实测可用）。
+/// 思考必须显式关（"thinking": {"type": "disabled"}）：GetNewWord 因为默认思考慢到过 31 秒，
+/// 带上之后本机实测 reasoning 为 0。官方当前的模型名是 deepseek-flash 和 deepseek-v4-pro，
+/// 旧名 deepseek-v4-flash / deepseek-v4-flash-vision-exp 仍接受但已退役。
+/// https://api-docs.deepseek.com/
+public enum DeepSeekEndpoint {
+    public static let configKey = "deepseek_base_url"
+    public static let defaultBase = "https://api.deepseek.com"
+    /// 润色、问 AI、带图问 AI 都用它：本机实测三家里最快的一档
+    public static let defaultModel = "deepseek-flash"
+    public static let secretKey = "deepseek_api_key"
+    public static let envKey = "DEEPSEEK_API_KEY"
+    public static let modelConfigKey = "deepseek_polish_model"
+    public static let consoleURL = "https://platform.deepseek.com/api_keys"
+
+    public static var base: String {
+        let raw = VoicePolishConfig.shared.string(forKey: configKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return (raw?.isEmpty == false) ? raw! : defaultBase
+    }
+
+    public static var chatCompletions: URL? {
+        URL(string: base + "/chat/completions")
     }
 }
 
