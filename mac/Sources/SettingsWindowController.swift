@@ -2207,7 +2207,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         titleRow.addArrangedSubview(titleSuffix)
         titleRow.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        let descText = tapToggleEnabled
+        let descText = RecordingHotkeyShortcut.isDisabled
+            ? "没有设置听写快捷键。在输入框里按住鼠标说话仍然可用；提问用下面两个快捷键。"
+            : tapToggleEnabled
             ? "\(shortcut.displayName) 长按时松开结束；单击时再次单击结束。结束后自动转写并粘贴。"
             : "\(shortcut.displayName) 松开后自动转写，并粘贴到当前光标位置。"
         let desc = label(descText,
@@ -2234,7 +2236,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         gestures.alignment = .centerY
         gestures.spacing = 28
         gestures.addArrangedSubview(makeGestureHint(key: "输入框里按住鼠标", label: "说话", feature: .mouseHold))
-        gestures.addArrangedSubview(makeGestureHint(key: "空白处按住鼠标", label: "问 AI", feature: .ask))
         gestures.addArrangedSubview(makeGestureHint(key: "结尾说「用英文」", label: "翻译", feature: .translation))
 
         // 问 AI 的几个用法：不列出来没人知道有（追问、换话题、联网、取消）
@@ -2329,7 +2330,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     private func makeHotkeyPickerButton(compact: Bool = false) -> NSButton {
-        let button = NSButton(title: "\(HotkeyArbiter.displayName(for: "recording", shortcut: RecordingHotkeyShortcut.current))  ▾",
+        let button = NSButton(title: "\(HotkeyArbiter.displayName(for: "recording", shortcut: RecordingHotkeyShortcut.isDisabled ? nil : RecordingHotkeyShortcut.current))  ▾",
                               target: self,
                               action: #selector(showHotkeyMenu(_:)))
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -2358,7 +2359,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
         var current: RecordingHotkeyShortcut? {
             switch self {
-            case .recording: return RecordingHotkeyShortcut.current
+            case .recording: return RecordingHotkeyShortcut.isDisabled ? nil : RecordingHotkeyShortcut.current
             case .ask(let hotkey): return hotkey.current
             }
         }
@@ -2407,13 +2408,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                           representedObject: "custom",
                           symbolName: "keyboard.badge.ellipsis",
                           isSelected: false)
-        if case .ask = hotkeyMenuTarget {
-            addHotkeyMenuItem(to: menu,
-                              title: "不设置",
-                              representedObject: "none",
-                              symbolName: "nosign",
-                              isSelected: currentShortcut == nil)
-        }
+        addHotkeyMenuItem(to: menu,
+                          title: "不设置",
+                          representedObject: "none",
+                          symbolName: "nosign",
+                          isSelected: currentShortcut == nil)
 
         return menu
     }
@@ -2463,8 +2462,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if raw == "custom-current" {
             return
         }
-        if raw == "none", case .ask(let hotkey) = hotkeyMenuTarget {
-            hotkey.clear()
+        if raw == "none" {
+            switch hotkeyMenuTarget {
+            case .recording: RecordingHotkeyShortcut.disable()
+            case .ask(let hotkey): hotkey.clear()
+            }
             applyHotkeyChange()
             return
         }
@@ -3685,8 +3687,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         ))
         stack.addArrangedSubview(makeMouseHoldToTalkCard())
         stack.addArrangedSubview(makeAskHotkeyCard())
-        stack.addArrangedSubview(makeAskAtCursorCard())
-        stack.addArrangedSubview(makeMouseHoldAskCard())
     }
 
     private func makeExploreCard(id: String, title: String, summary: String,

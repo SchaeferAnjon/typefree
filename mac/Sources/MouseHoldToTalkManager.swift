@@ -45,9 +45,9 @@ enum MouseHoldToTalkSettings {
     static var isEnabled: Bool {
         VoicePolishConfig.shared.bool(forKey: enabledKey, defaultValue: defaultEnabled)
     }
-    static var isAskEnabled: Bool {
-        VoicePolishConfig.shared.bool(forKey: askEnabledKey, defaultValue: askDefaultEnabled)
-    }
+    /// 「空白处长按问 AI」已下线：它靠辅助功能猜鼠标底下是不是空白，很多 App 里猜不准，
+    /// 终端这类整窗都是文本区的还会被当成输入框变成听写。提问统一走键盘快捷键（鼠标指在哪就问哪）。
+    static var isAskEnabled: Bool { false }
 }
 
 /// 按住期间的「拖开取消」手势快照（AppKit 屏幕坐标，左下原点）

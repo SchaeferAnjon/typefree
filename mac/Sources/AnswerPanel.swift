@@ -95,6 +95,7 @@ final class AnswerPanel {
         model.turns[last].answer = answer
         model.turns[last].state = .answered
         relayout()
+        settleAfterFinish()
         if collapseWhenDone { collapseWhenDone = false; collapse() }
     }
 
@@ -350,7 +351,20 @@ final class AnswerPanel {
         hosting.layoutSubtreeIfNeeded()
         let target = fittingSize(of: hosting)
         let current = panel.frame
-        if abs(target.height - current.height) > 0.5 || abs(target.width - current.width) > 0.5 { relayout() }
+        // 核对是纠错，直接定到位。走动画的话，这 0.22 秒里流式出字还在直接设尺寸，两边会打架，
+        // 窗口最后停在动画的旧目标上，比内容矮一截，头尾被切掉（DeepSeek 出字快，整条回答 0.3 秒内就流完）
+        if abs(target.height - current.height) > 0.5 || abs(target.width - current.width) > 0.5 { relayout(animated: false) }
+    }
+
+    /// 回答出完后再核对两次：最后一段文字进来时 measure 可能还没跟上，量到的高度会少一段
+    private func settleAfterFinish() {
+        for delay in [0.35, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, !self.model.collapsed else { return }
+                self.frameAnimationEnds = .distantPast
+                self.settleLayout()
+            }
+        }
     }
 
     private func relayoutAfterStateChange(animated: Bool = true) {

@@ -1996,7 +1996,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         hotkeyManager.onGestureClassified = { _ in }
         hotkeyManager.onCancel = { [weak self] in self?.cancelRecording() }
         ensureMouseHoldToTalkManager()
-        ensureAskAtCursorTrigger()
+        // 「修饰键 + 点击」问 AI 已下线（要接管全系统鼠标点击），提问只走键盘快捷键
         ensureAskHotkeyManagers()
     }
 

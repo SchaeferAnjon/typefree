@@ -276,6 +276,11 @@ enum RecordingHotkeyShortcut {
 
     static let modeConfigKey = "recording_hotkey_mode"
 
+    /// 听写快捷键设成了「不设置」：不用键盘听写（比如平时用别的输入法），这一套不响应
+    static var isDisabled: Bool { VoicePolishConfig.shared.string(forKey: modeConfigKey) == "none" }
+
+    static func disable() { VoicePolishConfig.shared.save(value: "none", forKey: modeConfigKey) }
+
     static var current: RecordingHotkeyShortcut {
         if VoicePolishConfig.shared.string(forKey: modeConfigKey) == "custom",
            let custom = RecordingHotkeyCustomShortcut.saved {
@@ -372,7 +377,7 @@ struct AskHotkey {
     /// 和优先级更高的热键撞了（听写 > 看屏幕问 > 纯提问）：没法分辨用户想干什么，这一套不响应
     var conflict: String? {
         guard let mine = current?.debugName else { return nil }
-        if mine == RecordingHotkeyShortcut.current.debugName { return "和「开始说话」的快捷键相同" }
+        if !RecordingHotkeyShortcut.isDisabled, mine == RecordingHotkeyShortcut.current.debugName { return "和「开始说话」的快捷键相同" }
         if prefix == AskHotkey.plain.prefix, AskHotkey.screen.isEnabled, mine == AskHotkey.screen.current?.debugName {
             return "和「看屏幕问 AI」的快捷键相同"
         }
@@ -392,7 +397,7 @@ struct AskHotkey {
 enum HotkeyArbiter {
     /// 除 name 这一套之外，其他正在生效的热键
     static func others(than name: String) -> [RecordingHotkeyShortcut] {
-        var all: [(String, RecordingHotkeyShortcut?)] = [("recording", RecordingHotkeyShortcut.current)]
+        var all: [(String, RecordingHotkeyShortcut?)] = RecordingHotkeyShortcut.isDisabled ? [] : [("recording", RecordingHotkeyShortcut.current)]
         for hotkey in [AskHotkey.screen, AskHotkey.plain] where hotkey.isActive { all.append((hotkey.prefix, hotkey.current)) }
         return all.filter { $0.0 != name }.compactMap { $0.1 }
     }
@@ -427,7 +432,7 @@ struct HotkeyProfile {
         shortcut: { RecordingHotkeyShortcut.current },
         tapToggleEnabled: { RecordingHotkeyBehavior.isTapToggleEnabled },
         optionLeftOnly: { HotkeyArbiter.leftOnly(for: "recording", shortcut: RecordingHotkeyShortcut.current) },
-        isActive: { true })
+        isActive: { !RecordingHotkeyShortcut.isDisabled })
 
     static func ask(_ hotkey: AskHotkey) -> HotkeyProfile {
         HotkeyProfile(
