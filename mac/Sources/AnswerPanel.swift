@@ -25,6 +25,10 @@ final class AnswerPanel {
     private var hoverArmed = false
     /// 点外面时回答还没出完：等出完再缩
     private var collapseWhenDone = false
+    /// 每起一次窗口尺寸动画加一，动画结束时用来认「我是不是最后一次」
+    private var layoutGeneration = 0
+    /// 尺寸动画预计结束的时刻；在这之前的核对交给动画结束回调去做
+    private var frameAnimationEnds = Date.distantPast
     /// 续聊录音进行中（面板侧兜底记录，防止 SwiftUI 手势丢了 onEnded 之后录音停不下来）
     private var followUpActive = false
     private static let width: CGFloat = 420
@@ -168,7 +172,7 @@ final class AnswerPanel {
             panel.setFrame(final, display: true)
             if let content = panel.contentView { hosting.frame = content.bounds }
             panel.invalidateShadow()
-            relayout()
+            relayoutAfterStateChange()
             return
         }
         let start = NSRect(x: screen.frame.maxX + 12, y: final.origin.y, width: size.width, height: size.height)
@@ -185,7 +189,7 @@ final class AnswerPanel {
             panel.animator().setFrame(final, display: true)
         }, completionHandler: { [weak self] in
             panel.invalidateShadow()
-            self?.relayout()
+            self?.relayoutAfterStateChange()
         })
         installEscMonitor()
         installMouseUpMonitor()
@@ -280,6 +284,9 @@ final class AnswerPanel {
                 self.scrollToBottom()
                 return
             }
+            self.layoutGeneration += 1
+            let generation = self.layoutGeneration
+            self.frameAnimationEnds = Date().addingTimeInterval(0.22)
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.22
                 ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.3, 0.9, 0.3, 1.0)
@@ -289,8 +296,30 @@ final class AnswerPanel {
                 hosting.frame = content.bounds
                 panel.invalidateShadow()
                 self?.scrollToBottom()
+                // 被新一次动画打断的旧动画也会走到这里：只让最后一次核对，否则动画途中会互相重排成一串
+                if self?.layoutGeneration == generation {
+                    self?.frameAnimationEnds = .distantPast   // 动画确实结束了，回调可能比预计时刻早一两毫秒
+                    self?.settleLayout()
+                }
             })
         }
+    }
+
+    /// 收起 / 展开是先改 model 再量尺寸，但 SwiftUI 要到下一轮才把小框和完整内容换过来，
+    /// 量早了拿到的还是换之前的高度：小框悬在一个高窗口中间，或者完整内容挤在小框大小的窗口里
+    /// （2026-09-21 实测收起后窗口 320x190，应为 320x54）。所以状态切换后隔一会儿再量一次，
+    /// 动画结束后也核对一次，对不上就重排；对得上时 relayout 自己会直接返回，不会循环。
+    private func settleLayout() {
+        guard let panel, let hosting, panel.isVisible, Date() >= frameAnimationEnds else { return }
+        hosting.layoutSubtreeIfNeeded()
+        let target = fittingSize(of: hosting)
+        let current = panel.frame
+        if abs(target.height - current.height) > 0.5 || abs(target.width - current.width) > 0.5 { relayout() }
+    }
+
+    private func relayoutAfterStateChange() {
+        relayout()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.settleLayout() }
     }
 
     private func beginFollowUp() -> Bool {
@@ -345,7 +374,7 @@ final class AnswerPanel {
         }
         model.collapsed = true
         hoverArmed = true
-        relayout()
+        relayoutAfterStateChange()
         startDismissCountdown()
         startHoverPolling()
     }
@@ -354,7 +383,7 @@ final class AnswerPanel {
         cancelDismissCountdown()
         guard model.collapsed else { return }
         model.collapsed = false
-        relayout()
+        relayoutAfterStateChange()
     }
 
     private func togglePin() {
@@ -365,7 +394,7 @@ final class AnswerPanel {
             stopHoverPolling()
             hoverArmed = false
             collapseWhenDone = false
-            if model.collapsed { model.collapsed = false; relayout() }
+            if model.collapsed { model.collapsed = false; relayoutAfterStateChange() }
         }
     }
 
