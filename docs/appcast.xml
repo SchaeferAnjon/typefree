@@ -237,5 +237,14 @@
             <description><![CDATA[<h3>修正「检查更新」窗口关不掉</h3><ul><li><strong>「已是最新版本」窗口的「好」点不动</strong>：3.0.4 引入的问题，点了没反应、窗口关不掉，只能重启 App。已修好，另外这个窗口现在按 Esc 也能关。</li></ul>]]></description>
             <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.5/Typefree-3.0.5.dmg" sparkle:edSignature="PLN/RjdQJDC4aX4IBqW9xaJ4HbjwHxLTzCoj4Gej8HqJlpHMylygYT3v8zzkZBo1OykxdoCpEL4kwgwUZNt7Cw==" length="2745696" type="application/octet-stream"/>
         </item>
+        <item>
+            <title>3.0.6</title>
+            <sparkle:version>3.0.6</sparkle:version>
+            <sparkle:shortVersionString>3.0.6</sparkle:shortVersionString>
+            <pubDate>Mon, 21 Sep 2026 13:06:17 +0000</pubDate>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>修掉一个会导致随机闪退的严重问题</h3><ul><li><strong>部分 Mac 上的随机闪退</strong>：Typefree 在列出麦克风设备时，对某些音频设备（比如接了 3.5mm 耳机麦、或带多路输入的设备）会写坏自己的内存，之后就可能在任何时候突然退出——每次崩的地方还不一样。现在已经彻底修好。如果你之前遇到「用着突然就没了」，强烈建议更新。</li></ul>]]></description>
+            <enclosure url="https://github.com/kdsz001/typefree/releases/download/v3.0.6/Typefree-3.0.6.dmg" sparkle:edSignature="/uvQ9gPlwFxlmmg9dUrIOjY8U2+5qGXPkM/jFDtWEO5MrXsBXC6pfVrM0WRZ2WDOMDFz6gA5py+2eYeUYovaBw==" length="2745776" type="application/octet-stream"/>
+        </item>
     </channel>
 </rss>
