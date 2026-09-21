@@ -32,6 +32,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
     case shift
     case fn
     case rightCommand
+    case rightOption
 
     static let configKey = "recording_hotkey_modifier"
 
@@ -48,12 +49,13 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         case .shift: return "Shift"
         case .fn: return "Fn"
         case .rightCommand: return "右 Command"
+        case .rightOption: return "右 Option"
         }
     }
 
     var symbol: String {
         switch self {
-        case .option: return "⌥"
+        case .option, .rightOption: return "⌥"
         case .command, .rightCommand: return "⌘"
         case .control: return "⌃"
         case .shift: return "⇧"
@@ -67,7 +69,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
 
     var symbolName: String {
         switch self {
-        case .option: return "option"
+        case .option, .rightOption: return "option"
         case .command, .rightCommand: return "command"
         case .control: return "control"
         case .shift: return "shift"
@@ -77,7 +79,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
 
     var eventFlag: NSEvent.ModifierFlags {
         switch self {
-        case .option: return .option
+        case .option, .rightOption: return .option
         case .command, .rightCommand: return .command
         case .control: return .control
         case .shift: return .shift
@@ -87,7 +89,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
 
     var cgFlag: CGEventFlags {
         switch self {
-        case .option: return .maskAlternate
+        case .option, .rightOption: return .maskAlternate
         case .command, .rightCommand: return .maskCommand
         case .control: return .maskControl
         case .shift: return .maskShift
@@ -95,18 +97,41 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         }
     }
 
-    func matches(_ event: NSEvent) -> Bool {
+    /// 修饰键标志里区分左右的设备位（IOKit 的 NX_DEVICE*KEYMASK）。通用位只说「有一颗 Option 按着」，
+    /// 这两位才说得清是哪一颗；松开其中一颗、另一颗还按着时也不会认错。
+    static let leftOptionDeviceBit: UInt = 0x20
+    static let rightOptionDeviceBit: UInt = 0x40
+
+    /// optionLeftOnly：右 Option 让给了另一套热键（看屏幕问 AI）时，通用的 Option 只认左边那颗
+    func matches(_ event: NSEvent, optionLeftOnly: Bool = false) -> Bool {
         guard event.modifierFlags.contains(eventFlag) else { return false }
-        if self == .rightCommand {
+        switch self {
+        case .rightCommand:
             return event.keyCode == 54 || Self.currentPhysicalKeyCode() == 54
+        case .rightOption:
+            return event.modifierFlags.rawValue & Self.rightOptionDeviceBit != 0
+        case .option where optionLeftOnly:
+            return event.modifierFlags.rawValue & Self.leftOptionDeviceBit != 0
+        default:
+            return true
         }
-        return true
+    }
+
+    /// 此刻这颗键是不是按着（不依赖事件，松手确认时用）
+    func isPressedNow(optionLeftOnly: Bool = false) -> Bool {
+        let flags = CGEventSource.flagsState(.combinedSessionState)
+        guard flags.contains(cgFlag) else { return false }
+        switch self {
+        case .rightOption: return flags.rawValue & UInt64(Self.rightOptionDeviceBit) != 0
+        case .option where optionLeftOnly: return flags.rawValue & UInt64(Self.leftOptionDeviceBit) != 0
+        default: return true
+        }
     }
 
     static func capture(from event: NSEvent) -> RecordingHotkeyModifier? {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let allowed: [(NSEvent.ModifierFlags, RecordingHotkeyModifier)] = [
-            (.option, .option),
+            (.option, event.keyCode == 61 ? .rightOption : .option),
             (.command, event.keyCode == 54 ? .rightCommand : .command),
             (.control, .control),
             (.shift, .shift),
@@ -161,13 +186,16 @@ struct RecordingHotkeyCustomShortcut: Equatable {
         event.keyCode == keyCode
     }
 
-    static var saved: RecordingHotkeyCustomShortcut? {
+    static var saved: RecordingHotkeyCustomShortcut? { saved(prefix: "recording_hotkey") }
+
+    /// prefix：哪一套热键（recording_hotkey = 听写，ask_hotkey = 看屏幕问 AI）
+    static func saved(prefix: String) -> RecordingHotkeyCustomShortcut? {
         let config = VoicePolishConfig.shared
-        guard let keyCodeRaw = config.string(forKey: keyCodeConfigKey),
+        guard let keyCodeRaw = config.string(forKey: "\(prefix)_custom_key_code"),
               let keyCode = UInt16(keyCodeRaw),
-              let modifiersRaw = config.string(forKey: modifiersConfigKey),
+              let modifiersRaw = config.string(forKey: "\(prefix)_custom_modifiers"),
               let modifiersValue = UInt(modifiersRaw) else { return nil }
-        let display = config.string(forKey: keyDisplayConfigKey) ?? "Key \(keyCode)"
+        let display = config.string(forKey: "\(prefix)_custom_key_display") ?? "Key \(keyCode)"
         return RecordingHotkeyCustomShortcut(
             keyCode: keyCode,
             modifiers: NSEvent.ModifierFlags(rawValue: modifiersValue),
@@ -175,11 +203,11 @@ struct RecordingHotkeyCustomShortcut: Equatable {
         )
     }
 
-    static func save(_ shortcut: RecordingHotkeyCustomShortcut) {
+    static func save(_ shortcut: RecordingHotkeyCustomShortcut, prefix: String = "recording_hotkey") {
         let config = VoicePolishConfig.shared
-        config.save(value: String(shortcut.keyCode), forKey: keyCodeConfigKey)
-        config.save(value: String(shortcut.modifiers.rawValue), forKey: modifiersConfigKey)
-        config.save(value: shortcut.keyDisplay, forKey: keyDisplayConfigKey)
+        config.save(value: String(shortcut.keyCode), forKey: "\(prefix)_custom_key_code")
+        config.save(value: String(shortcut.modifiers.rawValue), forKey: "\(prefix)_custom_modifiers")
+        config.save(value: shortcut.keyDisplay, forKey: "\(prefix)_custom_key_display")
     }
 
     static func normalized(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
@@ -270,6 +298,109 @@ enum RecordingHotkeyShortcut {
     }
 }
 
+/// 问 AI 的快捷键。两套：看屏幕问（默认右 Option，按下那一刻鼠标指在哪，截图上的标记就在哪）、
+/// 纯提问（不截屏，默认不设，用户自己录）。都只旁听键盘、不拦任何事件，
+/// 不像「修饰键 + 点击」那样要站在全系统鼠标点击的必经之路上。
+struct AskHotkey {
+    let prefix: String
+    let defaultModifier: RecordingHotkeyModifier?
+    let title: String
+
+    static let screen = AskHotkey(prefix: "ask_hotkey", defaultModifier: .rightOption, title: "看屏幕问 AI")
+    static let plain = AskHotkey(prefix: "ask_plain_hotkey", defaultModifier: nil, title: "只提问，不看屏幕")
+
+    private var enabledKey: String { "\(prefix)_enabled" }
+    private var modeKey: String { "\(prefix)_mode" }
+    private var modifierKey: String { "\(prefix)_modifier" }
+
+    var isEnabled: Bool { VoicePolishConfig.shared.bool(forKey: enabledKey, defaultValue: true) }
+
+    func setEnabled(_ enabled: Bool) {
+        VoicePolishConfig.shared.save(value: enabled ? "true" : "false", forKey: enabledKey)
+    }
+
+    /// nil = 还没设
+    var current: RecordingHotkeyShortcut? {
+        let config = VoicePolishConfig.shared
+        switch config.string(forKey: modeKey) {
+        case "custom":
+            return RecordingHotkeyCustomShortcut.saved(prefix: prefix).map { .custom($0) }
+        case "none":
+            return nil
+        default:
+            let saved = config.string(forKey: modifierKey).flatMap { RecordingHotkeyModifier(rawValue: $0) }
+            return (saved ?? defaultModifier).map { .modifier($0) }
+        }
+    }
+
+    var displayName: String { current?.displayName ?? "未设置" }
+
+    func useModifier(_ modifier: RecordingHotkeyModifier) {
+        let config = VoicePolishConfig.shared
+        config.save(value: "modifier", forKey: modeKey)
+        config.save(value: modifier.rawValue, forKey: modifierKey)
+    }
+
+    func useCustom(_ shortcut: RecordingHotkeyCustomShortcut) {
+        RecordingHotkeyCustomShortcut.save(shortcut, prefix: prefix)
+        VoicePolishConfig.shared.save(value: "custom", forKey: modeKey)
+    }
+
+    func clear() {
+        VoicePolishConfig.shared.save(value: "none", forKey: modeKey)
+    }
+
+    /// 和优先级更高的热键撞了（听写 > 看屏幕问 > 纯提问）：没法分辨用户想干什么，这一套不响应
+    var conflict: String? {
+        guard let mine = current?.debugName else { return nil }
+        if mine == RecordingHotkeyShortcut.current.debugName { return "和「开始说话」的快捷键相同" }
+        if prefix == AskHotkey.plain.prefix, AskHotkey.screen.isEnabled, mine == AskHotkey.screen.current?.debugName {
+            return "和「看屏幕问 AI」的快捷键相同"
+        }
+        return nil
+    }
+
+    var isActive: Bool { isEnabled && current != nil && conflict == nil }
+
+    /// 这一套是否占用了某颗「右边的」修饰键
+    func uses(_ modifier: RecordingHotkeyModifier) -> Bool {
+        guard isActive, case .modifier(let mine)? = current else { return false }
+        return mine == modifier
+    }
+}
+
+/// 一套热键从哪读配置。听写和两套问 AI 各一份，按住 / 轻点锁定 / Esc 取消这些手势逻辑共用。
+struct HotkeyProfile {
+    let name: String
+    let shortcut: () -> RecordingHotkeyShortcut?
+    let tapToggleEnabled: () -> Bool
+    /// 通用的 Option 是否只认左边那颗
+    let optionLeftOnly: () -> Bool
+    /// false = 这一套整个不响应
+    let isActive: () -> Bool
+
+    static let recording = HotkeyProfile(
+        name: "recording",
+        shortcut: { RecordingHotkeyShortcut.current },
+        tapToggleEnabled: { RecordingHotkeyBehavior.isTapToggleEnabled },
+        // 右 Option 给了问 AI，听写的「Option」就只认左边那颗，两边不会同时响
+        optionLeftOnly: { AskHotkey.screen.uses(.rightOption) || AskHotkey.plain.uses(.rightOption) },
+        isActive: { true })
+
+    static func ask(_ hotkey: AskHotkey) -> HotkeyProfile {
+        HotkeyProfile(
+            name: hotkey.prefix,
+            shortcut: { hotkey.current },
+            tapToggleEnabled: { true },   // 触控板用户按住说话很累：轻点一下开始、再点一下结束一直可用
+            // 另一套问 AI 占了右 Option 时同理
+            optionLeftOnly: {
+                let other = hotkey.prefix == AskHotkey.screen.prefix ? AskHotkey.plain : AskHotkey.screen
+                return other.uses(.rightOption)
+            },
+            isActive: { hotkey.isActive })
+    }
+}
+
 class HotkeyManager {
     private enum RecordingGestureState {
         case idle
@@ -294,13 +425,14 @@ class HotkeyManager {
     private let onStart: () -> Bool
     private let onStop: () -> Void
     private let isRecording: () -> Bool
+    private let profile: HotkeyProfile
 
     private var lastEventTime: TimeInterval = 0
     private var lastProcessedModifierDown = false   // 上一次「已处理」事件的方向，用于只去重同方向的重复
     private var lastShortcutEventTime: TimeInterval = 0
     private var lastProcessedShortcutDown = false
-    private var configuredShortcut = RecordingHotkeyShortcut.current
-    private var tapToggleEnabled = RecordingHotkeyBehavior.isTapToggleEnabled
+    private var configuredShortcut: RecordingHotkeyShortcut
+    private var tapToggleEnabled: Bool
     private var wasModifierDown = false
     private var gestureState: RecordingGestureState = .idle
     private var pendingStopWorkItem: DispatchWorkItem?
@@ -318,10 +450,14 @@ class HotkeyManager {
     var onCancel: (() -> Void)?
 
     init(
+        profile: HotkeyProfile = .recording,
         onStart: @escaping () -> Bool,
         onStop: @escaping () -> Void,
         isRecording: @escaping () -> Bool
     ) {
+        self.profile = profile
+        self.configuredShortcut = profile.shortcut() ?? .modifier(.option)   // 未设置时 isActive 为 false，不会用到
+        self.tapToggleEnabled = profile.tapToggleEnabled()
         self.onStart = onStart
         self.onStop = onStop
         self.isRecording = isRecording
@@ -375,9 +511,9 @@ class HotkeyManager {
     }
 
     private func handleFlagsChanged(_ event: NSEvent) {
-        guard case .modifier(let configuredModifier) = configuredShortcut else { return }
+        guard profile.isActive(), case .modifier(let configuredModifier) = configuredShortcut else { return }
         let now = ProcessInfo.processInfo.systemUptime
-        let modifierDown = configuredModifier.matches(event)
+        let modifierDown = configuredModifier.matches(event, optionLeftOnly: profile.optionLeftOnly())
 
         // 去重：全局 + 本地两个监听器会对「同一次」按下/松手各报一次，丢掉 50ms 内的重复。
         // 关键：只丢「同方向」的重复（都按下、或都松手）。绝不能只按时间一刀切——否则
@@ -406,7 +542,7 @@ class HotkeyManager {
     }
 
     private func handleKeyDown(_ event: NSEvent) {
-        guard !event.isARepeat else { return }
+        guard profile.isActive(), !event.isARepeat else { return }
 
         // 长按录音期间按 Esc → 取消（只在按住着的时候；单击锁定模式有叉号按钮）
         if event.keyCode == 53, isRecording() {
@@ -578,7 +714,7 @@ class HotkeyManager {
     private func isConfiguredHotkeyCurrentlyPressed() -> Bool {
         switch configuredShortcut {
         case .modifier(let modifier):
-            return CGEventSource.flagsState(.combinedSessionState).contains(modifier.cgFlag)
+            return modifier.isPressedNow(optionLeftOnly: profile.optionLeftOnly())
         case .custom(let shortcut):
             return CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(shortcut.keyCode))
         }
@@ -589,8 +725,8 @@ class HotkeyManager {
         pendingStopWorkItem = nil
         holdPromotionWorkItem?.cancel()
         holdPromotionWorkItem = nil
-        configuredShortcut = RecordingHotkeyShortcut.current
-        tapToggleEnabled = RecordingHotkeyBehavior.isTapToggleEnabled
+        configuredShortcut = profile.shortcut() ?? .modifier(.option)
+        tapToggleEnabled = profile.tapToggleEnabled()
         wasModifierDown = isConfiguredHotkeyCurrentlyPressed()
         gestureState = .idle
         releaseObservedAt = nil

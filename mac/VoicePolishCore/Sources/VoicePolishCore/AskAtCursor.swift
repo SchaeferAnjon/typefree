@@ -203,7 +203,7 @@ public enum AskCursorListenMode: String, CaseIterable, Sendable {
 /// 指针问 AI 的配置项。读写都走 VoicePolishConfig，和其他功能一致。
 public enum AskAtCursorSettings {
     public static let enabledKey = "ask_at_cursor_enabled"
-    public static let defaultEnabled = true
+    public static let defaultEnabled = false
     public static let modifierKey = "ask_at_cursor_modifier"
     public static let listenModeKey = "ask_at_cursor_listen_mode"
     public static let defaultListenMode = AskCursorListenMode.clickToggle

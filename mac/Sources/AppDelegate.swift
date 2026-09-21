@@ -941,6 +941,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     var cloudTranscriber: CloudASRTranscriber!
     var aiPolisher: AIPolisher!
     var hotkeyManager: HotkeyManager!
+    /// 问 AI 的两套键盘快捷键：看屏幕问、纯提问。和 hotkeyManager 同生命周期
+    private var askHotkeyManagers: [HotkeyManager] = []
     /// 鼠标长按说话（实验功能，默认关闭）；和 hotkeyManager 同生命周期，同样需要辅助功能权限
     var mouseHoldToTalkManager: MouseHoldToTalkManager?
     /// 指针问 AI：修饰键 + 左键，能吞掉这次点击，所以按钮、链接、输入框上都能问
@@ -1265,6 +1267,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
         hotkeyManager?.stop()
+        askHotkeyManagers.forEach { $0.stop() }
+        askHotkeyManagers = []
         mouseHoldToTalkManager?.stop()
         askAtCursorTrigger?.stop()
     }
@@ -1392,7 +1396,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         trialMaxRecordingTimer?.invalidate()
         trialMaxRecordingTimer = nil
         isRecording = false
-        hotkeyManager?.recordingDidLeaveActiveState()
+        resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
         askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = true
@@ -1467,7 +1471,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         streamingTimer = nil
         streamingSession = nil
         isRecording = false
-        hotkeyManager?.recordingDidLeaveActiveState()
+        resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
         askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = true
@@ -1612,7 +1616,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         pendingOverlayHide?.cancel()
         pendingOverlayHide = nil
         isRecording = false
-        hotkeyManager?.recordingDidLeaveActiveState()
+        resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
         askAtCursorTrigger?.recordingDidLeaveActiveState()
         statusBar.setTitle("VP")
@@ -1643,7 +1647,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         pendingOverlayHide?.cancel()
         pendingOverlayHide = nil
         isRecording = false
-        hotkeyManager?.recordingDidLeaveActiveState()
+        resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
         askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = false
@@ -1905,6 +1909,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         guard hasAccessibility else {
             hotkeyManager?.stop()
             hotkeyManager = nil
+            askHotkeyManagers.forEach { $0.stop() }
+            askHotkeyManagers = []
             mouseHoldToTalkManager?.stop()
             mouseHoldToTalkManager = nil
             askAtCursorTrigger?.stop()
@@ -1977,6 +1983,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         hotkeyManager.onCancel = { [weak self] in self?.cancelRecording() }
         ensureMouseHoldToTalkManager()
         ensureAskAtCursorTrigger()
+        ensureAskHotkeyManagers()
+    }
+
+    private func resetHotkeyGestures() {
+        hotkeyManager?.recordingDidLeaveActiveState()
+        askHotkeyManagers.forEach { $0.recordingDidLeaveActiveState() }
+    }
+
+    // MARK: - 问 AI 的键盘快捷键
+
+    /// 两套：看屏幕问（按下那一刻鼠标指在哪，截图上的标记就在哪）和纯提问（不截屏）。
+    /// 手势和听写热键完全一样：按住说、松开结束；轻点一下锁定、再点一下结束；按住期间 Esc 取消。
+    private func ensureAskHotkeyManagers() {
+        guard askHotkeyManagers.isEmpty else { return }
+        for (hotkey, captureScreen) in [(AskHotkey.screen, true), (AskHotkey.plain, false)] {
+            let manager = HotkeyManager(
+                profile: .ask(hotkey),
+                onStart: { [weak self] in
+                    guard let self else { return false }
+                    // 鼠标此刻的位置（Quartz 全局坐标，原点左上），截图标记画在这里
+                    let point = CGEvent(source: nil)?.location ?? .zero
+                    return self.beginAskAtCursor(at: point, trigger: captureScreen ? "hotkey-screen" : "hotkey-plain",
+                                                 captureScreen: captureScreen, viaHotkey: true)
+                },
+                onStop: { [weak self] in
+                    guard let self, self.isRecording, self.voiceQuestionMode else { return }
+                    self.stopRecordingAndAsk()
+                },
+                // 只认问 AI 的录音：听写录着的时候按问 AI 的键，不能把听写当成自己的给停了
+                isRecording: { [weak self] in self?.isRecording == true && self?.voiceQuestionMode == true }
+            )
+            manager.debugLog = { [weak self] msg in self?.debugLog("AK[\(hotkey.prefix)]: \(msg)") }
+            manager.onGestureClassified = { _ in }
+            manager.onCancel = { [weak self] in
+                guard let self, self.isRecording, self.voiceQuestionMode else { return }
+                self.discardAskRecording()
+            }
+            askHotkeyManagers.append(manager)
+            debugLog("AK[\(hotkey.prefix)]: shortcut=\(hotkey.displayName) active=\(hotkey.isActive)\(hotkey.conflict.map { " conflict=\($0)" } ?? "")")
+        }
     }
 
     // MARK: - 指针问 AI
@@ -2009,32 +2055,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     }
 
     /// 指针问 AI 开始：point 是 Quartz 全局坐标（原点左上），截图和画标记都用它。
-    private func beginAskAtCursor(at point: CGPoint) -> Bool {
+    /// trigger：日志里的触发方式。captureScreen=false 是纯提问，不截屏。
+    /// viaHotkey：键盘快捷键触发。此时听写若正录着就拒绝，不去动它（听写和问 AI 的键已经分开了，
+    /// 不存在「修饰键先开了一次听写」的情况）；修饰键 + 点击触发时才需要把那次听写悄悄丢掉。
+    private func beginAskAtCursor(at point: CGPoint, trigger: String = "cursor",
+                                  captureScreen: Bool = true, viaHotkey: Bool = false) -> Bool {
         // 修饰键按下时听写热键可能已经开了一次录音：这一下点击说明用户要的是问 AI，
         // 把那次听写悄悄丢掉（不粘贴、不提示、不给撤销），再从头开始录问题。
-        abortDictationForAsk()
+        if !viaHotkey { abortDictationForAsk() }
         guard !isRecording, !isProcessing else {
             debugLog("AC: begin refused (recording=\(isRecording) processing=\(isProcessing))")
             return false
         }
         let mode = AskAtCursorSettings.listenMode
-        askTiming.reset(trigger: "cursor", mode: mode.rawValue)
+        askTiming.reset(trigger: trigger, mode: viaHotkey ? "hotkey" : mode.rawValue)
         voiceQuestionFollowUp = false
         voiceQuestionMode = true
         // 点击是明确意图，不用再等「听到开口」：胶囊立刻出来，用户知道已经在听
         askAwaitingSpeech = false
         askSpeechDetector = AskSpeechDetector()
         // 点一下开始的模式里手已经松开了，胶囊上给叉号和对勾，别让用户只能靠再点一下结束
-        overlayWindow.recordingControls = mode == .clickToggle ? .cancelAndFinish : .hidden
+        // 键盘触发和听写热键一样，从第一帧就是带叉号和对勾的大胶囊
+        overlayWindow.recordingControls = (viaHotkey || mode == .clickToggle) ? .cancelAndFinish : .hidden
         guard startRecording() else {
             voiceQuestionMode = false
             debugLog("AC: startRecording refused")
             return false
         }
-        startAskScreenCapture(at: point)
+        if captureScreen {
+            startAskScreenCapture(at: point)
+        } else {
+            pendingAskScreen?.cancel()
+            pendingAskScreen = nil
+            pendingAskScreenNote = nil
+            askTiming.fallback = "plain"
+        }
         // 用户说话那几秒里把 TLS 握手做掉，首字能早几百毫秒
         DispatchQueue.global(qos: .utility).async { [weak self] in self?.aiPolisher.warmUpConnection() }
-        debugLog("AC: begin mode=\(mode.rawValue) at \(Int(point.x)),\(Int(point.y))")
+        debugLog("AC: begin trigger=\(trigger) mode=\(viaHotkey ? "hotkey" : mode.rawValue) at \(Int(point.x)),\(Int(point.y))")
         return true
     }
 
@@ -2051,7 +2109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         pendingOverlayHide?.cancel()
         pendingOverlayHide = nil
         isRecording = false
-        hotkeyManager?.recordingDidLeaveActiveState()
+        resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
         askAtCursorTrigger?.recordingDidLeaveActiveState()
         statusBar.setTitle("VP")

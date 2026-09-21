@@ -2305,12 +2305,26 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return button
     }
 
+    /// 快捷键菜单此刻在给谁选：听写、看屏幕问 AI、纯提问。三者共用同一个下拉菜单和录制面板
+    private enum HotkeyMenuTarget {
+        case recording
+        case ask(AskHotkey)
+
+        var current: RecordingHotkeyShortcut? {
+            switch self {
+            case .recording: return RecordingHotkeyShortcut.current
+            case .ask(let hotkey): return hotkey.current
+            }
+        }
+    }
+    private var hotkeyMenuTarget: HotkeyMenuTarget = .recording
+
     private func makeHotkeyMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        let currentShortcut = RecordingHotkeyShortcut.current
-        if case .custom(let custom) = currentShortcut {
+        let currentShortcut = hotkeyMenuTarget.current
+        if case .custom(let custom)? = currentShortcut {
             addHotkeyMenuItem(to: menu,
                               title: custom.displayName,
                               representedObject: "custom-current",
@@ -2326,9 +2340,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             .shift,
             .fn,
             .rightCommand,
+            .rightOption,
         ] {
             let isSelected: Bool
-            if case .modifier(let selectedModifier) = currentShortcut {
+            if case .modifier(let selectedModifier)? = currentShortcut {
                 isSelected = selectedModifier == modifier
             } else {
                 isSelected = false
@@ -2346,6 +2361,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                           representedObject: "custom",
                           symbolName: "keyboard.badge.ellipsis",
                           isSelected: false)
+        if case .ask = hotkeyMenuTarget {
+            addHotkeyMenuItem(to: menu,
+                              title: "不设置",
+                              representedObject: "none",
+                              symbolName: "nosign",
+                              isSelected: currentShortcut == nil)
+        }
 
         return menu
     }
@@ -2375,6 +2397,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func showHotkeyMenu(_ sender: NSButton) {
+        switch sender.identifier?.rawValue {
+        case AskHotkey.screen.prefix: hotkeyMenuTarget = .ask(.screen)
+        case AskHotkey.plain.prefix: hotkeyMenuTarget = .ask(.plain)
+        default: hotkeyMenuTarget = .recording
+        }
         let menu = makeHotkeyMenu()
         let selectedItem = menu.items.first { $0.state == .on }
         menu.popUp(positioning: selectedItem, at: NSPoint(x: 0, y: sender.bounds.minY - 4), in: sender)
@@ -2390,21 +2417,37 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if raw == "custom-current" {
             return
         }
+        if raw == "none", case .ask(let hotkey) = hotkeyMenuTarget {
+            hotkey.clear()
+            applyHotkeyChange()
+            return
+        }
         guard let modifier = RecordingHotkeyModifier(rawValue: raw) else { return }
-        RecordingHotkeyShortcut.useModifier(modifier)
+        switch hotkeyMenuTarget {
+        case .recording: RecordingHotkeyShortcut.useModifier(modifier)
+        case .ask(let hotkey): hotkey.useModifier(modifier)
+        }
+        applyHotkeyChange()
+    }
+
+    /// 三套快捷键互相影响（撞键时谁让谁、Option 只认左边），任何一套变了都让所有监听重读，两页都重画
+    private func applyHotkeyChange() {
         NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
-        invalidate(.home)
+        invalidate(.home, .explore)
     }
 
     private func presentCustomHotkeyPanel() {
         let recorder = HotkeyRecorderView(frame: NSRect(x: 0, y: 0, width: 360, height: 118))
-        if case .custom(let custom) = RecordingHotkeyShortcut.current {
+        if case .custom(let custom)? = hotkeyMenuTarget.current {
             recorder.setShortcut(custom)
         }
 
         let alert = NSAlert()
         alert.messageText = "自定义快捷键"
-        alert.informativeText = "点击输入框，然后按下你想用于开始说话的快捷键。"
+        switch hotkeyMenuTarget {
+        case .recording: alert.informativeText = "点击输入框，然后按下你想用于开始说话的快捷键。"
+        case .ask(let hotkey): alert.informativeText = "点击输入框，然后按下你想用于「\(hotkey.title)」的快捷键。"
+        }
         alert.accessoryView = recorder
         alert.addButton(withTitle: "保存")
         alert.addButton(withTitle: "恢复默认")
@@ -2420,13 +2463,18 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             if let warning = shortcut.conflictWarning, !confirmRiskyHotkey(warning) {
                 return
             }
-            RecordingHotkeyShortcut.useCustom(shortcut)
-            NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
-            invalidate(.home)
+            switch hotkeyMenuTarget {
+            case .recording: RecordingHotkeyShortcut.useCustom(shortcut)
+            case .ask(let hotkey): hotkey.useCustom(shortcut)
+            }
+            applyHotkeyChange()
         case .alertSecondButtonReturn:
-            RecordingHotkeyShortcut.useModifier(.option)
-            NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
-            invalidate(.home)
+            switch hotkeyMenuTarget {
+            case .recording: RecordingHotkeyShortcut.useModifier(.option)
+            case .ask(let hotkey):
+                if let modifier = hotkey.defaultModifier { hotkey.useModifier(modifier) } else { hotkey.clear() }
+            }
+            applyHotkeyChange()
         default:
             break
         }
@@ -3590,6 +3638,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             detailTitle: "语言与口令设置", details: { self.makeOutputLanguageCommandOptions() }
         ))
         stack.addArrangedSubview(makeMouseHoldToTalkCard())
+        stack.addArrangedSubview(makeAskHotkeyCard())
         stack.addArrangedSubview(makeAskAtCursorCard())
         stack.addArrangedSubview(makeMouseHoldAskCard())
     }
@@ -5414,12 +5463,45 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let toggle = VPToggle(theme: theme, target: self, action: #selector(askAtCursorEnabledChanged(_:)))
         toggle.setOn(AskAtCursorSettings.isEnabled, animated: false)
         toggle.setAccessibilityLabel("指针问 AI")
-        return makeExploreCard(id: "askCursor", title: "指针问 AI",
-                               summary: "按住修饰键点一下，指针指着什么就问什么，AI 会看着那块屏幕回答。",
+        return makeExploreCard(id: "askCursor", title: "修饰键 + 点击问 AI",
+                               summary: "按住修饰键点一下鼠标来提问。默认关闭：开着时 Typefree 要接管全系统的鼠标点击，一般用上面的快捷键就够了。",
                                control: toggle,
-                               rows: [makeAskCursorModifierRow(), makeAskCursorModeRow(), makeAskScreenshotRow()]) {
+                               rows: [makeAskCursorModifierRow(), makeAskCursorModeRow()]) {
             self.makeAskAtCursorHelp()
         }
+    }
+
+    /// 问 AI 的两个键盘快捷键。只旁听键盘、不拦任何事件，是推荐的提问方式
+    private func makeAskHotkeyCard() -> NSView {
+        makeExploreCard(id: "askHotkey", title: "问 AI 快捷键",
+                        summary: "按一个键就提问。一个键让 AI 看着屏幕回答，另一个键只提问、不看屏幕。",
+                        rows: [makeAskHotkeyRow(.screen,
+                                                desc: "按下那一刻鼠标指在哪，AI 就重点看哪。按住说、松开结束；或轻点一下开始、再点一下结束。"),
+                               makeAskHotkeyRow(.plain,
+                                                desc: "不截屏，更快一点，屏幕上的内容也不会发出去。"),
+                               makeAskScreenshotRow()]) {
+            self.makeExploreHelp("""
+            怎么用：按住快捷键说出问题，松开就提问；不想一直按着，就轻点一下开始、说完再点一下结束。按住期间按 Esc 取消。回答显示在屏幕右上角，按住回答面板继续说话可以追问。
+
+            看屏幕问：按下快捷键那一刻截鼠标所在的那块屏幕，在鼠标位置画一个红色圆环，连同一张整屏缩略图一起发给模型。问题和屏幕无关时模型会忽略截图，照常回答。截图只用于这一次提问，不保存、不写进历史记录。
+
+            只提问：不截屏。适合问和屏幕无关的问题，或者屏幕上有不想发出去的内容的时候。
+
+            联网：DeepSeek、智谱、豆包的接口都不能联网，只有千问可以。同时填了千问 Key 时，需要最新信息的问题模型会自己判断、自动转给千问联网回答；也可以用「搜一下……」开头直接联网。
+
+            撞键：三个快捷键（开始说话、看屏幕问、只提问）设成同一个时，按这个顺序前面的优先，后面的不响应。听写用 Option、看屏幕问用右 Option 时，听写只认左边那颗 Option。
+            """)
+        }
+    }
+
+    private func makeAskHotkeyRow(_ hotkey: AskHotkey, desc: String) -> NSView {
+        let button = makeHotkeyPickerButton()
+        button.title = "\(hotkey.displayName)  ▾"
+        button.font = .systemFont(ofSize: 14, weight: .semibold)
+        button.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
+        button.toolTip = "设置「\(hotkey.title)」的快捷键"
+        let note = hotkey.conflict.map { "⚠️ \($0)，现在不会响应。" } ?? desc
+        return makeAskCursorRow(title: hotkey.title, desc: note, control: button)
     }
 
     private func makeAskCursorModifierRow() -> NSView {
