@@ -282,6 +282,7 @@ enum TextInputLocator {
 /// 微信（Qt 自绘）对辅助功能完全不暴露窗口内容，连命中和焦点都拿不到，只能按窗口位置估算：
 /// 主窗口 = 左侧图标栏 + 聊天列表 + 右侧聊天面板；聊天面板底部是输入框，输入框下面一行是工具栏。
 /// 只把「聊天面板 × 输入框区域」当输入框；工具栏（表情/发送）那一行和消息区都排除。
+/// 主窗口之外的窗口（独立聊天窗口、小程序、公众号文章、图片查看器……）只做「中间当内容区、可问 AI」，见下。
 /// 这是针对微信当前布局的补丁，不是通用能力；分隔条被拖动过、微信改版时需要调整。
 enum WeChatInputRegion {
     static let bundleIDs: Set<String> = ["com.tencent.xinWeChat"]
@@ -302,12 +303,14 @@ enum WeChatInputRegion {
         guard let windows = TextInputLocator.attribute(app, kAXWindowsAttribute) as? NSArray else {
             return .unknown("微信：读不到窗口列表")
         }
+        // AXWindows 是前后顺序（第 0 个在最前），被别的窗口盖住的地方不该算在下面那个窗口头上。
         for item in windows {
             let window = item as! AXUIElement
+            if let minimized = TextInputLocator.attribute(window, kAXMinimizedAttribute) as? Bool, minimized { continue }
             guard let f = TextInputLocator.frame(of: window), f.contains(point) else { continue }
             let title = TextInputLocator.attribute(window, kAXTitleAttribute) as? String ?? ""
             guard mainWindowTitles.contains(title) else {
-                return .unknown("微信：非主窗口「\(title)」暂不支持")
+                return otherWindowVerdict(point: point, window: window, frame: f, title: title, debug: debug)
             }
             let region = inputRegion(inWindow: f)
             debug("wechat window \(TextInputLocator.fmt(f.origin)) \(Int(f.width))x\(Int(f.height)) region=\(region)")
@@ -341,6 +344,55 @@ enum WeChatInputRegion {
         let bottom = f.maxY - toolbarHeight
         let left = f.minX + chatPaneLeftInset
         let right = min(f.maxX - rightInset, left + maxInputWidth)
+        guard bottom > top, right > left else { return .null }
+        return CGRect(x: left, y: top, width: right - left, height: bottom - top)
+    }
+
+    // MARK: - 非主窗口
+
+    /// 主窗口之外的窗口一律走这里：独立聊天窗口、小程序、公众号文章、视频号、图片查看器、设置……
+    /// 2026-09-21 对着本机微信 4.1.x 的一个小程序窗口实测（只测了这一种，其余几种窗口没开着、没量过）：
+    ///   role=AXWindow、subrole=AXStandardWindow、AXTitle = 小程序名，AXChildren 为空（自绘标题栏，没有红绿灯；
+    ///   主窗口的 AXChildren 是 3 个红绿灯按钮），命中查询只回一个和整个窗口同样大的 AXScrollArea，
+    ///   AXDocument / AXIdentifier / AXDescription 全部取不到。
+    /// 没找到能把「独立聊天窗口」和「小程序 / 文章 / 图片查看器」分开的正向特征。
+    /// 所以只做一件代价最小的事：窗口去掉顶部标题栏和底部一条工具栏，中间当「可问 AI 的内容区」，
+    /// 任何位置都不判输入框：认不出输入框在哪，误判会把识别出来的话粘到别处去。
+    /// 代价：独立聊天窗口的输入框比底部这一条高，按在上面会进问 AI 而不是「长按说话」，等实测到那种窗口的几何再补。
+    /// 起因：用户日志里在一个题库小程序窗口按住 11 次全部落空（2026-09-21）。
+    static let otherWindowMinWidth: CGFloat = 420
+    static let otherWindowMinHeight: CGFloat = 320
+    /// 顶部标题栏：小程序自绘顶栏实测 44pt（含返回箭头和右上角胶囊按钮），留 4pt 余量
+    static let otherWindowHeaderHeight: CGFloat = 48
+    /// 底部工具栏：小程序底部标签栏实测 67pt，留 5pt 余量
+    static let otherWindowBottomInset: CGFloat = 72
+    static let otherWindowSideInset: CGFloat = 8
+
+    static func otherWindowVerdict(point: CGPoint, window: AXUIElement, frame f: CGRect, title: String,
+                                   debug: (String) -> Void) -> TextInputVerdict {
+        // 面板、弹窗、提示条不是标准窗口，一律不碰
+        let subrole = TextInputLocator.attribute(window, kAXSubroleAttribute) as? String ?? ""
+        guard subrole == "AXStandardWindow" else {
+            return .unknown("微信：非标准窗口「\(title)」\(subrole.isEmpty ? "无 subrole" : subrole)")
+        }
+        // 没标题的标准窗口多半是临时面板；宁可不触发
+        guard !title.isEmpty else { return .unknown("微信：无标题窗口") }
+        guard f.width >= otherWindowMinWidth, f.height >= otherWindowMinHeight else {
+            return .unknown("微信：窗口「\(title)」太小 \(Int(f.width))x\(Int(f.height))")
+        }
+        let region = otherWindowContentRegion(inWindow: f)
+        debug("wechat other window「\(title)」\(TextInputLocator.fmt(f.origin)) \(Int(f.width))x\(Int(f.height)) content=\(region)")
+        if region.contains(point) {
+            return .askable("微信非主窗口「\(title)」内容区域")
+        }
+        return .notEditable("微信非主窗口「\(title)」的标题栏 / 底部工具栏")
+    }
+
+    static func otherWindowContentRegion(inWindow f: CGRect) -> CGRect {
+        let top = f.minY + otherWindowHeaderHeight
+        let bottom = f.maxY - otherWindowBottomInset
+        let left = f.minX + otherWindowSideInset
+        let right = f.maxX - otherWindowSideInset
         guard bottom > top, right > left else { return .null }
         return CGRect(x: left, y: top, width: right - left, height: bottom - top)
     }
