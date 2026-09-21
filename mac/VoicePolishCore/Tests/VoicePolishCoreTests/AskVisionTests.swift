@@ -122,17 +122,14 @@ final class AskVisionTests: XCTestCase {
         XCTAssertEqual((doubao["thinking"] as? [String: String])?["type"], "disabled")
     }
 
-    /// 智谱 GLM-5.3 系列强制思考、官方说 thinking.type 只接受 enabled，
-    /// 所以不能给它发 disabled，只能压 reasoning_effort
-    func testZhipu53UsesReasoningEffortInsteadOfDisablingThinking() {
-        var body: [String: Any] = [:]
-        AskVision.applyThinkingSettings(in: &body, provider: "zhipu", model: "glm-5.3-flash")
-        XCTAssertEqual(body["reasoning_effort"] as? String, "low")
-        XCTAssertNil(body["thinking"])
-
-        var old: [String: Any] = [:]
-        AskVision.applyThinkingSettings(in: &old, provider: "zhipu", model: "glm-4.5-air")
-        XCTAssertEqual((old["thinking"] as? [String: String])?["type"], "disabled")
+    /// 官方文档说 GLM-5.3 系列关不掉思考，但 Coding Plan 端点实测 disabled 生效（2026-09-21），照发
+    func testZhipuAlwaysDisablesThinking() {
+        for model in ["glm-5.3-flash", "glm-4.5-air"] {
+            var body: [String: Any] = [:]
+            AskVision.applyThinkingSettings(in: &body, provider: "zhipu", model: model)
+            XCTAssertEqual((body["thinking"] as? [String: String])?["type"], "disabled", model)
+            XCTAssertNil(body["reasoning_effort"], model)
+        }
     }
 
     func testForcesThinkingCoversTheAutoRoutedNames() {

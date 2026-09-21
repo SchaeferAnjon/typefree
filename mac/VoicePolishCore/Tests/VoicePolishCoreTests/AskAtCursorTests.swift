@@ -168,4 +168,13 @@ final class AskCursorMachineTests: XCTestCase {
         m.reset()
         XCTAssertEqual(m.state, .idle)
     }
+
+    /// 松开事件丢了（事件拦截被系统短暂停用过）：下一次按下要自愈，不能「按下放行、松开被吞」
+    func testSwallowUntilUpSelfHealsWhenTheUpEventWasLost() {
+        var machine = AskCursorMachine(combo: .parse("leftControl"), mode: .clickToggle, state: .swallowUntilUp)
+        let plainDown = machine.handle(.mouseDown(modifiers: []), canStart: true)
+        XCTAssertEqual(plainDown, .init(swallow: false, action: .none))
+        XCTAssertEqual(machine.state, .idle)
+        XCTAssertEqual(machine.handle(.mouseUp, canStart: true), .init(swallow: false, action: .none))
+    }
 }

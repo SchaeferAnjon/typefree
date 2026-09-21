@@ -366,7 +366,12 @@ public struct AskCursorMachine {
             case .mouseUp:
                 state = .idle
                 return Output(swallow: true, action: .none)
-            default:
+            case .mouseDown, .otherButtonDown:
+                // 又来了一次按下，说明上一下的松开没收到（事件拦截被系统短暂停用过）。
+                // 不自愈的话这一下会「按下放行、松开被吞」，底下的 App 以为鼠标一直按着。
+                state = .idle
+                return handle(input, canStart: canStart)
+            case .escape, .timeout:
                 return .pass
             }
         }

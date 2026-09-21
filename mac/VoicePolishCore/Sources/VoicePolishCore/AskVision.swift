@@ -23,8 +23,8 @@ public enum AskVision {
     /// 超过这么久还没出首字就在面板里提示「网络较慢」，不让用户干等
     public static let slowHintAfter: TimeInterval = 8
     /// 带图提问的输出上限。慢的是生成不是上传：压住输出长度才是提速的大头。
-    /// 智谱 GLM-5.3 系列强制思考、关不掉（官方文档原话「强制思考不能关闭」），思考内容也算在
-    /// max_tokens 里，给 600 会在思考阶段就被截断（GetNewWord 吃过这个亏），所以单独放宽。
+    /// 智谱单独放宽：思考内容也算在 max_tokens 里，关思考万一没生效，给 600 会在思考阶段就被截断
+    /// （GetNewWord 吃过这个亏）。上限放宽不影响速度，回答长度由提示词管。
     public static func maxTokens(provider: String) -> Int {
         provider == "zhipu" ? 2048 : 600
     }
@@ -122,36 +122,30 @@ public enum AskVision {
          "image_url": ["url": "data:image/jpeg;base64," + jpeg.base64EncodedString()]]
     }
 
-    /// 把「别思考那么久」的参数按各家的写法塞进请求体。必须显式带：
-    /// GetNewWord 实测默认思考 + 截图是 71 秒还被截断，处理之后 30 秒。
+    /// 把「别思考」的参数按各家的写法塞进请求体。必须显式带：
+    /// GetNewWord 实测默认思考 + 截图是 71 秒还被截断，关掉之后 30 秒。
     ///
-    /// 智谱 GLM-5.3 系列是特例：官方文档写明强制思考、thinking.type 只接受 enabled，
-    /// 关不掉，能调的只有 reasoning_effort（low / high / max，默认 max）。所以这一族改成压强度，
-    /// 不去发一个官方说不支持的值。其余智谱模型照旧 thinking disabled。
-    /// https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode
+    /// 智谱官方文档写 GLM-5.3 系列「强制思考不能关闭」，但 2026-09-21 在 Coding Plan 端点上用
+    /// glm-5.3-flash 实测 thinking disabled 是生效的：纯文本 3.9 秒降到 1.1 秒、reasoning 0 字；
+    /// 带图 1.8 秒、reasoning 12 字。所以智谱一律照发 disabled，以实测为准。
     public static func applyThinkingSettings(in body: inout [String: Any], provider: String, model: String) {
         switch provider {
         case "qwen":
             body["enable_thinking"] = false
-        case "zhipu":
-            if forcesThinking(model: model) {
-                body["reasoning_effort"] = "low"
-            } else {
-                body["thinking"] = ["type": "disabled"]
-            }
         default:
             body["thinking"] = ["type": "disabled"]
         }
     }
 
-    /// 智谱 GLM-5.3 系列（含 flash / flashx）强制思考。GLM-5.2 / 5.1 / 5-Turbo / 4.7 在
-    /// Coding Plan 端点上会被自动路由到 5.3 系列，所以那些名字也按强制思考处理。
+    /// 文档声称关不掉思考的那一族（GLM-5.3 系列；GLM-5.2 / 5.1 / 5-Turbo / 4.7 在 Coding Plan 端点上
+    /// 会被自动路由到 5.3）。实测能关，这里只用来给 max_tokens 多留一份余量：
+    /// 万一哪天服务端真的不认 disabled 了，思考内容也不至于把回答挤到被截断。
     public static func forcesThinking(model: String) -> Bool {
         let name = model.lowercased()
         return name.hasPrefix("glm-5") || name.hasPrefix("glm-4.7")
     }
 
-    /// 思考关不掉的模型上，面板会先沉默一阵再出字，提前告诉用户在干什么
+    /// 模型真的吐出思考内容时（关思考没生效），面板会先沉默一阵再出字，告诉用户在干什么
     public static let thinkingNotice = "模型在先想一下，马上出答案。"
 
     /// 日志用：两张图一共多少 KB（只记数字，绝不记图片内容或 base64）

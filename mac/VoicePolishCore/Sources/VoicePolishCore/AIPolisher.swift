@@ -491,7 +491,7 @@ public class AIPolisher {
                 body["enable_thinking"] = false
             } else if provider.name == "zhipu" {
                 body["temperature"] = 0.1
-                // GLM-5.3 系列强制思考、关不掉，思考内容也算进 max_tokens，给小了会在思考阶段被截断
+                // 关思考万一没生效，思考内容也算进 max_tokens，给小了会在思考阶段被截断，所以多留余量
                 body["max_tokens"] = AskVision.forcesThinking(model: model) ? 4096 : 2000
                 AskVision.applyThinkingSettings(in: &body, provider: "zhipu", model: model)
             } else {  // doubao
@@ -783,7 +783,7 @@ public class AIPolisher {
                 }
             } else {
                 body["temperature"] = 0.5
-                // 智谱 GLM-5.3 系列强制思考，思考内容占 max_tokens，给 1200 会被截断
+                // 关思考万一没生效，思考内容占 max_tokens，给 1200 会被截断，所以多留余量
                 body["max_tokens"] = AskVision.forcesThinking(model: model) ? 2048 : 1200
                 AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
             }

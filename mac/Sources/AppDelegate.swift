@@ -1542,7 +1542,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             self?.askSlowHintWork?.cancel()
             self?.answerPanel.updatePartial(partial)
         }, onThinking: { [weak self] in
-            // 智谱 GLM-5.3 系列关不掉思考，会先沉默一阵：告诉用户它在想，不是卡住了
+            // 模型真的开始吐思考内容（关思考没生效）会先沉默一阵：告诉用户它在想，不是卡住了
             guard let self, screenNote == nil else { return }
             self.answerPanel.setNote(AskVision.thinkingNotice)
         }, onStats: { [weak self] stats in
