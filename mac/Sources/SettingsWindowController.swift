@@ -5390,11 +5390,18 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     private func makeAskCursorModifierRow() -> NSView {
-        let items = AskCursorModifier.allCases.map {
-            VPDropdown.Item(value: AskCursorModifierCombo([$0])!.configValue, title: $0.symbol + " " + $0.displayName)
-        }
+        // 单键在前，常用组合在后。组合更不容易误触，但按起来费手，所以不做默认。
+        let combos: [AskCursorModifierCombo] = AskCursorModifier.displayOrder.compactMap { AskCursorModifierCombo([$0]) }
+            + [AskCursorModifierCombo([.leftControl, .leftOption]),
+               AskCursorModifierCombo([.leftControl, .leftShift]),
+               AskCursorModifierCombo([.leftOption, .leftShift])].compactMap { $0 }
+        var items = combos.map { VPDropdown.Item(value: $0.configValue, title: $0.displayName) }
         let current = AskAtCursorSettings.combo.configValue
-        let popup = VPDropdown(items: items, selectedValue: items.contains { $0.value == current } ? current : AskCursorModifierCombo.fallback.configValue,
+        // 用户手改过配置、填了列表里没有的组合：把它也列出来，免得下拉把设置改掉
+        if !items.contains(where: { $0.value == current }) {
+            items.append(VPDropdown.Item(value: current, title: AskAtCursorSettings.combo.displayName))
+        }
+        let popup = VPDropdown(items: items, selectedValue: current,
                                trackBg: theme.card,
                                trackBorder: Self.dropdownBorder,
                                textColor: theme.text, chevronColor: theme.text3)
@@ -5402,7 +5409,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             self?.config.save(value: value, forKey: AskAtCursorSettings.modifierKey)
             NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
         }
-        popup.widthAnchor.constraint(equalToConstant: 170).isActive = true
+        popup.widthAnchor.constraint(equalToConstant: 210).isActive = true
         return makeAskCursorRow(title: "触发键",
                                 desc: "按住它再点鼠标左键就开始提问。分左右，按住的必须是选中的那一边。",
                                 control: popup)

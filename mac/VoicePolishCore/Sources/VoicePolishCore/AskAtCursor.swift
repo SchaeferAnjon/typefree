@@ -108,7 +108,7 @@ public enum AskCursorModifier: String, CaseIterable, Sendable {
     #endif
 
     /// 显示顺序按键盘上的排列来（⌃⌥⇧⌘），和系统快捷键的写法一致
-    static let displayOrder: [AskCursorModifier] = [
+    public static let displayOrder: [AskCursorModifier] = [
         .leftControl, .rightControl, .leftOption, .rightOption,
         .leftShift, .rightShift, .leftCommand, .rightCommand,
     ]
