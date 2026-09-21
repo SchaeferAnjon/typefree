@@ -80,6 +80,15 @@ final class AnswerPanel {
         if collapseWhenDone { collapseWhenDone = false; collapse() }
     }
 
+    /// 给当前这一轮加一条附注（没能带屏幕内容的原因、网络较慢）。传 nil 清掉。
+    /// 失败必须让用户看见：原功能最大的不满就是「按了没反应」。
+    func setNote(_ text: String?) {
+        guard let last = model.turns.indices.last else { return }
+        guard model.turns[last].note != text else { return }
+        model.turns[last].note = text
+        relayout()
+    }
+
     func fail(_ message: String) {
         guard let last = model.turns.indices.last else { return }
         model.turns[last].answer = message
@@ -544,6 +553,8 @@ struct AnswerTurn: Identifiable {
     let question: String
     var answer = ""
     var state: State = .thinking
+    /// 这一轮的附注（没能带屏幕内容的原因、网络较慢提示），显示在回答上方的小灰字
+    var note: String?
 }
 
 final class AnswerModel: ObservableObject {
@@ -796,6 +807,23 @@ struct TurnsView: View {
     }
 
     @ViewBuilder private func answerBody(_ turn: AnswerTurn) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let note = turn.note, !note.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                    Text(note)
+                        .font(.system(size: 12))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            answerContent(turn)
+        }
+    }
+
+    @ViewBuilder private func answerContent(_ turn: AnswerTurn) -> some View {
         switch turn.state {
         case .thinking:
             HStack(spacing: 8) {
