@@ -156,6 +156,7 @@ final class AnswerPanel {
         if panel == nil { createPanel() }
         applyAppearance()   // 兜底：万一漏了切换通知，每次弹出时再核对一次
         guard let panel, let hosting else { return }
+        refreshViewsForNewContent()
         let screen = Self.screenUnderMouse()
         model.maxContentHeight = max(160, screen.visibleFrame.height * 0.7 - 140)   // 140 ≈ 头（两行问题）+ 尾 + 内边距
         // SwiftUI 的内容尺寸要到下一个运行循环才按新内容更新，先同步布局一次再量，
@@ -172,7 +173,7 @@ final class AnswerPanel {
             panel.setFrame(final, display: true)
             if let content = panel.contentView { hosting.frame = content.bounds }
             panel.invalidateShadow()
-            relayoutAfterStateChange()
+            relayoutAfterStateChange(animated: false)
             return
         }
         let start = NSRect(x: screen.frame.maxX + 12, y: final.origin.y, width: size.width, height: size.height)
@@ -196,15 +197,29 @@ final class AnswerPanel {
         installOutsideClickMonitor()
     }
 
+    private func makeAnswerView() -> AnswerView {
+        AnswerView(model: model,
+                   onCopy: { [weak self] in self?.copyAnswer() },
+                   onClose: { [weak self] in self?.hide() },
+                   onTogglePin: { [weak self] in self?.togglePin() },
+                   onHoldStart: { [weak self] in self?.beginFollowUp() ?? false },
+                   onHoldEnd: { [weak self] cancelled in self?.endFollowUp(cancelled: cancelled) })
+    }
+
+    /// 内容整体换了（新问题、收起 / 展开）之后、量尺寸之前调。
+    /// model 一改，SwiftUI 要到下一轮界面刷新才重算视图，立刻去量拿到的还是换之前的高度：
+    /// 新问题开始时浮窗先按上一条回答的高度摆出来（2026-09-21 实测 410，应为 145），
+    /// 等主线程忙完发请求那半秒才缩回去，上下各露一条空底。重新给一次 rootView 会让它当场按现在的 model 重算。
+    private func refreshViewsForNewContent() {
+        measure?.rootView = TurnsView(model: model, width: Self.contentWidth)
+        hosting?.rootView = makeAnswerView()
+        measure?.layoutSubtreeIfNeeded()
+        hosting?.layoutSubtreeIfNeeded()
+    }
+
     private func createPanel() {
         measure = NSHostingView(rootView: TurnsView(model: model, width: Self.contentWidth))
-        let view = AnswerView(model: model,
-                              onCopy: { [weak self] in self?.copyAnswer() },
-                              onClose: { [weak self] in self?.hide() },
-                              onTogglePin: { [weak self] in self?.togglePin() },
-                              onHoldStart: { [weak self] in self?.beginFollowUp() ?? false },
-                              onHoldEnd: { [weak self] cancelled in self?.endFollowUp(cancelled: cancelled) })
-        let hosting = FirstMouseHostingView(rootView: view)
+        let hosting = FirstMouseHostingView(rootView: makeAnswerView())
         let size = fittingSize(of: hosting)
         hosting.frame = NSRect(origin: .zero, size: size)
         hosting.autoresizingMask = [.width, .height]
@@ -263,7 +278,8 @@ final class AnswerPanel {
     }
 
     /// 内容高度变了 → 面板跟着长/缩，顶右角不动；对话超过上限后始终滚到最新一轮
-    private func relayout() {
+    /// animated=false：直接定到新尺寸。新问题顶掉上一条回答时用，旧高度只该一闪而过，不该慢慢缩
+    private func relayout(animated: Bool = true) {
         guard let panel, let hosting else { return }
         DispatchQueue.main.async {
             hosting.layoutSubtreeIfNeeded()
@@ -277,7 +293,7 @@ final class AnswerPanel {
                                width: target.width, height: target.height)
             // 流式出字期间每段都会长高：不做动画，直接定到新高度。动画途中窗口比内容矮，
             // 文字会被往上挤、一段一跳；逐字流出本身就是过渡，不需要再补动画。
-            if self.model.turns.last?.state == .streaming {
+            if !animated || self.model.turns.last?.state == .streaming {
                 panel.setFrame(frame, display: true)
                 if let content = panel.contentView { hosting.frame = content.bounds }
                 panel.invalidateShadow()
@@ -317,8 +333,9 @@ final class AnswerPanel {
         if abs(target.height - current.height) > 0.5 || abs(target.width - current.width) > 0.5 { relayout() }
     }
 
-    private func relayoutAfterStateChange() {
-        relayout()
+    private func relayoutAfterStateChange(animated: Bool = true) {
+        refreshViewsForNewContent()
+        relayout(animated: animated)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.settleLayout() }
     }
 

@@ -273,6 +273,8 @@ enum RecordingHotkeyShortcut {
 
     var displayName: String {
         switch self {
+        // 右 Option 让给了问 AI 时，听写的「Option」实际只认左边那颗，照实写出来
+        case .modifier(.option) where HotkeyProfile.recording.optionLeftOnly(): return "⌥ 左 Option"
         case .modifier(let modifier): return "\(modifier.symbol) \(modifier.displayName)"
         case .custom(let shortcut): return shortcut.displayName
         }

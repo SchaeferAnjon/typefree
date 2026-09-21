@@ -2220,6 +2220,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         leftStack.spacing = 6
         leftStack.addArrangedSubview(titleRow)
         leftStack.addArrangedSubview(desc)
+        // 问 AI 的两个快捷键和「开始说话」放在一起：三个键在同一个地方看、同一个地方改
+        leftStack.setCustomSpacing(14, after: desc)
+        leftStack.addArrangedSubview(makeAskHotkeyHomeRow(.screen, suffix: "看着屏幕问 AI",
+                                                          note: "鼠标指着哪，AI 就重点看哪。"))
+        leftStack.addArrangedSubview(makeAskHotkeyHomeRow(.plain, suffix: "只提问，不看屏幕",
+                                                          note: "不截屏，更快一点。"))
 
         // 三个鼠标 / 口令用法一眼看到（3.0 新功能），点哪个看哪个的演示
         let gestures = NSStackView()
@@ -2282,7 +2288,32 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         presentGuide(feature: feature, finishTitle: "完成", onlyThisFeature: true)
     }
 
-    private func makeHotkeyPickerButton() -> NSButton {
+    /// 首页上的一行：「长按或单击 [快捷键 ▾] 看着屏幕问 AI」。点中间的按钮改键，和「开始说话」同一个菜单
+    private func makeAskHotkeyHomeRow(_ hotkey: AskHotkey, suffix: String, note: String) -> NSView {
+        let prefixLabel = label("长按或单击", size: 15, weight: .medium, color: theme.text)
+        let suffixLabel = label(suffix, size: 15, weight: .medium, color: theme.text)
+        let picker = makeHotkeyPickerButton(compact: true)
+        picker.title = "\(hotkey.displayName)  ▾"
+        picker.font = .systemFont(ofSize: 14, weight: .semibold)
+        picker.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
+        picker.toolTip = "设置「\(hotkey.title)」的快捷键"
+        let noteLabel = label(hotkey.conflict.map { "⚠️ \($0)，现在不会响应" } ?? note,
+                              size: 12, weight: .regular, color: theme.text3)
+        for view in [prefixLabel, suffixLabel] { view.setContentCompressionResistancePriority(.required, for: .horizontal) }
+
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        row.addArrangedSubview(prefixLabel)
+        row.addArrangedSubview(picker)
+        row.addArrangedSubview(suffixLabel)
+        row.addArrangedSubview(noteLabel)
+        row.setCustomSpacing(14, after: suffixLabel)
+        return row
+    }
+
+    private func makeHotkeyPickerButton(compact: Bool = false) -> NSButton {
         let button = NSButton(title: "\(RecordingHotkeyShortcut.current.displayName)  ▾",
                               target: self,
                               action: #selector(showHotkeyMenu(_:)))
@@ -2300,8 +2331,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         button.setButtonType(.momentaryChange)
         button.toolTip = "设置开始说话快捷键"
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 134).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: compact ? 112 : 134).isActive = true
+        button.heightAnchor.constraint(equalToConstant: compact ? 30 : 38).isActive = true
         return button
     }
 
@@ -5495,7 +5526,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     private func makeAskHotkeyRow(_ hotkey: AskHotkey, desc: String) -> NSView {
-        let button = makeHotkeyPickerButton()
+        let button = makeHotkeyPickerButton(compact: true)
         button.title = "\(hotkey.displayName)  ▾"
         button.font = .systemFont(ofSize: 14, weight: .semibold)
         button.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
