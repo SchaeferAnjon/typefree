@@ -3589,6 +3589,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             detailTitle: "语言与口令设置", details: { self.makeOutputLanguageCommandOptions() }
         ))
         stack.addArrangedSubview(makeMouseHoldToTalkCard())
+        stack.addArrangedSubview(makeAskAtCursorCard())
         stack.addArrangedSubview(makeMouseHoldAskCard())
     }
 
@@ -5311,6 +5312,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             saveOutputLanguagePhrases(id: String(id.dropFirst(6)), text: field.stringValue)
             return
         }
+        if field.identifier?.rawValue == "askVisionModel" {
+            config.save(value: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                        forKey: AskAtCursorSettings.visionModelKey)
+            return
+        }
         // 识别(百炼)与优化(通义千问)的 DashScope Key 框联动，保持一致
         if field === bailianKeyField {
             dashscopeAPIKeyField?.stringValue = field.stringValue
@@ -5358,14 +5364,142 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         config.save(bool: sender.isOn, forKey: MouseHoldToTalkSettings.askEnabledKey)
     }
 
+    // MARK: 指针问 AI
+
+    @objc private func askAtCursorEnabledChanged(_ sender: VPToggle) {
+        config.save(bool: sender.isOn, forKey: AskAtCursorSettings.enabledKey)
+        NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
+    }
+
+    @objc private func askScreenshotChanged(_ sender: VPToggle) {
+        config.save(bool: sender.isOn, forKey: AskAtCursorSettings.screenshotEnabledKey)
+    }
+
+    /// 指针问 AI：按住修饰键再点左键，指针在哪就问哪。
+    /// 和上面那张卡的区别是这次点击会被吞掉，所以按钮、链接、输入框、视频上都能问。
+    private func makeAskAtCursorCard() -> NSView {
+        let toggle = VPToggle(theme: theme, target: self, action: #selector(askAtCursorEnabledChanged(_:)))
+        toggle.setOn(AskAtCursorSettings.isEnabled, animated: false)
+        toggle.setAccessibilityLabel("指针问 AI")
+        return makeExploreCard(id: "askCursor", title: "指针问 AI",
+                               summary: "按住修饰键点一下，指针指着什么就问什么，AI 会看着那块屏幕回答。",
+                               control: toggle,
+                               rows: [makeAskCursorModifierRow(), makeAskCursorModeRow(), makeAskScreenshotRow()]) {
+            self.makeAskAtCursorHelp()
+        }
+    }
+
+    private func makeAskCursorModifierRow() -> NSView {
+        let items = AskCursorModifier.allCases.map {
+            VPDropdown.Item(value: AskCursorModifierCombo([$0])!.configValue, title: $0.symbol + " " + $0.displayName)
+        }
+        let current = AskAtCursorSettings.combo.configValue
+        let popup = VPDropdown(items: items, selectedValue: items.contains { $0.value == current } ? current : AskCursorModifierCombo.fallback.configValue,
+                               trackBg: theme.card,
+                               trackBorder: Self.dropdownBorder,
+                               textColor: theme.text, chevronColor: theme.text3)
+        popup.onSelect = { [weak self] value in
+            self?.config.save(value: value, forKey: AskAtCursorSettings.modifierKey)
+            NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
+        }
+        popup.widthAnchor.constraint(equalToConstant: 170).isActive = true
+        return makeAskCursorRow(title: "触发键",
+                                desc: "按住它再点鼠标左键就开始提问。分左右，按住的必须是选中的那一边。",
+                                control: popup)
+    }
+
+    private func makeAskCursorModeRow() -> NSView {
+        let items = AskCursorListenMode.allCases.map { VPDropdown.Item(value: $0.rawValue, title: $0.displayName) }
+        let current = AskAtCursorSettings.listenMode.rawValue
+        let popup = VPDropdown(items: items, selectedValue: current,
+                               trackBg: theme.card,
+                               trackBorder: Self.dropdownBorder,
+                               textColor: theme.text, chevronColor: theme.text3)
+        popup.onSelect = { [weak self] value in
+            self?.config.save(value: value, forKey: AskAtCursorSettings.listenModeKey)
+            NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
+        }
+        popup.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        return makeAskCursorRow(title: "倾听模式",
+                                desc: "用触控板时选「点一下开始」更省力，不用一直按着。",
+                                control: popup)
+    }
+
+    private func makeAskScreenshotRow() -> NSView {
+        let toggle = VPToggle(theme: theme, target: self, action: #selector(askScreenshotChanged(_:)))
+        toggle.setOn(AskAtCursorSettings.isScreenshotEnabled, animated: false)
+        toggle.setAccessibilityLabel("让 AI 看屏幕")
+        return makeAskCursorRow(title: "让 AI 看屏幕",
+                                desc: "提问时把指针所在的那块屏幕一起发给模型，需要屏幕录制权限。关掉就只发语音。",
+                                control: toggle)
+    }
+
+    private func makeAskCursorRow(title: String, desc: String, control: NSView) -> NSView {
+        let titleLabel = label(title, size: 13, weight: .medium, color: theme.text)
+        let descLabel = label(desc, size: 12, weight: .regular, color: theme.text3)
+        descLabel.maximumNumberOfLines = 0
+
+        let textStack = NSStackView()
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 2
+        textStack.addArrangedSubview(titleLabel)
+        textStack.addArrangedSubview(descLabel)
+        textStack.setHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 16
+        row.edgeInsets = NSEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
+        row.distribution = .fill
+        row.addArrangedSubview(textStack)
+        row.addArrangedSubview(NSView())
+        row.addArrangedSubview(control)
+        return row
+    }
+
+    /// 展开的使用说明 + 视觉模型手填框
+    private func makeAskAtCursorHelp() -> NSView {
+        let column = NSStackView()
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 12
+
+        let help = makeExploreHelp("""
+        开始提问：按住触发键（默认左 Control）再点鼠标左键，指针指着什么就问什么。按钮、链接、输入框、视频上都能用，这一下点击不会传给底下的软件，所以不会误点开链接。按住左 Control 时的点击会被 Typefree 接管，不再弹出右键菜单；触控板双指点按当右键不受影响。
+
+        结束提问：选「点一下开始」时，再点一次鼠标就结束并提问，按 Esc 取消，录满 60 秒会自动结束。选「按住说话」时，松开左键即结束。
+
+        AI 看到什么：触发那一刻截指针所在的那块屏幕，在指针位置画一个红色圆环，连同一张整屏缩略图一起发给模型，告诉它「用户问的是圆环那里」。截图只用于这一次提问，不保存、不写进历史记录，追问时也不会重复发。
+
+        没有屏幕录制权限、或者用的是会员/试用通道时：这次提问退回只用语音，原因会写在回答浮窗里，不会默默失败。
+
+        所用模型：按「模型」里选的那一家，自动换成同一家支持读图的模型（千问 qwen3.8-flash，智谱 glm-5.3-flash，豆包 doubao-seed-2-1-turbo）。免费额度用完会自动降到同一家的下一个候选。想换别的填下面这一栏。
+        """)
+        column.addArrangedSubview(help)
+        help.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+
+        let field = makeTextField(config.string(forKey: AskAtCursorSettings.visionModelKey), mono: true)
+        field.placeholderString = "留空 = 用上面那几个默认值"
+        field.identifier = NSUserInterfaceItemIdentifier("askVisionModel")
+        field.delegate = self
+        field.widthAnchor.constraint(equalToConstant: 260).isActive = true
+        column.addArrangedSubview(makeAskCursorRow(title: "视觉模型（可选）",
+                                                   desc: "官方换代时自己填新名字，不用等 Typefree 发版。",
+                                                   control: field))
+        column.arrangedSubviews.last?.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+        return column
+    }
+
     /// 长按问 AI：在正文、空白处长按 → 问题交给 AI，答案弹在旁边
     private func makeMouseHoldAskCard() -> NSView {
         let toggle = VPToggle(theme: theme, target: self, action: #selector(mouseHoldAskChanged(_:)))
         toggle.setOn(MouseHoldToTalkSettings.isAskEnabled, animated: false)
         toggle.setAccessibilityLabel("随时问 AI")
-        return makeExploreCard(id: "ask", title: "随时问 AI",
-                               summary: "在空白处按住说话，让 AI 帮你解答。", control: toggle, demo: .ask) {
-            self.makeExploreHelp("开始提问：在页面空白处按住鼠标左键说出问题，松开后显示回答。输入框、按钮和链接不触发提问。\n\n继续追问：按住回答面板继续说话，AI 会结合当前话题回答。\n\n管理浮窗：点图钉可固定回答；未固定时，点外面会收起，鼠标移回可展开。回答支持复制。\n\n查看记录：对话保存在「历史记录」中，同一话题的多轮问答合并展示。\n\n所用模型：使用「模型」中配置的润色模型；千问支持联网搜索。")
+        return makeExploreCard(id: "ask", title: "空白处长按问 AI",
+                               summary: "不按任何键，在空白处按住说话就能提问。", control: toggle, demo: .ask) {
+            self.makeExploreHelp("开始提问：在页面空白处按住鼠标左键说出问题，松开后显示回答。这条路径不拦截点击，所以输入框、按钮和链接上不触发；想在它们上面提问，用上面的「指针问 AI」。\n\n继续追问：按住回答面板继续说话，AI 会结合当前话题回答。\n\n管理浮窗：点图钉可固定回答；未固定时，点外面会收起，鼠标移回可展开。回答支持复制。\n\n查看记录：对话保存在「历史记录」中，同一话题的多轮问答合并展示。\n\nAI 看到什么：开着「让 AI 看屏幕」时，这条路径同样会把指针所在的那块屏幕一起发给模型。\n\n所用模型：使用「模型」中配置的润色模型；千问支持联网搜索。")
         }
     }
 
