@@ -13,7 +13,9 @@ public enum AskVision {
     public static let overviewLongEdge: CGFloat = 1000
     public static let overviewQuality: CGFloat = 0.75
     /// 指针附近放大图：按原分辨率裁这么大（点），小字才认得出来
-    public static let closeUpPointSize = CGSize(width: 900, height: 700)
+    public static let closeUpPointSize = CGSize(width: 1200, height: 900)
+    /// 指针所在的窗口不超过这么大，清晰图就截整个窗口；更大的窗口（全屏浏览器之类）才退回指针周围一块
+    public static let closeUpMaxWindowPointSize = CGSize(width: 1500, height: 1300)
     /// 放大图的长边上限（像素）。900 点在 2x 屏上正好 1800，超了再压到这个数。
     public static let closeUpLongEdge: CGFloat = 1600
     public static let closeUpQuality: CGFloat = 0.85
@@ -36,6 +38,32 @@ public enum AskVision {
         let maxEdge = max(pixelSize.width, pixelSize.height)
         guard maxEdge > 0 else { return 1 }
         return min(1, longEdge / maxEdge)
+    }
+
+    /// 清晰图该截哪一块（像素坐标，原点左上）。
+    /// 优先截指针所在的整个窗口：用户指着一道题问「选哪个」，题干、配图、选项都得在图里。
+    /// 固定截指针周围 900x700 时，1024x1037 的题库窗口上下各被裁掉一截，配图顶上的交通标志和最下面的选项
+    /// 只剩整屏缩略图里那点糊掉的像素，模型只能猜（2026-09-21，4K 屏上实测答错）。
+    /// windowRect 为 nil、或窗口大过 closeUpMaxWindowPointSize 时，退回以指针为中心的一块（不超出窗口）。
+    public static func closeUpRect(center: CGPoint,
+                                   imagePixelSize: CGSize,
+                                   windowRect: CGRect?,
+                                   scale: CGFloat) -> CGRect {
+        let image = CGRect(origin: .zero, size: imagePixelSize)
+        guard let window = windowRect?.intersection(image), !window.isNull, window.width > 1, window.height > 1,
+              window.contains(center) else {
+            return closeUpRect(center: center, imagePixelSize: imagePixelSize, scale: scale)
+        }
+        let maxSize = CGSize(width: closeUpMaxWindowPointSize.width * scale, height: closeUpMaxWindowPointSize.height * scale)
+        if window.width <= maxSize.width, window.height <= maxSize.height { return window }
+        // 大窗口：指针周围一块，但不伸到窗口外面去（外面是别的 App，和问题无关）
+        let want = CGSize(width: min(closeUpPointSize.width * scale, window.width),
+                          height: min(closeUpPointSize.height * scale, window.height))
+        var x = center.x - want.width / 2
+        var y = center.y - want.height / 2
+        x = min(max(window.minX, x), window.maxX - want.width)
+        y = min(max(window.minY, y), window.maxY - want.height)
+        return CGRect(x: x, y: y, width: want.width, height: want.height)
     }
 
     /// 以指针为中心的裁剪框（像素坐标，原点左上）。
@@ -241,7 +269,7 @@ extension AskVision {
     /// 后半段是给速度用的：慢的是生成，不是上传，压住输出长度首字才来得快。
     public static let screenPromptSuffix = """
 
-    这次提问附带两张用户屏幕的截图：第一张是整个屏幕（已缩小，用来看全局上下文），第二张是用户指针附近的原分辨率放大图。两张图上都画了一个红色圆环标记，那是用户此刻指着的位置。用户的问题默认是针对标记处的内容提的；标记处看不出所指时，再结合整屏内容理解。不要描述标记本身，也不要提「截图」「图片」这些字眼，直接回答问题。
+    这次提问附带两张用户屏幕的截图：第一张是整个屏幕（已缩小，用来看全局上下文），第二张是指针所在窗口的清晰图（窗口特别大时是指针周围那一块）。两张图上都画了一个红色圆环标记，那是用户此刻指着的位置。用户的问题默认是针对标记处的内容提的；标记处看不出所指时，再结合整屏内容理解。不要描述标记本身，也不要提「截图」「图片」这些字眼，直接回答问题。
     先用一两句话把结论说完，需要展开再补两三点，全部加起来控制在 200 字以内。用户明确要求「详细」「展开说」时才可以更长。
     """
 

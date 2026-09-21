@@ -103,9 +103,14 @@ enum ScreenSnapshotCapturer {
                     // 指针在这张图里的像素位置（图的原点在屏幕左上角）
                     let cursorPixel = CGPoint(x: (point.x - bounds.minX) * scale,
                                               y: (point.y - bounds.minY) * scale)
+                    // 指针所在窗口在这张图里的像素范围；清晰图优先截整个窗口
+                    let windowPixel = Self.windowFrame(at: point).map {
+                        CGRect(x: ($0.minX - bounds.minX) * scale, y: ($0.minY - bounds.minY) * scale,
+                               width: $0.width * scale, height: $0.height * scale)
+                    }
                     renderQueue.async {
                         let encodeStarted = ProcessInfo.processInfo.systemUptime
-                        guard let pair = Self.render(image: image, cursorPixel: cursorPixel, scale: scale) else {
+                        guard let pair = Self.render(image: image, cursorPixel: cursorPixel, windowPixel: windowPixel, scale: scale) else {
                             finish(.failure(.encodeFailed))
                             return
                         }
@@ -122,7 +127,22 @@ enum ScreenSnapshotCapturer {
 
     // MARK: - 渲染
 
-    private static func render(image: CGImage, cursorPixel: CGPoint, scale: CGFloat) -> (overview: Data, closeUp: Data)? {
+    /// 指针底下最上层的普通窗口（Quartz 全局坐标，原点左上）。CGWindowList 按前后顺序给，第一个包含指针的就是。
+    /// 自己的窗口（回答浮窗、胶囊）不算：截图里本来就排除了它们。
+    private static func windowFrame(at point: CGPoint) -> CGRect? {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        for info in list {
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  (info[kCGWindowOwnerPID as String] as? pid_t) != ownPID,
+                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: dict), frame.contains(point) else { continue }
+            return frame
+        }
+        return nil
+    }
+
+    private static func render(image: CGImage, cursorPixel: CGPoint, windowPixel: CGRect?, scale: CGFloat) -> (overview: Data, closeUp: Data)? {
         let full = CGSize(width: CGFloat(image.width), height: CGFloat(image.height))
 
         // 整屏图：只用来看「这是什么界面」，压得狠一点，图片 token 直接影响首字延迟
@@ -133,8 +153,8 @@ enum ScreenSnapshotCapturer {
                                   markerAt: cursorPixel),
               let overviewData = jpeg(overview, quality: AskVision.overviewQuality) else { return nil }
 
-        // 放大图：以指针为中心按原分辨率裁，小字才认得出来
-        let cropRect = AskVision.closeUpRect(center: cursorPixel, imagePixelSize: full, scale: scale)
+        // 清晰图：指针所在的整个窗口（太大就取指针周围一块），小字才认得出来
+        let cropRect = AskVision.closeUpRect(center: cursorPixel, imagePixelSize: full, windowRect: windowPixel, scale: scale)
         let closeUpScale = AskVision.scale(pixelSize: cropRect.size, longEdge: AskVision.closeUpLongEdge)
         guard let closeUp = draw(image: image,
                                  source: cropRect,

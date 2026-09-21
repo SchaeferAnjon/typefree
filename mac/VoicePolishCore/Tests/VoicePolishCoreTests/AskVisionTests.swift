@@ -246,4 +246,24 @@ final class AskVisionTests: XCTestCase {
         // 只说了「新话题」三个字：问题为空，调用方按「没听到问题」处理
         XCTAssertEqual(AskThreading.stripNewThreadPrefix("新话题").question, "")
     }
+
+    /// 指着题库窗口里的一道题：清晰图要是整个窗口，配图顶上的标志和最下面的选项都在里面
+    func testCloseUpCoversTheWholeWindowUnderThePointer() {
+        let screen = CGSize(width: 4096, height: 2304)                     // 2048x1152 点的 4K 屏，scale 2
+        let window = CGRect(x: 306, y: 50, width: 2048, height: 2074)      // 1024x1037 点的题库窗口
+        let rect = AskVision.closeUpRect(center: CGPoint(x: 1466, y: 1156), imagePixelSize: screen, windowRect: window, scale: 2)
+        XCTAssertEqual(rect, window)
+    }
+
+    /// 全屏大窗口：退回指针周围一块，且不伸到窗口外
+    func testCloseUpFallsBackToARegionInsideAHugeWindow() {
+        let screen = CGSize(width: 4096, height: 2304)
+        let window = CGRect(x: 0, y: 50, width: 4096, height: 2254)
+        let rect = AskVision.closeUpRect(center: CGPoint(x: 100, y: 120), imagePixelSize: screen, windowRect: window, scale: 2)
+        XCTAssertEqual(rect.size, CGSize(width: 2400, height: 1800))
+        XCTAssertTrue(window.contains(rect))
+        // 没拿到窗口、或指针不在窗口里：和原来一样以指针为中心
+        let plain = AskVision.closeUpRect(center: CGPoint(x: 2000, y: 1100), imagePixelSize: screen, windowRect: nil, scale: 2)
+        XCTAssertEqual(plain.midX, 2000, accuracy: 1)
+    }
 }
