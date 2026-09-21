@@ -2237,6 +2237,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         gestures.addArrangedSubview(makeGestureHint(key: "空白处按住鼠标", label: "问 AI", feature: .ask))
         gestures.addArrangedSubview(makeGestureHint(key: "结尾说「用英文」", label: "翻译", feature: .translation))
 
+        // 问 AI 的几个用法：不列出来没人知道有（追问、换话题、联网、取消）
+        let askHints = NSStackView()
+        askHints.orientation = .horizontal
+        askHints.alignment = .centerY
+        askHints.spacing = 28
+        askHints.addArrangedSubview(makeGestureHint(key: "回答还在时再按快捷键", label: "追问", feature: nil))
+        askHints.addArrangedSubview(makeGestureHint(key: "开头说「新话题」", label: "换话题", feature: nil))
+        askHints.addArrangedSubview(makeGestureHint(key: "开头说「搜一下」", label: "联网查", feature: nil))
+        askHints.addArrangedSubview(makeGestureHint(key: "说话时按 Esc", label: "取消", feature: nil))
+
         let main = NSStackView()
         main.orientation = .vertical
         main.alignment = .leading
@@ -2247,13 +2257,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let rule = makeHairline(insetH: 0)
         main.addArrangedSubview(rule)
         main.addArrangedSubview(gestures)
+        main.addArrangedSubview(askHints)
         mount(main, in: card)
         rule.widthAnchor.constraint(equalTo: main.widthAnchor, constant: -56).isActive = true
         return card
     }
 
     /// 首页快捷用法：键帽样式的动作 + 结果；整块可点，打开该功能的演示
-    private func makeGestureHint(key: String, label text: String, feature: WhatsNewGuide.Feature) -> NSView {
+    /// feature 为 nil = 这条用法没有演示动画，只是列出来让人知道有这个功能
+    private func makeGestureHint(key: String, label text: String, feature: WhatsNewGuide.Feature?) -> NSView {
         let cap = NSView()
         cap.translatesAutoresizingMaskIntoConstraints = false
         cap.wantsLayer = true
@@ -2276,10 +2288,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
-        row.toolTip = "看演示"
-        let click = NSClickGestureRecognizer(target: self, action: #selector(gestureHintTapped(_:)))
-        row.addGestureRecognizer(click)
-        row.identifier = NSUserInterfaceItemIdentifier("gesture-\(feature.rawValue)")
+        if let feature {
+            row.toolTip = "看演示"
+            let click = NSClickGestureRecognizer(target: self, action: #selector(gestureHintTapped(_:)))
+            row.addGestureRecognizer(click)
+            row.identifier = NSUserInterfaceItemIdentifier("gesture-\(feature.rawValue)")
+        }
         return row
     }
 
@@ -2315,7 +2329,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     private func makeHotkeyPickerButton(compact: Bool = false) -> NSButton {
-        let button = NSButton(title: "\(RecordingHotkeyShortcut.current.displayName)  ▾",
+        let button = NSButton(title: "\(HotkeyArbiter.displayName(for: "recording", shortcut: RecordingHotkeyShortcut.current))  ▾",
                               target: self,
                               action: #selector(showHotkeyMenu(_:)))
         button.translatesAutoresizingMaskIntoConstraints = false

@@ -101,6 +101,16 @@ enum RecordingHotkeyModifier: String, CaseIterable {
     /// 这两位才说得清是哪一颗；松开其中一颗、另一颗还按着时也不会认错。
     static let leftOptionDeviceBit: UInt = 0x20
     static let rightOptionDeviceBit: UInt = 0x40
+    static let leftCommandDeviceBit: UInt = 0x08
+
+    /// 这颗通用键对应的「右边那颗」；没有左右之分的返回 nil
+    var rightVariant: RecordingHotkeyModifier? {
+        switch self {
+        case .option: return .rightOption
+        case .command: return .rightCommand
+        default: return nil
+        }
+    }
 
     /// optionLeftOnly：右 Option 让给了另一套热键（看屏幕问 AI）时，通用的 Option 只认左边那颗
     func matches(_ event: NSEvent, optionLeftOnly: Bool = false) -> Bool {
@@ -112,6 +122,8 @@ enum RecordingHotkeyModifier: String, CaseIterable {
             return event.modifierFlags.rawValue & Self.rightOptionDeviceBit != 0
         case .option where optionLeftOnly:
             return event.modifierFlags.rawValue & Self.leftOptionDeviceBit != 0
+        case .command where optionLeftOnly:
+            return event.modifierFlags.rawValue & Self.leftCommandDeviceBit != 0
         default:
             return true
         }
@@ -124,6 +136,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         switch self {
         case .rightOption: return flags.rawValue & UInt64(Self.rightOptionDeviceBit) != 0
         case .option where optionLeftOnly: return flags.rawValue & UInt64(Self.leftOptionDeviceBit) != 0
+        case .command where optionLeftOnly: return flags.rawValue & UInt64(Self.leftCommandDeviceBit) != 0
         default: return true
         }
     }
@@ -273,8 +286,6 @@ enum RecordingHotkeyShortcut {
 
     var displayName: String {
         switch self {
-        // 右 Option 让给了问 AI 时，听写的「Option」实际只认左边那颗，照实写出来
-        case .modifier(.option) where HotkeyProfile.recording.optionLeftOnly(): return "⌥ 左 Option"
         case .modifier(let modifier): return "\(modifier.symbol) \(modifier.displayName)"
         case .custom(let shortcut): return shortcut.displayName
         }
@@ -341,7 +352,7 @@ struct AskHotkey {
         }
     }
 
-    var displayName: String { current?.displayName ?? "未设置" }
+    var displayName: String { HotkeyArbiter.displayName(for: prefix, shortcut: current) }
 
     func useModifier(_ modifier: RecordingHotkeyModifier) {
         let config = VoicePolishConfig.shared
@@ -377,6 +388,30 @@ struct AskHotkey {
     }
 }
 
+/// 三套热键（听写、看屏幕问、纯提问）之间的让位规则。
+enum HotkeyArbiter {
+    /// 除 name 这一套之外，其他正在生效的热键
+    static func others(than name: String) -> [RecordingHotkeyShortcut] {
+        var all: [(String, RecordingHotkeyShortcut?)] = [("recording", RecordingHotkeyShortcut.current)]
+        for hotkey in [AskHotkey.screen, AskHotkey.plain] where hotkey.isActive { all.append((hotkey.prefix, hotkey.current)) }
+        return all.filter { $0.0 != name }.compactMap { $0.1 }
+    }
+
+    /// name 这一套用的是通用的 Option / Command，而「右边那颗」被别的热键单独占了：
+    /// 这时通用键只认左边那颗，两套不会同时响。哪一套占右边都一样，规则是对称的。
+    static func leftOnly(for name: String, shortcut: RecordingHotkeyShortcut?) -> Bool {
+        guard case .modifier(let mine)? = shortcut, let right = mine.rightVariant else { return false }
+        return others(than: name).contains { if case .modifier(let m) = $0 { return m == right } else { return false } }
+    }
+
+    /// 显示用：只认左边时照实写「左 Option」
+    static func displayName(for name: String, shortcut: RecordingHotkeyShortcut?) -> String {
+        guard let shortcut else { return "未设置" }
+        if case .modifier(let m) = shortcut, leftOnly(for: name, shortcut: shortcut) { return "\(m.symbol) 左 \(m.displayName)" }
+        return shortcut.displayName
+    }
+}
+
 /// 一套热键从哪读配置。听写和两套问 AI 各一份，按住 / 轻点锁定 / Esc 取消这些手势逻辑共用。
 struct HotkeyProfile {
     let name: String
@@ -391,8 +426,7 @@ struct HotkeyProfile {
         name: "recording",
         shortcut: { RecordingHotkeyShortcut.current },
         tapToggleEnabled: { RecordingHotkeyBehavior.isTapToggleEnabled },
-        // 右 Option 给了问 AI，听写的「Option」就只认左边那颗，两边不会同时响
-        optionLeftOnly: { AskHotkey.screen.uses(.rightOption) || AskHotkey.plain.uses(.rightOption) },
+        optionLeftOnly: { HotkeyArbiter.leftOnly(for: "recording", shortcut: RecordingHotkeyShortcut.current) },
         isActive: { true })
 
     static func ask(_ hotkey: AskHotkey) -> HotkeyProfile {
@@ -400,11 +434,7 @@ struct HotkeyProfile {
             name: hotkey.prefix,
             shortcut: { hotkey.current },
             tapToggleEnabled: { true },   // 触控板用户按住说话很累：轻点一下开始、再点一下结束一直可用
-            // 另一套问 AI 占了右 Option 时同理
-            optionLeftOnly: {
-                let other = hotkey.prefix == AskHotkey.screen.prefix ? AskHotkey.plain : AskHotkey.screen
-                return other.uses(.rightOption)
-            },
+            optionLeftOnly: { HotkeyArbiter.leftOnly(for: hotkey.prefix, shortcut: hotkey.current) },
             isActive: { hotkey.isActive })
     }
 }
