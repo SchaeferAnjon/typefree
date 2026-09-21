@@ -86,7 +86,26 @@ final class AnswerPanel {
         guard let last = model.turns.indices.last else { return }
         model.turns[last].answer = text
         model.turns[last].state = .streaming
-        relayout()
+        scheduleStreamingRelayout()
+    }
+
+    /// 流式出字期间窗口的长法。每来一段就量一次、跳一次，字出得快（DeepSeek 一秒十几段）时窗口一抖一抖的。
+    /// 改成：最多每 0.15 秒量一次；只长不缩（量到的高度偶尔会比上一次小几个点，那是 measure 没跟上，不是内容变短）；
+    /// 每次长到 48 点的整数倍，多预留一点，接下来几段字直接填进已有的空间，不用再动窗口。
+    /// 回答结束后 finish 会按精确高度定一次。
+    private static let streamingStep: CGFloat = 48
+    private static let streamingInterval: TimeInterval = 0.15
+    private var streamingRelayoutScheduled = false
+
+    private func scheduleStreamingRelayout() {
+        guard !streamingRelayoutScheduled else { return }
+        streamingRelayoutScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.streamingInterval) { [weak self] in
+            guard let self else { return }
+            self.streamingRelayoutScheduled = false
+            guard self.model.turns.last?.state == .streaming else { return }
+            self.relayout(streaming: true)
+        }
     }
 
     func finish(answer: String) {
@@ -300,14 +319,22 @@ final class AnswerPanel {
 
     /// 内容高度变了 → 面板跟着长/缩，顶右角不动；对话超过上限后始终滚到最新一轮
     /// animated=false：直接定到新尺寸。新问题顶掉上一条回答时用，旧高度只该一闪而过，不该慢慢缩
-    private func relayout(animated: Bool = true) {
+    private func relayout(animated: Bool = true, streaming: Bool = false) {
         guard let panel, let hosting else { return }
         DispatchQueue.main.async {
             hosting.layoutSubtreeIfNeeded()
             self.tuneScroller()
-            let target = self.fittingSize(of: hosting)
+            var target = self.fittingSize(of: hosting)
             let current = panel.frame
             self.scrollToBottom()
+            if streaming {
+                // 只长不缩，且按整步长；步长撑不过内容区上限（超过上限的部分靠滚动）
+                let clampedContent = min(max(self.model.contentHeight, 24), self.model.maxContentHeight)
+                let maxWindow = target.height - clampedContent + self.model.maxContentHeight
+                let stepped = min((target.height / Self.streamingStep).rounded(.up) * Self.streamingStep, maxWindow)
+                target.height = max(current.height, stepped)
+                guard target.height > current.height + 0.5 else { return }
+            }
             guard abs(target.height - current.height) > 0.5 || abs(target.width - current.width) > 0.5 else { return }
             AnswerPanel.log?(String(format: "AnswerPanel relayout content=%.1f target=%.1f current=%.1f", self.model.contentHeight, target.height, current.height))
             let frame = NSRect(x: current.maxX - target.width, y: current.maxY - target.height,
@@ -730,13 +757,19 @@ struct AnswerView: View {
                 if idx != model.headerIndex { model.headerIndex = idx }
             }
             // 高度由 AnswerPanel 离屏实测后写入 model，超过上限才滚动；滚到底由 AppKit 侧做（SwiftUI 的 scrollTo 在 macOS 上跟不上内容增长）
-            .frame(height: min(max(model.contentHeight, 24), model.maxContentHeight))
+            // 窗口比内容高的那一瞬间（流式出字时窗口按整步长预留、measure 慢半拍），多出来的空间全给回答区：
+            // 标题钉在顶上、底栏贴在底下、字从上往下填。以前只定了宽度，多出来的高度会让整块内容垂直居中，
+            // 窗口每长一步头尾就上下跳一下，看着像在抖。
+            .frame(minHeight: clampedContentHeight, idealHeight: clampedContentHeight, maxHeight: .infinity)
             footer
                 .padding(.horizontal, AnswerPanel.contentInset)
         }
         .padding(.vertical, 18)
         .frame(width: 420)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
+
+    private var clampedContentHeight: CGFloat { min(max(model.contentHeight, 24), model.maxContentHeight) }
 
     // MARK: 头
 
