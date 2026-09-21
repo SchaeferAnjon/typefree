@@ -1009,10 +1009,20 @@ public class AIPolisher {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.timeoutInterval = timeout
-        do { request.httpBody = try JSONSerialization.data(withJSONObject: body) } catch { completion(.failure(error)); return }
         let reader = SSEReader(onPartial: onPartial, onThinking: onThinking,
                                searchToolName: searchToolName, onStats: onStats, completion: completion)
-        StreamHub.shared.send(request, reader: reader)
+        // 带截图的请求体有几百 KB，序列化和发出去放到后台：调用方多半在主线程上，
+        // 堵住它的这几百毫秒里回答浮窗没法重新布局
+        let payload = body
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+                return
+            }
+            StreamHub.shared.send(request, reader: reader)
+        }
     }
 
     /// 常驻的流式会话。整个 App 只有这一个 URLSession，连接池和 TLS 会话能跨请求复用；

@@ -344,3 +344,19 @@ public enum ZhipuEndpoint {
         URL(string: base + "/chat/completions")
     }
 }
+
+/// 连续追问和新话题的规则。
+public enum AskThreading {
+    /// 上一轮问答过去这么久，再提问就算新话题
+    public static let staleAfter: TimeInterval = 10 * 60
+    public static let newThreadPrefixes = ["新话题", "换个话题", "换一个话题", "重新开始", "新问题"]
+
+    /// 问题以「新话题」之类开头：去掉这几个字和紧跟的标点，并告诉调用方另起话题
+    public static func stripNewThreadPrefix(_ question: String) -> (question: String, newThread: Bool) {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let prefix = newThreadPrefixes.first(where: { trimmed.hasPrefix($0) }) else { return (trimmed, false) }
+        let rest = trimmed.dropFirst(prefix.count)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ，,。.：:、！!").union(.whitespacesAndNewlines))
+        return (rest, true)
+    }
+}

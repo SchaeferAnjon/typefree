@@ -237,4 +237,13 @@ final class AskVisionTests: XCTestCase {
         XCTAssertTrue(AskSearch.searchQuestion("这个多少钱", query: "RTX 5090 价格").contains("RTX 5090 价格"))
         XCTAssertTrue(AskSearch.searchQuestion("这个多少钱", query: "RTX 5090 价格").hasPrefix("这个多少钱"))
     }
+
+    func testNewThreadPrefixIsStrippedFromTheQuestion() {
+        XCTAssertEqual(AskThreading.stripNewThreadPrefix("新话题，德语里谢谢怎么说").question, "德语里谢谢怎么说")
+        XCTAssertTrue(AskThreading.stripNewThreadPrefix("换个话题 明天天气怎么样").newThread)
+        XCTAssertEqual(AskThreading.stripNewThreadPrefix("那它和闭包有什么区别").question, "那它和闭包有什么区别")
+        XCTAssertFalse(AskThreading.stripNewThreadPrefix("那它和闭包有什么区别").newThread)
+        // 只说了「新话题」三个字：问题为空，调用方按「没听到问题」处理
+        XCTAssertEqual(AskThreading.stripNewThreadPrefix("新话题").question, "")
+    }
 }

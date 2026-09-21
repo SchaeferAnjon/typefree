@@ -953,6 +953,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private var voiceQuestionMode = false
     /// 在回答面板上长按发起的续聊（带本话题上下文，追加在面板里）
     private var voiceQuestionFollowUp = false
+    /// 快捷键提问时回答浮窗还在屏幕上：这一问接着当前话题（带历史），而不是另起一个。
+    /// 和 voiceQuestionFollowUp 的区别：那个是「按住浮窗说话」，录音状态画在浮窗里、不出胶囊。
+    private var askContinuesThread = false
     private var voiceQuestionAnchor: NSPoint = .zero
     /// 鼠标长按问 AI：录音已开始、还没听到用户开口。开口前不接管鼠标：拖动 = 选字，悄悄撤销；
     /// 松手照常识别（没判断出开口不代表没说话），识别不出话才悄悄收起、不提示
@@ -1464,6 +1467,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         voiceQuestionMode = false
         let followUp = voiceQuestionFollowUp
         voiceQuestionFollowUp = false
+        let continuesThread = followUp || askContinuesThread
+        askContinuesThread = false
         answerPanel.setRecording(false)
         trialMaxRecordingTimer?.invalidate()
         trialMaxRecordingTimer = nil
@@ -1495,15 +1500,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let raw):
-                        let question = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let spoken = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                             .trimmingCharacters(in: CharacterSet(charactersIn: "。．.，,！!？?；;"))
+                        // 浮窗还在但想换话题：用「新话题」开头，这几个字不算进问题里
+                        let (question, wantsNewThread) = AskThreading.stripNewThreadPrefix(spoken)
+                        let continuesThread = continuesThread && !wantsNewThread
                         guard !question.isEmpty else { noSpeech(); return }
                         self.askTiming.transcribeMs = Int(Date().timeIntervalSince(transcribeStartedAt) * 1000)
-                        self.debugLog("ASK question chars=\(question.count) followUp=\(followUp)")
+                        self.debugLog("ASK question chars=\(question.count) followUp=\(followUp) continuesThread=\(continuesThread)")
                         self.overlayWindow.hide()
                         self.answerPanel.setListening(.idle)
-                        let history = followUp ? self.answerPanel.history : []
-                        if followUp, self.answerPanel.isVisible { self.answerPanel.appendQuestion(question) } else { self.answerPanel.startThread(question: question) }
+                        let history = continuesThread ? self.answerPanel.history : []
+                        if continuesThread, self.answerPanel.isVisible { self.answerPanel.appendQuestion(question) } else { self.answerPanel.startThread(question: question) }
                         // 图只随当轮发：历史里只留文字，多轮追问不重复传图，历史文件里更不会有截图
                         self.resolveAskScreen { screen, note in
                             self.sendAsk(question: question, history: history, screen: screen,
@@ -2070,6 +2078,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         let mode = AskAtCursorSettings.listenMode
         askTiming.reset(trigger: trigger, mode: viaHotkey ? "hotkey" : mode.rawValue)
         voiceQuestionFollowUp = false
+        // 回答浮窗还在屏幕上（展开、小条、钉住都算）且话题还新鲜：接着聊。浮窗没了就是新话题
+        askContinuesThread = answerPanel.canContinueThread
         voiceQuestionMode = true
         // 点击是明确意图，不用再等「听到开口」：胶囊立刻出来，用户知道已经在听
         askAwaitingSpeech = false

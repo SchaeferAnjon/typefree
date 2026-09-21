@@ -1,4 +1,7 @@
 import AppKit
+#if canImport(VoicePolishCore)
+import VoicePolishCore
+#endif
 import SwiftUI
 
 /// 「长按问 AI」的回答面板。做法与 trade-capture 的采访浮窗一致：
@@ -48,6 +51,12 @@ final class AnswerPanel {
     /// 当前话题 id（写历史用；新话题换新 id）
     private(set) var threadID = UUID().uuidString
     var isPinned: Bool { model.pinned }
+    /// 最近一次问答动静的时刻。钉住的浮窗可以放很久，隔太久的旧对话不该被带进新问题
+    private var lastActivityAt = Date.distantPast
+    /// 此刻再提问是不是该接着当前话题：浮窗还在屏幕上、至少答完过一轮、而且不是很久以前的
+    var canContinueThread: Bool {
+        isVisible && !history.isEmpty && Date().timeIntervalSince(lastActivityAt) < AskThreading.staleAfter
+    }
     /// 本话题已完成的问答对，续聊时作为上下文
     var history: [(question: String, answer: String)] {
         model.turns.filter { $0.state == .answered }.map { ($0.question, $0.answer) }
@@ -59,11 +68,15 @@ final class AnswerPanel {
         model.headerIndex = 0
         threadID = UUID().uuidString
         resetCollapse()
+        model.contentHeight = Self.thinkingRowHeight
+        trustMeasure = false
         present()
+        trustMeasure = true
     }
 
     /// 续聊：追加一轮
     func appendQuestion(_ question: String) {
+        lastActivityAt = Date()
         model.turns.append(AnswerTurn(question: question))
         resetCollapse()
         present()
@@ -78,6 +91,7 @@ final class AnswerPanel {
 
     func finish(answer: String) {
         guard let last = model.turns.indices.last else { return }
+        lastActivityAt = Date()
         model.turns[last].answer = answer
         model.turns[last].state = .answered
         relayout()
@@ -262,8 +276,14 @@ final class AnswerPanel {
         if panel.appearance?.name != appearance.name { panel.appearance = appearance }
     }
 
+    /// 新话题刚开始：内容只有一行「正在思考…」，高度是已知的。这时不去问 measure：
+    /// 它不在屏幕上，SwiftUI 更新得慢半拍，量到的还是上一条回答的高度（2026-09-21 实测 593，应为 145），
+    /// 浮窗会先按旧高度摆出来、上下各露一条空底，等主线程空下来才缩回去。
+    private var trustMeasure = true
+    private static let thinkingRowHeight: CGFloat = 24
+
     private func fittingSize(of hosting: FirstMouseHostingView) -> NSSize {
-        if let measure {
+        if let measure, trustMeasure {
             measure.layoutSubtreeIfNeeded()
             let h = measure.fittingSize.height
             if h > 1, abs(h - model.contentHeight) > 0.5 {
@@ -748,7 +768,7 @@ struct AnswerView: View {
         HStack(spacing: 4) {
             switch model.footer {
             case .idle:
-                Text("长按任意位置继续提问")
+                Text("再按快捷键或长按这里继续追问 · 点 ✕ 结束这个话题")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             case .listening:
