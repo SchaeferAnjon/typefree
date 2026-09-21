@@ -121,7 +121,7 @@ public class AIPolisher {
             let saved = config.string(forKey: "qwen_polish_model")
             return PolishSelection(provider: "qwen", model: (saved?.isEmpty == false) ? saved! : "qwen3.6-flash")
         case "zhipu":
-            return PolishSelection(provider: "zhipu", model: config.string(forKey: "zhipu_polish_model") ?? "glm-4.7-flash")
+            return PolishSelection(provider: "zhipu", model: config.string(forKey: "zhipu_polish_model") ?? ZhipuEndpoint.defaultModel)
         default:
             let saved = config.string(forKey: "doubao_polish_model")
             return PolishSelection(provider: "doubao", model: (saved?.isEmpty == false) ? saved! : defaultDoubaoPolishModel)
@@ -437,8 +437,10 @@ public class AIPolisher {
         case "zhipu":
             guard let key = config.string(forKey: "zhipu_api_key", envKey: "ZHIPU_API_KEY"),
                   !key.isEmpty else { return nil }
-            let model = config.string(forKey: "zhipu_polish_model") ?? "glm-4.7-flash"
-            let url = URL(string: "https://open.bigmodel.cn/api/paas/v4/chat/completions")!
+            let model = config.string(forKey: "zhipu_polish_model") ?? ZhipuEndpoint.defaultModel
+            // Coding Plan 的 Key 只能走 /api/coding/paas/v4；按量付费的 Key 在配置里把
+            // zhipu_base_url 改回 /api/paas/v4（见 ZhipuEndpoint）。
+            guard let url = ZhipuEndpoint.chatCompletions else { return nil }
             return ("zhipu", url, model, key)
         default:
             guard let key = getAPIKey() else { return nil }
@@ -489,8 +491,9 @@ public class AIPolisher {
                 body["enable_thinking"] = false
             } else if provider.name == "zhipu" {
                 body["temperature"] = 0.1
-                body["max_tokens"] = 2000
-                body["thinking"] = ["type": "disabled"]
+                // GLM-5.3 系列强制思考、关不掉，思考内容也算进 max_tokens，给小了会在思考阶段被截断
+                body["max_tokens"] = AskVision.forcesThinking(model: model) ? 4096 : 2000
+                AskVision.applyThinkingSettings(in: &body, provider: "zhipu", model: model)
             } else {  // doubao
                 body["temperature"] = 0.1
                 body["max_tokens"] = 2000
@@ -686,13 +689,48 @@ public class AIPolisher {
         return cues.contains { question.contains($0) }
     }
 
+    /// 提问时附带的屏幕内容。只随当轮发送：历史里只留文字，不重复传图，也不写进历史文件。
+    public struct AskScreenContext {
+        public let overviewJPEG: Data
+        public let closeUpJPEG: Data
+
+        public init(overviewJPEG: Data, closeUpJPEG: Data) {
+            self.overviewJPEG = overviewJPEG
+            self.closeUpJPEG = closeUpJPEG
+        }
+
+        public var sizeSummary: String {
+            AskVision.sizeSummary(overviewJPEG: overviewJPEG, closeUpJPEG: closeUpJPEG)
+        }
+    }
+
+    /// 这次提问能不能带屏幕内容。nil = 能带；非 nil = 不能带，字符串直接给用户看。
+    /// 托管通道（试用 / 会员代理）的请求体由服务器放行，带不了图，不去改服务器协议。
+    public func screenContextUnavailableReason() -> String? {
+        guard polishProvider() != nil else {
+            return "当前通道不支持看屏幕，在「模型」里填自己的 API Key 后可用。"
+        }
+        return nil
+    }
+
     /// 用当前配置的润色模型回答一个问题（千问附带联网搜索；问题带时效词时强制搜）。
     /// history：本话题之前的问答对（多轮续聊时带上，最多 6 轮）。
+    /// screen：这一轮附带的屏幕内容，非 nil 时换成同一家的视觉模型、走 OpenAI 兼容的 content 数组。
     /// onPartial：流式输出，每收到一段就回调累计文本；没配 key 的试用用户走代理（不流式，只回调一次）。
+    /// onStats：一段可以直接拼进日志的元信息（模型、思考字数、首字耗时），不含任何问答内容。
     public func answer(question: String,
                        history: [(question: String, answer: String)] = [],
+                       screen: AskScreenContext? = nil,
                        onPartial: ((String) -> Void)? = nil,
+                       onThinking: (() -> Void)? = nil,
+                       onStats: ((String) -> Void)? = nil,
                        completion: @escaping (Result<String, Error>) -> Void) {
+        if let screen, let provider = polishProvider() {
+            answerWithScreen(question: question, history: history, screen: screen, provider: provider,
+                             onPartial: onPartial, onThinking: onThinking, onStats: onStats, completion: completion)
+            return
+        }
+
         var messages: [[String: Any]] = [["role": "system", "content": Self.askSystemPrompt + "\n" + Self.askTimeLine()]]
         for turn in history.suffix(6) {
             messages.append(["role": "user", "content": turn.question])
@@ -744,7 +782,10 @@ public class AIPolisher {
                     if forceSearch { body["search_options"] = ["forced_search": true] }
                 }
             } else {
-                body["temperature"] = 0.5; body["max_tokens"] = 1200; body["thinking"] = ["type": "disabled"]
+                body["temperature"] = 0.5
+                // 智谱 GLM-5.3 系列强制思考，思考内容占 max_tokens，给 1200 会被截断
+                body["max_tokens"] = AskVision.forcesThinking(model: model) ? 2048 : 1200
+                AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
             }
             return body
         }
@@ -757,7 +798,8 @@ public class AIPolisher {
                 return
             }
             let model = candidates[index]
-            streamChat(url: provider.url, apiKey: provider.apiKey, body: makeBody(model, search: search), onPartial: onPartial) { [weak self] result in
+            streamChat(url: provider.url, apiKey: provider.apiKey, body: makeBody(model, search: search),
+                       onPartial: onPartial, onThinking: onThinking) { [weak self] result in
                 switch result {
                 case .success(let text):
                     if !text.isEmpty { TrialManager.shared.recordSelfKeyUsage(chars: text.count) }
@@ -779,45 +821,190 @@ public class AIPolisher {
         attempt(0, search: provider.name == "qwen")
     }
 
+    /// 带屏幕内容的提问：同一家的视觉模型 + OpenAI 兼容的 content 数组（image_url + data:image/jpeg;base64）。
+    /// 历史只带文字，图片只随当轮发，多轮追问不会重复传图。
+    /// 速度上的三件事：显式关思考、压住输出长度（max_tokens）、照常走流式，首字越早越好。
+    private func answerWithScreen(question: String,
+                                  history: [(question: String, answer: String)],
+                                  screen: AskScreenContext,
+                                  provider: (name: String, url: URL, model: String, apiKey: String),
+                                  onPartial: ((String) -> Void)?,
+                                  onThinking: (() -> Void)?,
+                                  onStats: ((String) -> Void)?,
+                                  completion: @escaping (Result<String, Error>) -> Void) {
+        let override = AskAtCursorSettings.visionModelOverride
+        let all = AskVision.visionCandidates(provider: provider.name, override: override)
+        // 沿用润色那套额度标记：某个模型免费额度用完了就跳过，冷却到期自动再试
+        let fresh = all.filter { !PolishModelRouter.isExhausted($0) }
+        let candidates = fresh.isEmpty ? all : fresh
+        guard let url = AskVision.visionEndpoint(provider: provider.name) else {
+            completion(.failure(PolishError.apiError("这家服务商没有可用的视觉模型端点")))
+            return
+        }
+
+        var messages: [[String: Any]] = [
+            ["role": "system", "content": Self.askSystemPrompt + AskVision.screenPromptSuffix + "\n" + Self.askTimeLine()]
+        ]
+        for turn in history.suffix(6) {
+            messages.append(["role": "user", "content": turn.question])
+            messages.append(["role": "assistant", "content": turn.answer])
+        }
+        messages.append(["role": "user",
+                         "content": AskVision.visionUserContent(question: question,
+                                                                overviewJPEG: screen.overviewJPEG,
+                                                                closeUpJPEG: screen.closeUpJPEG)])
+
+        // 带图时不开联网搜索：智谱的视觉请求 schema 里根本没有 web_search 这个工具类型，
+        // 千问也没承诺图文混合时能同时搜，稳妥起见一律关掉，日志里记一笔
+        func makeBody(_ model: String) -> [String: Any] {
+            var body: [String: Any] = ["model": model, "messages": messages, "stream": true,
+                                       "temperature": 0.5, "max_tokens": AskVision.maxTokens(provider: provider.name)]
+            AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model)
+            return body
+        }
+
+        debugLog?("Ask vision provider=\(provider.name) models=\(candidates.joined(separator: ",")) search=off history=\(history.count) \(screen.sizeSummary)")
+
+        func attempt(_ index: Int) {
+            guard index < candidates.count else {
+                completion(.failure(PolishError.apiError("视觉模型均不可用（额度用完）")))
+                return
+            }
+            let model = candidates[index]
+            streamChat(url: url, apiKey: provider.apiKey, body: makeBody(model),
+                       timeout: AskVision.requestTimeout, onPartial: onPartial,
+                       onThinking: onThinking,
+                       onStats: { reasoningChars, firstTokenMs in
+                           let first = firstTokenMs.map { "\($0)ms" } ?? "n/a"
+                           onStats?("model=\(model) vision=1 search=off reasoning=\(reasoningChars)ch firstToken=\(first)")
+                       }) { [weak self] result in
+                switch result {
+                case .success(let text):
+                    if !text.isEmpty { TrialManager.shared.recordSelfKeyUsage(chars: text.count) }
+                    completion(.success(text))
+                case .failure(let err):
+                    if case PolishError.quotaExhausted = err, index + 1 < candidates.count {
+                        PolishModelRouter.markExhausted(model)
+                        self?.debugLog?("Ask vision: \(model) 额度类失败，降级到 \(candidates[index + 1])")
+                        attempt(index + 1)
+                        return
+                    }
+                    completion(.failure(err))
+                }
+            }
+        }
+        attempt(0)
+    }
+
     /// OpenAI 兼容的流式对话（SSE）：每收到一段增量就回调累计文本，结束时给完整文本。
     private func streamChat(url: URL, apiKey: String, body: [String: Any],
+                            timeout: TimeInterval = 90,
                             onPartial: ((String) -> Void)?,
+                            onThinking: (() -> Void)? = nil,
+                            onStats: ((Int, Int?) -> Void)? = nil,
                             completion: @escaping (Result<String, Error>) -> Void) {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 90
+        request.timeoutInterval = timeout
         do { request.httpBody = try JSONSerialization.data(withJSONObject: body) } catch { completion(.failure(error)); return }
-        let reader = SSEReader(onPartial: onPartial, completion: completion)
-        let session = URLSession(configuration: .default, delegate: reader, delegateQueue: nil)
-        reader.session = session
-        session.dataTask(with: request).resume()
+        let reader = SSEReader(onPartial: onPartial, onThinking: onThinking, onStats: onStats, completion: completion)
+        StreamHub.shared.send(request, reader: reader)
     }
 
-    /// 逐块解析 SSE，把 delta.content 累计起来；非 200 时把服务端错误原样带出（403 = 额度类）
-    private final class SSEReader: NSObject, URLSessionDataDelegate {
-        private let onPartial: ((String) -> Void)?
-        private let completion: (Result<String, Error>) -> Void
-        private var buffer = Data()
-        private var accumulated = ""
-        private var statusCode = 200
-        private var errorBody = Data()
-        private var finished = false
-        var session: URLSession?
+    /// 常驻的流式会话。整个 App 只有这一个 URLSession，连接池和 TLS 会话能跨请求复用；
+    /// 每个请求自己的解析器按 taskIdentifier 分发。
+    private final class StreamHub: NSObject, URLSessionDataDelegate {
+        static let shared = StreamHub()
 
-        init(onPartial: ((String) -> Void)?, completion: @escaping (Result<String, Error>) -> Void) {
-            self.onPartial = onPartial
-            self.completion = completion
+        private lazy var session: URLSession = {
+            let config = URLSessionConfiguration.default
+            config.httpMaximumConnectionsPerHost = 4
+            config.waitsForConnectivity = false
+            return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        }()
+        private let lock = NSLock()
+        private var readers: [Int: SSEReader] = [:]
+
+        func send(_ request: URLRequest, reader: SSEReader) {
+            let task = session.dataTask(with: request)
+            lock.lock(); readers[task.taskIdentifier] = reader; lock.unlock()
+            task.resume()
         }
 
-        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-            statusCode = (response as? HTTPURLResponse)?.statusCode ?? 200
+        /// 预热：只是为了把 TLS 握手做掉，响应内容一概不管。
+        func warmUp(_ url: URL) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "HEAD"
+            request.timeoutInterval = 5
+            // 带 completionHandler 的任务不走 delegate，不会打扰上面的分发表
+            session.dataTask(with: request) { _, _, _ in }.resume()
+        }
+
+        private func reader(for task: URLSessionTask) -> SSEReader? {
+            lock.lock(); defer { lock.unlock() }
+            return readers[task.taskIdentifier]
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+            reader(for: dataTask)?.receive(response: response)
             completionHandler(.allow)
         }
 
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            reader(for: dataTask)?.receive(data: data)
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            lock.lock()
+            let reader = readers.removeValue(forKey: task.taskIdentifier)
+            lock.unlock()
+            reader?.finish(error: error)
+        }
+    }
+
+    /// 提问前预热与模型端点的连接：用户说话那几秒里把 TLS 握手做掉，首字能早几百毫秒。
+    public func warmUpConnection() {
+        guard let provider = polishProvider() else { return }
+        StreamHub.shared.warmUp(AskVision.visionEndpoint(provider: provider.name) ?? provider.url)
+    }
+
+    /// 逐块解析 SSE，把 delta.content 累计起来；非 200 时把服务端错误原样带出（403 = 额度类）。
+    /// 由 StreamHub 驱动，自己不当 URLSession 的 delegate。
+    private final class SSEReader {
+        private let onPartial: ((String) -> Void)?
+        /// 模型开始吐思考内容了（智谱 GLM-5.3 系列关不掉思考），只在第一段时回调一次
+        private let onThinking: (() -> Void)?
+        /// (思考内容字数, 首字耗时 ms)。关得掉思考的模型这里应该是 0，不是 0 说明参数没生效。
+        private let onStats: ((Int, Int?) -> Void)?
+        private let completion: (Result<String, Error>) -> Void
+        private var buffer = Data()
+        private var accumulated = ""
+        private var reasoningChars = 0
+        private var statusCode = 200
+        private var errorBody = Data()
+        private var finished = false
+        private let startedAt = ProcessInfo.processInfo.systemUptime
+        private var firstTokenMs: Int?
+
+        init(onPartial: ((String) -> Void)?,
+             onThinking: (() -> Void)? = nil,
+             onStats: ((Int, Int?) -> Void)? = nil,
+             completion: @escaping (Result<String, Error>) -> Void) {
+            self.onPartial = onPartial
+            self.onThinking = onThinking
+            self.onStats = onStats
+            self.completion = completion
+        }
+
+        func receive(response: URLResponse) {
+            statusCode = (response as? HTTPURLResponse)?.statusCode ?? 200
+        }
+
+        func receive(data: Data) {
             guard statusCode == 200 else { errorBody.append(data); return }
             buffer.append(data)
             while let range = buffer.range(of: Data([0x0A])) {   // 按行切
@@ -829,9 +1016,19 @@ public class AIPolisher {
                 if payload == "[DONE]" { continue }
                 guard let json = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
                       let choice = (json["choices"] as? [[String: Any]])?.first else { continue }
-                let piece = ((choice["delta"] as? [String: Any])?["content"] as? String)
-                    ?? ((choice["message"] as? [String: Any])?["content"] as? String)
+                let delta = choice["delta"] as? [String: Any]
+                let message = choice["message"] as? [String: Any]
+                // 思考内容：关掉之后应该一个字都没有，收到了就说明参数没生效，记进日志好排查
+                if let reasoning = (delta?["reasoning_content"] as? String) ?? (message?["reasoning_content"] as? String),
+                   !reasoning.isEmpty {
+                    if reasoningChars == 0 { DispatchQueue.main.async { self.onThinking?() } }
+                    reasoningChars += reasoning.count
+                }
+                let piece = (delta?["content"] as? String) ?? (message?["content"] as? String)
                 if let piece, !piece.isEmpty {
+                    if firstTokenMs == nil {
+                        firstTokenMs = Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000)
+                    }
                     accumulated += piece
                     let snapshot = accumulated
                     DispatchQueue.main.async { self.onPartial?(snapshot) }
@@ -839,10 +1036,12 @@ public class AIPolisher {
             }
         }
 
-        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-            defer { self.session?.finishTasksAndInvalidate() }
+        func finish(error: Error?) {
             guard !finished else { return }
             finished = true
+            let reasoning = reasoningChars
+            let first = firstTokenMs
+            DispatchQueue.main.async { self.onStats?(reasoning, first) }
             if let error { completion(.failure(error)); return }
             guard statusCode == 200 else {
                 let json = try? JSONSerialization.jsonObject(with: errorBody) as? [String: Any]
