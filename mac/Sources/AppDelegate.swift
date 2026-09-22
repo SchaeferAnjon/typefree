@@ -1559,6 +1559,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         aiPolisher.answer(question: question, history: history, screen: screen, onPartial: { [weak self] partial in
             self?.askSlowHintWork?.cancel()
             self?.answerPanel.updatePartial(partial)
+        }, onImages: { [weak self] images in
+            // 只挂在还是这一话题、这一轮的浮窗上；用户已经问了下一题就丢掉
+            guard let self, self.answerPanel.threadID == thread else { return }
+            self.answerPanel.setImages(images)
         }, onRouteNote: { [weak self] note in
             // 这一问转去联网了：「正在联网查…」→ 出字后换成「已联网查询」。
             // 已经有「没能看屏幕」的说明时不盖掉它，那条对用户更要紧

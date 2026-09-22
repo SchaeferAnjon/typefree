@@ -285,4 +285,19 @@ final class AskVisionTests: XCTestCase {
         XCTAssertEqual((off["thinking"] as? [String: String])?["type"], "disabled")
         XCTAssertNotNil(off["temperature"])
     }
+
+    func testImageSearchParsing() {
+        XCTAssertEqual(ImageSearch.parseVqd(#"<script>…vqd="4-123456789";…"#), "4-123456789")
+        XCTAssertEqual(ImageSearch.parseVqd("vqd='abc'"), "abc")
+        XCTAssertNil(ImageSearch.parseVqd("<html>no token</html>"))
+        let json = """
+        {"results":[{"title":"a","image":"https://x/a.jpg","thumbnail":"https://t/a.jpg","url":"https://p/a","width":1200,"height":800},
+                    {"title":"icon","image":"https://x/i.png","width":64,"height":64},
+                    {"title":"nothumb","image":"https://x/b.jpg","width":900,"height":600}]}
+        """
+        let images = ImageSearch.parseResults(Data(json.utf8))
+        XCTAssertEqual(images.map(\.full), ["https://x/a.jpg", "https://x/b.jpg"], "太小的图标跳过")
+        XCTAssertEqual(images[1].thumb, "https://x/b.jpg", "没缩略图就用原图")
+        XCTAssertEqual(AskSearch.stripExplicitSearchPrefix("搜一下 牵引绳的红旗"), "牵引绳的红旗")
+    }
 }

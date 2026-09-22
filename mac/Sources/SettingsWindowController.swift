@@ -5567,6 +5567,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                                makeAskHotkeyRow(.plain,
                                                 desc: "不截屏，更快一点，屏幕上的内容也不会发出去。"),
                                makeAskScreenshotRow(),
+                               makeAskImagesRow(),
                                makeAskThinkingToggleRow(),
                                makeAskThinkingEffortRow()]) {
             self.makeExploreHelp("""
@@ -5644,12 +5645,25 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         column.alignment = .leading
         column.spacing = 12
         column.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
-        for row in [makeAskThinkingToggleRow(), makeAskThinkingEffortRow()] {
+        for row in [makeAskImagesRow(), makeAskThinkingToggleRow(), makeAskThinkingEffortRow()] {
             column.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -40).isActive = true
         }
         mount(column, in: card)
         return card
+    }
+
+    private func makeAskImagesRow() -> NSView {
+        let toggle = VPToggle(theme: theme, target: self, action: #selector(askImagesChanged(_:)))
+        toggle.setOn(ImageSearch.isEnabled, animated: false)
+        toggle.setAccessibilityLabel("联网回答附图")
+        return makeAskCursorRow(title: "联网回答附图",
+                                desc: "需要联网的问题，回答下方附 3 张相关图片（DuckDuckGo 图片搜索，不用 Key），点一张在浏览器里看原图。",
+                                control: toggle)
+    }
+
+    @objc private func askImagesChanged(_ sender: VPToggle) {
+        config.save(bool: sender.isOn, forKey: ImageSearch.settingKey)
     }
 
     private func makeAskThinkingToggleRow() -> NSView {

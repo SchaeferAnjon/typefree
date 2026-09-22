@@ -733,6 +733,7 @@ public class AIPolisher {
                        history: [(question: String, answer: String)] = [],
                        screen: AskScreenContext? = nil,
                        onPartial: ((String) -> Void)? = nil,
+                       onImages: (([AskImage]) -> Void)? = nil,
                        onRouteNote: ((String) -> Void)? = nil,
                        onThinking: (() -> Void)? = nil,
                        onStats: ((String) -> Void)? = nil,
@@ -751,6 +752,16 @@ public class AIPolisher {
         func askQwenSearch(_ provider: (name: String, url: URL, model: String, apiKey: String), decidedMs: Int?, query: String?) {
             debugLog?("Ask route=qwen-search model=\(provider.model) decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") hasQuery=\(query?.isEmpty == false)")
             onRouteNote?(AskSearch.searchingNotice)
+            // 联网的问题顺便找几张图，和千问的回答并行；搜索词优先用模型写的（它看过屏幕），没有就用问题本身
+            if ImageSearch.isEnabled, let onImages {
+                let imageQuery = (query?.isEmpty == false) ? query! : AskSearch.stripExplicitSearchPrefix(question)
+                let started = ProcessInfo.processInfo.systemUptime
+                ImageSearch.search(imageQuery) { [weak self] images in
+                    let ms = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
+                    self?.debugLog?("Ask images: \(images.count) in \(ms)ms")
+                    DispatchQueue.main.async { onImages(images) }
+                }
+            }
             var announced = false
             let partial: (String) -> Void = { text in
                 if !announced { announced = true; onRouteNote?(AskSearch.searchedNotice) }

@@ -127,6 +127,13 @@ final class AnswerPanel {
         relayout()
     }
 
+    /// 联网找到的图到了：挂在当前这一轮下面
+    func setImages(_ images: [AskImage]) {
+        guard let last = model.turns.indices.last, !images.isEmpty else { return }
+        model.turns[last].images = images
+        relayoutAfterStateChange()
+    }
+
     func fail(_ message: String) {
         guard let last = model.turns.indices.last else { return }
         model.turns[last].answer = message
@@ -662,6 +669,8 @@ struct AnswerTurn: Identifiable {
     var state: State = .thinking
     /// 这一轮的附注（没能带屏幕内容的原因、网络较慢提示），显示在回答上方的小灰字
     var note: String?
+    /// 联网回答附的图（回答下方一排小图，点开看大图）。不进历史
+    var images: [AskImage] = []
 }
 
 final class AnswerModel: ObservableObject {
@@ -933,6 +942,7 @@ struct TurnsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             answerContent(turn)
+            if !turn.images.isEmpty { AskImagesRow(images: turn.images) }
         }
     }
 
@@ -952,6 +962,36 @@ struct TurnsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// 联网回答下面的一排图：固定 3 格、每格 116x86，点一张用默认浏览器打开原图（来源网页在悬停提示里）。
+/// 尺寸固定是为了图片加载完成时不用再重排浮窗。
+struct AskImagesRow: View {
+    let images: [AskImage]
+    @State private var hovering: String?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(images) { image in
+                AsyncImage(url: URL(string: image.thumb)) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                    case .failure: Image(systemName: "photo").foregroundStyle(.tertiary)
+                    default: ProgressView().controlSize(.small)
+                    }
+                }
+                .frame(width: 116, height: 86)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(hovering == image.id ? 0.35 : 0.08)))
+                .onHover { hovering = $0 ? image.id : nil }
+                .help(image.title.isEmpty ? image.pageURL : image.title)
+                .onTapGesture {
+                    if let url = URL(string: image.full) { NSWorkspace.shared.open(url) }
+                }
+            }
+        }
+        .padding(.top, 2)
     }
 }
 

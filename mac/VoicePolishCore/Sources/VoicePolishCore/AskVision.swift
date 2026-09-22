@@ -195,6 +195,13 @@ public enum AskSearch {
         return "\(question)\n（用户是指着屏幕上的内容问的，助手据此整理出的检索词：\(query)）"
     }
 
+    /// 去掉开头的「搜一下」之类，剩下的才是要搜的东西
+    public static func stripExplicitSearchPrefix(_ question: String) -> String {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let prefix = explicitPrefixes.first(where: { trimmed.hasPrefix($0) }) else { return trimmed }
+        return trimmed.dropFirst(prefix.count).trimmingCharacters(in: CharacterSet(charactersIn: " ，,。.：:、").union(.whitespacesAndNewlines))
+    }
+
     public static func hasExplicitSearchPrefix(_ question: String) -> Bool {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         return explicitPrefixes.contains { trimmed.hasPrefix($0) }
