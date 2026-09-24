@@ -945,8 +945,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private var askHotkeyManagers: [HotkeyManager] = []
     /// 鼠标长按说话（实验功能，默认关闭）；和 hotkeyManager 同生命周期，同样需要辅助功能权限
     var mouseHoldToTalkManager: MouseHoldToTalkManager?
-    /// 指针问 AI：修饰键 + 左键，能吞掉这次点击，所以按钮、链接、输入框上都能问
-    var askAtCursorTrigger: AskAtCursorTrigger?
     /// 本次输出应用了语音口令（如英文输出）：交付后提示一次
     private var pendingOutputLanguageHint: String?
     /// 「长按问 AI」：本次录音不是输入而是提问
@@ -975,6 +973,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private var didPromptForScreenCapture = false
     /// 首字迟迟不来时在面板里提示「网络较慢」，不让用户干等
     private var askSlowHintWork: DispatchWorkItem?
+    /// 第几轮提问：回答在面板里流式出字时录音不再被占住，旧回答的回调按这个编号丢掉，不写进新一轮。
+    /// 面板开始显示新一轮（startThread / appendQuestion）时加一
+    private var askRound = 0
+    /// 有一轮回答还在路上。这期间新提问一律另起话题，面板上按住续聊先不接（上一轮还没答完，接不上）
+    private var askInFlight = false
     private let answerPanel = AnswerPanel()
     var textDelivery: TextDelivery!
     var pipeline: VoicePolishPipeline!
@@ -1279,7 +1282,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         askHotkeyManagers.forEach { $0.stop() }
         askHotkeyManagers = []
         mouseHoldToTalkManager?.stop()
-        askAtCursorTrigger?.stop()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -1313,14 +1315,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private func startRecording(feedback: Bool = true) -> Bool {
         guard !isRecording else { return false }
         guard canStartRecording(showFeedback: feedback) else { return false }
+        guard hasMicrophonePermission(showFeedback: feedback) else { return false }
         // 反馈页用：记下这次是在哪个软件里录的（定位「某个软件里不好用」）
         if let name = NSWorkspace.shared.frontmostApplication?.localizedName, name != "Typefree" {
             lastRecordingTargetApp = name
         }
         if isAutoTermCorrectionLearningEnabled {
             HotWordsAutoLearner.shared.finalizePendingLearning(reason: "next_recording")
-            HotWordsAutoLearner.shared.stopMonitoring()
         }
+        // 开关中途被关掉时，上一轮的纠错监控也要停，不能等它超时后照样写词库
+        HotWordsAutoLearner.shared.stopMonitoring()
         isRecording = true
         debugLog("START recording")
         statusBar.setTitle("VP●")
@@ -1384,10 +1388,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         streamingSession = session
         // 每 2s 取样一次：提交更勤 → 松手时未提交的尾巴更小 → 松手后等待更短。
         streamingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self, self.isRecording else { return }
+            // 在主线程取出会话再切后台：streamingSession 只在主线程读写，避免和收尾时置 nil 抢同一个属性
+            guard let self = self, self.isRecording, let session = self.streamingSession else { return }
+            let recorder: AudioRecorder = self.audioRecorder
             DispatchQueue.global(qos: .utility).async {
-                guard let session = self.streamingSession else { return }
-                session.ingest(snapshot: self.audioRecorder.snapshotSamples())
+                session.ingest(snapshot: recorder.snapshotSamples())
             }
         }
     }
@@ -1407,7 +1412,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         isRecording = false
         resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
-        askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = true
         statusBar.setTitle("VP⏳")
         let mode = processingMode
@@ -1484,7 +1488,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         isRecording = false
         resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
-        askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = true
         statusBar.setTitle("VP⏳")
         if followUp { answerPanel.setListening(.processing) } else { overlayWindow.show(state: .processing(message: "→ AI")) }
@@ -1516,12 +1519,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                         self.debugLog("ASK question chars=\(question.count) followUp=\(followUp) continuesThread=\(continuesThread)")
                         self.overlayWindow.hide()
                         self.answerPanel.setListening(.idle)
-                        let history = continuesThread ? self.answerPanel.history : []
-                        if continuesThread, self.answerPanel.isVisible { self.answerPanel.appendQuestion(question) } else { self.answerPanel.startThread(question: question) }
+                        // 带不带历史和追加还是新开话题用同一个判断：识别期间浮窗被关掉了就是新话题，不能带旧历史
+                        let appending = continuesThread && self.answerPanel.isVisible && !self.askInFlight
+                        let history = appending ? self.answerPanel.history : []
+                        // 面板上换成这一轮之前先换编号：上一轮还在路上的回调从这一刻起就不能再写进面板
+                        self.askRound += 1
+                        let round = self.askRound
+                        if appending { self.answerPanel.appendQuestion(question) } else { self.answerPanel.startThread(question: question) }
                         // 图只随当轮发：历史里只留文字，多轮追问不重复传图，历史文件里更不会有截图
                         self.resolveAskScreen { screen, note in
                             self.sendAsk(question: question, history: history, screen: screen,
-                                         screenNote: note)
+                                         screenNote: note, round: round)
                         }
                     case .failure(let err):
                         // 没听到有效语音：安静地提示一次，不走红框 + 文字条的两段式报错
@@ -1541,45 +1549,63 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private func sendAsk(question: String,
                          history: [(question: String, answer: String)],
                          screen: AIPolisher.AskScreenContext?,
-                         screenNote: String?) {
+                         screenNote: String?,
+                         round: Int) {
         let askStarted = Date()
         let thread = answerPanel.threadID
+        askInFlight = true
+        // 问题已经发出，回答在面板里流式显示：放开录音，别让所有快捷键在回答的十几秒里都没反应
+        finishAsk()
         if let screenNote { answerPanel.setNote(screenNote) }
 
         // 首字迟迟不来就在面板里说一声，别让用户盯着「正在思考…」干等
         askSlowHintWork?.cancel()
         let slowHint = DispatchWorkItem { [weak self] in
+            guard let self, self.askRound == round else { return }
             // 已经有「没能带屏幕内容」的提示时接在后面，别把原因顶掉
             let slow = "网络较慢，还在等模型回答…"
-            self?.answerPanel.setNote(screenNote.map { $0 + " " + slow } ?? slow)
+            self.answerPanel.setNote(screenNote.map { $0 + " " + slow } ?? slow)
         }
         askSlowHintWork = slowHint
         DispatchQueue.main.asyncAfter(deadline: .now() + AskVision.slowHintAfter, execute: slowHint)
 
         aiPolisher.answer(question: question, history: history, screen: screen, onPartial: { [weak self] partial in
-            self?.askSlowHintWork?.cancel()
-            self?.answerPanel.updatePartial(partial)
+            guard let self, self.askRound == round else { return }
+            self.askSlowHintWork?.cancel()
+            self.answerPanel.updatePartial(partial)
         }, onImages: { [weak self] images in
             // 只挂在还是这一话题、这一轮的浮窗上；用户已经问了下一题就丢掉
-            guard let self, self.answerPanel.threadID == thread else { return }
+            guard let self, self.askRound == round, self.answerPanel.threadID == thread else { return }
             self.answerPanel.setImages(images)
         }, onRouteNote: { [weak self] note in
             // 这一问转去联网了：「正在联网查…」→ 出字后换成「已联网查询」。
             // 已经有「没能看屏幕」的说明时不盖掉它，那条对用户更要紧
             guard let self, screenNote == nil else { return }
-            DispatchQueue.main.async { self.answerPanel.setNote(note) }
+            DispatchQueue.main.async {
+                guard self.askRound == round else { return }
+                self.answerPanel.setNote(note)
+            }
         }, onThinking: { [weak self] in
             // 模型真的开始吐思考内容（关思考没生效）会先沉默一阵：告诉用户它在想，不是卡住了
-            guard let self, screenNote == nil else { return }
+            guard let self, screenNote == nil, self.askRound == round else { return }
             self.answerPanel.setNote(AskVision.thinkingNotice)
         }, onStats: { [weak self] stats in
-            self?.askTiming.modelStats = stats
+            guard let self, self.askRound == round else { return }
+            self.askTiming.modelStats = stats
         }) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
+                // 用户已经问了下一题（另起了话题）：旧回答只记历史，不碰面板
+                guard self.askRound == round else {
+                    if case .success(let answer) = result {
+                        self.aiPolisher.writeAskLog(question: question, answer: answer, thread: thread,
+                                                    durationMs: Int(Date().timeIntervalSince(askStarted) * 1000))
+                    }
+                    return
+                }
+                self.askInFlight = false
                 self.askSlowHintWork?.cancel()
                 self.askSlowHintWork = nil
-                self.finishAsk()
                 let totalMs = Int(Date().timeIntervalSince(self.askTiming.startedAt) * 1000)
                 switch result {
                 case .success(let answer):
@@ -1624,6 +1650,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         pendingAskScreenNote = nil
         askRecordingStartedAt = nil
         askAwaitingSpeech = false
+        askContinuesThread = false
         voiceQuestionMode = false
         voiceQuestionFollowUp = false
         trialMaxRecordingTimer?.invalidate()
@@ -1636,7 +1663,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         isRecording = false
         resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
-        askAtCursorTrigger?.recordingDidLeaveActiveState()
         statusBar.setTitle("VP")
         overlayWindow.hide()
         audioRecorder.stopRecording { _ in }
@@ -1648,6 +1674,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         pendingAskScreen = nil
         pendingAskScreenNote = nil
         askAwaitingSpeech = false
+        askRecordingStartedAt = nil
+        askContinuesThread = false
+        let wasAsk = voiceQuestionMode
         voiceQuestionMode = false
         let wasFollowUp = voiceQuestionFollowUp
         voiceQuestionFollowUp = false
@@ -1667,10 +1696,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         isRecording = false
         resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
-        askAtCursorTrigger?.recordingDidLeaveActiveState()
         isProcessing = false
         statusBar.setTitle("VP")
         overlayWindow.hide()
+        // 问 AI 的录音取消（叉号、拖开）：撤销走的是润色粘贴，会把问题当听写贴进当前 App，所以直接丢掉
+        if wasAsk && !wasFollowUp {
+            audioRecorder.stopRecording { _ in }
+            return
+        }
         // 误点保护：不直接丢录音，暂存并给一个「撤销」窗口；窗口过后自动清掉。
         audioRecorder.stopRecording { [weak self] samples in
             guard let self = self else { return }
@@ -1680,7 +1713,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                 if wasFollowUp { self.answerPanel.setListening(.cancelled); return }
                 self.cancelledSamples = samples
                 self.cancelledSamplesTimer?.invalidate()
-                self.cancelledSamplesTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+                self.cancelledSamplesTimer = Timer.scheduledTimer(withTimeInterval: OverlayWindow.cancelUndoSeconds, repeats: false) { [weak self] _ in
                     self?.cancelledSamples = nil
                 }
                 self.overlayWindow.showCancelledCapsule()
@@ -1835,6 +1868,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         }
     }
 
+    /// 录音前看麦克风权限：拒绝过时引擎照样能开，但只录到静音，最后什么都不发生，用户不知道为什么。
+    /// 没决定过就弹系统授权框，这一次先不录；拒绝过就说清楚并打开系统设置里的麦克风页。
+    private func hasMicrophonePermission(showFeedback: Bool) -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            return false
+        case .denied, .restricted:
+            debugLog("Microphone permission denied; recording refused")
+            if showFeedback {
+                overlayWindow.showHint("麦克风权限未开启 · 请在「系统设置 → 隐私与安全性 → 麦克风」里打开 Typefree")
+                openMicrophoneSettings()
+            }
+            return false
+        @unknown default:
+            return true
+        }
+    }
+
     private func canStartRecording(showFeedback: Bool) -> Bool {
         if isProcessing { return false }
 
@@ -1931,8 +1985,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             askHotkeyManagers = []
             mouseHoldToTalkManager?.stop()
             mouseHoldToTalkManager = nil
-            askAtCursorTrigger?.stop()
-            askAtCursorTrigger = nil
             startAccessibilityWatcher()
             if !isRecording && !isProcessing {
                 statusBar.setTitle("VP!")
@@ -1990,8 +2042,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
                 self.overlayWindow.recordingControls = .cancelAndFinish
                 return self.startRecording()
             },
-            onStop: { [weak self] in self?.stopRecordingAndProcess() },
-            isRecording: { [weak self] in self?.isRecording == true }
+            onStop: { [weak self] in
+                // 问 AI 的录音只由问 AI 自己的快捷键、胶囊按钮或 Esc 结束，碰到听写键不能把问题提前发出去
+                guard let self, !self.voiceQuestionMode else { return }
+                self.stopRecordingAndProcess()
+            },
+            // 只认听写的录音，和问 AI 那边对称
+            isRecording: { [weak self] in self?.isRecording == true && self?.voiceQuestionMode == false }
         )
         hotkeyManager.debugLog = { [weak self] msg in
             self?.debugLog("HK: \(msg)")
@@ -1999,6 +2056,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         // 键盘触发的胶囊不再按单击/长按切换大小，这里不用改按钮
         hotkeyManager.onGestureClassified = { _ in }
         hotkeyManager.onCancel = { [weak self] in self?.cancelRecording() }
+        // ⌘C、⇧ 打大写这类组合键：刚开的那一小段录音直接丢，不弹「已取消 · 撤销」
+        hotkeyManager.onChordCancel = { [weak self] in self?.discardDictationSilently(reason: "chord") }
         ensureMouseHoldToTalkManager()
         // 「修饰键 + 点击」问 AI 已下线（要接管全系统鼠标点击），提问只走键盘快捷键
         ensureAskHotkeyManagers()
@@ -2045,42 +2104,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
     // MARK: - 指针问 AI
 
-    /// 指针问 AI：修饰键 + 左键。事件拦截器常驻，开关和修饰键改了发通知让它重读。
-    private func ensureAskAtCursorTrigger() {
-        guard askAtCursorTrigger == nil else { return }
-        let trigger = AskAtCursorTrigger()
-        trigger.debugLog = { [weak self] msg in self?.debugLog("AC: \(msg)") }
-        trigger.canStart = { [weak self] in
-            guard let self else { return false }
-            // 修饰键那一下可能已经开了一次听写：那不算「正在忙」，等下会把它取消掉转成问 AI
-            if self.isProcessing { return false }
-            return !self.isRecording || !self.voiceQuestionMode
-        }
-        trigger.onBegin = { [weak self] point in
-            self?.beginAskAtCursor(at: point) ?? false
-        }
-        trigger.onFinish = { [weak self] in
-            guard let self, self.isRecording, self.voiceQuestionMode else { return }
-            self.stopRecordingAndAsk()
-        }
-        trigger.onCancel = { [weak self] in
-            guard let self, self.isRecording, self.voiceQuestionMode else { return }
-            self.discardAskRecording()
-        }
-        trigger.start()
-        askAtCursorTrigger = trigger
-        debugLog("AC: listening=\(trigger.isListening) enabled=\(AskAtCursorSettings.isEnabled)")
-    }
-
     /// 指针问 AI 开始：point 是 Quartz 全局坐标（原点左上），截图和画标记都用它。
     /// trigger：日志里的触发方式。captureScreen=false 是纯提问，不截屏。
-    /// viaHotkey：键盘快捷键触发。此时听写若正录着就拒绝，不去动它（听写和问 AI 的键已经分开了，
-    /// 不存在「修饰键先开了一次听写」的情况）；修饰键 + 点击触发时才需要把那次听写悄悄丢掉。
+    /// viaHotkey：键盘快捷键触发，胶囊从第一帧就带叉号和对勾。听写正录着时拒绝，不去动它。
     private func beginAskAtCursor(at point: CGPoint, trigger: String = "cursor",
                                   captureScreen: Bool = true, viaHotkey: Bool = false) -> Bool {
-        // 修饰键按下时听写热键可能已经开了一次录音：这一下点击说明用户要的是问 AI，
-        // 把那次听写悄悄丢掉（不粘贴、不提示、不给撤销），再从头开始录问题。
-        if !viaHotkey { abortDictationForAsk() }
         guard !isRecording, !isProcessing else {
             debugLog("AC: begin refused (recording=\(isRecording) processing=\(isProcessing))")
             return false
@@ -2099,6 +2127,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         overlayWindow.recordingControls = (viaHotkey || mode == .clickToggle) ? .cancelAndFinish : .hidden
         guard startRecording() else {
             voiceQuestionMode = false
+            askContinuesThread = false
             debugLog("AC: startRecording refused")
             return false
         }
@@ -2116,11 +2145,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         return true
     }
 
-    /// 修饰键刚开了一次听写、紧接着来了问 AI 的点击：悄悄丢掉那次听写。
-    /// 和修饰键具体是哪个键无关：只要此刻在录非问 AI 的音，就让位给问 AI。
-    private func abortDictationForAsk() {
+    /// 悄悄丢掉正在录的听写：不识别、不粘贴、不提示、不给撤销。
+    /// 用在听写热键刚按下就接了别的键（⌘C 这类组合键）的时候，那一小段本来就不是想说的话。
+    private func discardDictationSilently(reason: String) {
         guard isRecording, !voiceQuestionMode else { return }
-        debugLog("AC: dropping the dictation that the modifier key had just started")
+        debugLog("Dictation discarded silently (\(reason))")
         trialMaxRecordingTimer?.invalidate()
         trialMaxRecordingTimer = nil
         streamingTimer?.invalidate()
@@ -2131,7 +2160,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         isRecording = false
         resetHotkeyGestures()
         mouseHoldToTalkManager?.recordingDidLeaveActiveState()
-        askAtCursorTrigger?.recordingDidLeaveActiveState()
         statusBar.setTitle("VP")
         overlayWindow.hide()
         audioRecorder.stopRecording { _ in }
@@ -2142,6 +2170,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private func startAskScreenCapture(at point: CGPoint) {
         pendingAskScreen?.cancel()
         pendingAskScreen = nil
+        pendingAskScreenNote = nil
         guard AskAtCursorSettings.isScreenshotEnabled else {
             askTiming.fallback = "off"
             return
@@ -2179,7 +2208,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     /// 取图：好了就用，没好就等一会儿，等不到 / 失败就退回纯文本并把原因交给面板
     private func resolveAskScreen(_ callback: @escaping (AIPolisher.AskScreenContext?, String?) -> Void) {
         guard let pending = pendingAskScreen else {
-            callback(nil, pendingAskScreenNote)
+            // 原因只用一次，免得下一问还挂着上一问的「没法看屏幕」
+            let note = pendingAskScreenNote
+            pendingAskScreenNote = nil
+            callback(nil, note)
             return
         }
         pendingAskScreen = nil
@@ -2241,7 +2273,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         AnswerPanel.log = { [weak self] in self?.debugLog($0) }
         answerPanel.isAskPending = { [weak self] in self?.askAwaitingSpeech == true }
         answerPanel.onFollowUpStart = { [weak self] in
-            guard let self, !self.isRecording, !self.isProcessing else { return false }
+            // 上一轮还在出字时接不上话：等它答完再按住续聊
+            guard let self, !self.isRecording, !self.isProcessing, !self.askInFlight else { return false }
             self.voiceQuestionMode = true
             self.voiceQuestionFollowUp = true
             self.overlayWindow.recordingControls = .hidden
@@ -2264,6 +2297,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             guard MouseHoldToTalkSettings.isAskEnabled else { return false }
             // 旧回答面板等用户开口再收起（feedAskSpeechDetector）：误触时什么都不动
             self.voiceQuestionFollowUp = false
+            self.askContinuesThread = false
             self.voiceQuestionMode = true
             self.voiceQuestionAnchor = NSEvent.mouseLocation
             self.askAwaitingSpeech = true
@@ -2828,15 +2862,20 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private func buildDone(into stack: NSStackView) {
         // 试用期内无需配置 API（走内置试用通道），所以最后一步统一报「就绪」、不催填 key，
         // 直接告诉用户按哪个热键开始。试用到期再到「设置 → 模型」填自己的 key（永久免费）。
-        let hotkey = RecordingHotkeyShortcut.current.displayName
+        // 和设置页同一个写法：设成「不设置」时不写旧键，只认左边那颗时照实写「左 Option」
+        let disabled = RecordingHotkeyShortcut.isDisabled
+        let hotkey = HotkeyArbiter.displayName(for: "recording", shortcut: disabled ? nil : RecordingHotkeyShortcut.current)
+        let howToStart = disabled
+            ? "到「设置」里给听写选一个快捷键，然后按住它说话"
+            : "按住 \(hotkey) 说话"
         stack.addArrangedSubview(makeBadge("✓", green: true))
         stack.setCustomSpacing(26, after: stack.arrangedSubviews.last!)
         // 自编译的开源版没有试用通道：得先填 Key 才能用，别报「就绪」
         let selfBuilt = !TrialManager.shared.isTrialAvailable
         stack.addArrangedSubview(makeTitle(selfBuilt ? "还差一步" : "全部就绪"))
         stack.addArrangedSubview(makeBody(selfBuilt
-            ? "这个版本不含试用通道。先到「设置 → 模型」填入自己的 API Key，然后按住 \(hotkey) 说话。"
-            : "按住 \(hotkey) 说话，松手就贴上整理好的文字。"))
+            ? "这个版本不含试用通道。先到「设置 → 模型」填入自己的 API Key，然后\(howToStart)。"
+            : "\(howToStart)，松手就贴上整理好的文字。"))
         stack.setCustomSpacing(30, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(makePrimaryButton("开始使用") { [weak self] in
             self?.finish()

@@ -132,13 +132,12 @@ public final class StreamingTranscriptionSession {
                 case .success(let tailText):
                     completion(.success(Self.join(committed + [tailText])))
                 case .failure(let error):
-                    // 尾巴失败：若前面有已识别文字，别浪费，连同错误交给上层决定；
-                    // 这里保持简单——有已提交内容则返回它们（附带尾巴缺失），否则如实报错。
-                    if committed.isEmpty {
-                        completion(.failure(error))
-                    } else {
-                        completion(.success(Self.join(committed)))
+                    // 尾巴失败一律报错，不拿已提交的几段冒充全文：那样最后几秒的话会被静默丢掉，
+                    // 也走不到「长录音失败存历史、可重新转写」的兜底。上层收到失败会整段重新识别。
+                    if !committed.isEmpty {
+                        self.log("stream tail failed with \(committed.count) committed segments, reporting failure")
                     }
+                    completion(.failure(error))
                 }
             }
         }

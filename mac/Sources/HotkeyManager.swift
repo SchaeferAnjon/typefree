@@ -102,6 +102,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
     static let leftOptionDeviceBit: UInt = 0x20
     static let rightOptionDeviceBit: UInt = 0x40
     static let leftCommandDeviceBit: UInt = 0x08
+    static let rightCommandDeviceBit: UInt = 0x10
 
     /// 这颗通用键对应的「右边那颗」；没有左右之分的返回 nil
     var rightVariant: RecordingHotkeyModifier? {
@@ -117,7 +118,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         guard event.modifierFlags.contains(eventFlag) else { return false }
         switch self {
         case .rightCommand:
-            return event.keyCode == 54 || Self.currentPhysicalKeyCode() == 54
+            return event.modifierFlags.rawValue & Self.rightCommandDeviceBit != 0
         case .rightOption:
             return event.modifierFlags.rawValue & Self.rightOptionDeviceBit != 0
         case .option where optionLeftOnly:
@@ -135,6 +136,7 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         guard flags.contains(cgFlag) else { return false }
         switch self {
         case .rightOption: return flags.rawValue & UInt64(Self.rightOptionDeviceBit) != 0
+        case .rightCommand: return flags.rawValue & UInt64(Self.rightCommandDeviceBit) != 0
         case .option where optionLeftOnly: return flags.rawValue & UInt64(Self.leftOptionDeviceBit) != 0
         case .command where optionLeftOnly: return flags.rawValue & UInt64(Self.leftCommandDeviceBit) != 0
         default: return true
@@ -156,11 +158,6 @@ enum RecordingHotkeyModifier: String, CaseIterable {
         let allowedMask: NSEvent.ModifierFlags = [.option, .command, .control, .shift, .function]
         guard flags.subtracting(allowedMask).isEmpty else { return nil }
         return matches[0].1
-    }
-
-    private static func currentPhysicalKeyCode() -> UInt16? {
-        guard let event = NSApp.currentEvent, event.type == .flagsChanged else { return nil }
-        return event.keyCode
     }
 }
 
@@ -303,6 +300,21 @@ enum RecordingHotkeyShortcut {
         }
     }
 
+    /// 两套热键按下去会不会一起响：完全相同，或者一边是自定义组合、另一边正好是这个组合里唯一的修饰键
+    /// （比如 ⌥Space 和 Option：按 ⌥ 时后者先开录，再按 Space 前者也匹配上）。
+    /// 通用 Option 和右 Option 不算：那种情况由 HotkeyArbiter.leftOnly 让通用键只认左边那颗。
+    func overlaps(_ other: RecordingHotkeyShortcut) -> Bool {
+        switch (self, other) {
+        case (.modifier(let a), .modifier(let b)):
+            return a == b
+        case (.custom(let a), .custom(let b)):
+            return a.keyCode == b.keyCode
+                && RecordingHotkeyCustomShortcut.normalized(a.modifiers) == RecordingHotkeyCustomShortcut.normalized(b.modifiers)
+        case (.custom(let c), .modifier(let m)), (.modifier(let m), .custom(let c)):
+            return RecordingHotkeyCustomShortcut.normalized(c.modifiers) == m.eventFlag
+        }
+    }
+
     static func useModifier(_ modifier: RecordingHotkeyModifier) {
         let config = VoicePolishConfig.shared
         config.save(value: "modifier", forKey: modeConfigKey)
@@ -333,15 +345,8 @@ struct AskHotkey {
     static let screen = AskHotkey(prefix: "ask_hotkey", defaultModifier: .rightOption, title: "看屏幕问 AI")
     static let plain = AskHotkey(prefix: "ask_plain_hotkey", defaultModifier: nil, title: "只提问，不看屏幕")
 
-    private var enabledKey: String { "\(prefix)_enabled" }
     private var modeKey: String { "\(prefix)_mode" }
     private var modifierKey: String { "\(prefix)_modifier" }
-
-    var isEnabled: Bool { VoicePolishConfig.shared.bool(forKey: enabledKey, defaultValue: true) }
-
-    func setEnabled(_ enabled: Bool) {
-        VoicePolishConfig.shared.save(value: enabled ? "true" : "false", forKey: enabledKey)
-    }
 
     /// nil = 还没设
     var current: RecordingHotkeyShortcut? {
@@ -374,17 +379,25 @@ struct AskHotkey {
         VoicePolishConfig.shared.save(value: "none", forKey: modeKey)
     }
 
-    /// 和优先级更高的热键撞了（听写 > 看屏幕问 > 纯提问）：没法分辨用户想干什么，这一套不响应
+    /// 和优先级更高的热键撞了（听写 > 看屏幕问 > 纯提问）：没法分辨用户想干什么，这一套不响应。
+    /// 除了完全相同，自定义组合和单修饰键重叠（⌥Space 和 Option）也算撞，见 overlaps。
     var conflict: String? {
-        guard let mine = current?.debugName else { return nil }
-        if !RecordingHotkeyShortcut.isDisabled, mine == RecordingHotkeyShortcut.current.debugName { return "和「开始说话」的快捷键相同" }
-        if prefix == AskHotkey.plain.prefix, AskHotkey.screen.isEnabled, mine == AskHotkey.screen.current?.debugName {
-            return "和「看屏幕问 AI」的快捷键相同"
+        guard let mine = current else { return nil }
+        if !RecordingHotkeyShortcut.isDisabled, let reason = Self.clash(mine, RecordingHotkeyShortcut.current) {
+            return "和「开始说话」的快捷键\(reason)"
+        }
+        if prefix == AskHotkey.plain.prefix, let screen = AskHotkey.screen.current, let reason = Self.clash(mine, screen) {
+            return "和「看屏幕问 AI」的快捷键\(reason)"
         }
         return nil
     }
 
-    var isActive: Bool { isEnabled && current != nil && conflict == nil }
+    private static func clash(_ a: RecordingHotkeyShortcut, _ b: RecordingHotkeyShortcut) -> String? {
+        guard a.overlaps(b) else { return nil }
+        return a.debugName == b.debugName ? "相同" : "重叠"
+    }
+
+    var isActive: Bool { current != nil && conflict == nil }
 
     /// 这一套是否占用了某颗「右边的」修饰键
     func uses(_ modifier: RecordingHotkeyModifier) -> Bool {
@@ -445,6 +458,10 @@ struct HotkeyProfile {
 }
 
 class HotkeyManager {
+    /// 全局暂停：设置里正在录「自定义快捷键」时置 true，所有热键都不响应，免得录 ⌥Space 时一按 ⌥ 就开了听写。
+    /// 恢复后发一次 voicePolishHotkeyDidChange，让各实例按实际按键状态重新同步 wasModifierDown。
+    static var isSuspended = false
+
     private enum RecordingGestureState {
         case idle
         case pressing(startedAt: TimeInterval, sawChord: Bool)
@@ -491,6 +508,8 @@ class HotkeyManager {
     var onGestureClassified: ((Bool) -> Void)?
     /// 键盘长按期间按 Esc：丢弃本次录音（对应鼠标长按的「拖开取消」）
     var onCancel: (() -> Void)?
+    /// 刚按下热键就按了别的键（⌘C、⇧ 打大写）：这不是想录音，静默丢掉，不给「撤销」。没接时回落到 onCancel
+    var onChordCancel: (() -> Void)?
 
     init(
         profile: HotkeyProfile = .recording,
@@ -554,7 +573,7 @@ class HotkeyManager {
     }
 
     private func handleFlagsChanged(_ event: NSEvent) {
-        guard profile.isActive(), case .modifier(let configuredModifier) = configuredShortcut else { return }
+        guard !Self.isSuspended, profile.isActive(), case .modifier(let configuredModifier) = configuredShortcut else { return }
         let now = ProcessInfo.processInfo.systemUptime
         let modifierDown = configuredModifier.matches(event, optionLeftOnly: profile.optionLeftOnly())
 
@@ -577,6 +596,7 @@ class HotkeyManager {
     }
 
     private func handleKeyEvent(_ event: NSEvent) {
+        guard !Self.isSuspended else { return }
         switch event.type {
         case .keyDown: handleKeyDown(event)
         case .keyUp: handleKeyUp(event)
@@ -617,9 +637,14 @@ class HotkeyManager {
               event.modifierFlags.contains(configuredModifier.eventFlag) else { return }
 
         switch gestureState {
-        case .pressing(let startedAt, _):
-            gestureState = .pressing(startedAt: startedAt, sawChord: true)
-            debugLog?("keyDown while pressing: treating gesture as hold/chord keyCode=\(event.keyCode)")
+        case .pressing:
+            // 刚按下热键还没到长按门槛就按了别的键：是 ⌘C、⇧ 打大写、⌥ 打特殊字符这类组合键，
+            // 不是想录音。立刻丢掉这段录音，不送去识别（不然每次复制粘贴都会转写一段杂音、还可能粘进去）。
+            holdPromotionWorkItem?.cancel()
+            holdPromotionWorkItem = nil
+            gestureState = .idle
+            debugLog?("keyDown while pressing: chord keyCode=\(event.keyCode) → onChordCancel")
+            (onChordCancel ?? onCancel)?()
         case .holdRecording(let startedAt, _):
             gestureState = .holdRecording(startedAt: startedAt, sawChord: true)
             debugLog?("keyDown while holding: chord keyCode=\(event.keyCode)")

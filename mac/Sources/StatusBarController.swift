@@ -78,6 +78,12 @@ class StatusBarController {
         let submenu = NSMenu()
 
         let defaultName = mgr.systemDefaultDeviceName ?? "未知"
+        // 选的麦克风拔掉了：勾会落在「跟随系统默认」上，先说一句为什么，插回来会自动切回去
+        if mgr.isPreferredDeviceMissing {
+            let note = NSMenuItem(title: "所选麦克风未连接，暂用系统默认", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            submenu.addItem(note)
+        }
         let defaultItem = NSMenuItem(
             title: "跟随系统默认（\(defaultName)）",
             action: #selector(selectMicrophone(_:)),
@@ -106,10 +112,15 @@ class StatusBarController {
     }
 
     private func updateHotkeyHint() {
-        let shortcut = RecordingHotkeyShortcut.current.displayName
+        hotkeyHintItem.isEnabled = false
+        guard !RecordingHotkeyShortcut.isDisabled else {
+            hotkeyHintItem.title = "快捷键：未设置（在设置里选择）"
+            return
+        }
+        // 右边那颗被问 AI 占着时通用键只认左边，照实写「左 Option」
+        let shortcut = HotkeyArbiter.displayName(for: "recording", shortcut: RecordingHotkeyShortcut.current)
         let action = RecordingHotkeyBehavior.isTapToggleEnabled ? "长按/单击" : "长按"
         hotkeyHintItem.title = "快捷键：\(action) \(shortcut) 录音"
-        hotkeyHintItem.isEnabled = false
     }
 
     private func refreshStatusBarIcon() {

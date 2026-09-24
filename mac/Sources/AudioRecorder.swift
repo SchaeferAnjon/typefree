@@ -44,10 +44,23 @@ class AudioRecorder {
         needsEngineRebuild = true
         let shouldResume = isCapturing
         if engine?.isRunning == true { engine?.stop() }
+        // 旧设备的 AUHAL 先停：不然它和新建的引擎会同时往 rawBuffers 里写，两路交错，录音错乱
+        stopAUHAL()
         guard shouldResume else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self = self, self.isCapturing else { return }
-            try? self.startEngineIfNeeded()
+            // 和 startRecording 同一套分支：跟随系统默认走引擎，选了具体设备走 AUHAL
+            do {
+                if MicrophoneManager.shared.selectedUID == MicrophoneManager.systemDefaultUID {
+                    try self.startEngineIfNeeded()
+                } else {
+                    self.teardownEngine()
+                    try self.startAUHAL()
+                }
+                NSLog("[AudioRecorder] Capture resumed on new microphone")
+            } catch {
+                NSLog("[AudioRecorder] Failed to resume on new microphone: %@", error.localizedDescription)
+            }
         }
     }
 
@@ -176,6 +189,7 @@ class AudioRecorder {
             stopAUHAL()
             let msg = error.localizedDescription
             NSLog("[AudioRecorder] Failed to start recording: %@", msg)
+            NotificationCenter.default.post(name: .voicePolishRecordingDidStop, object: self)
             return msg
         }
     }
@@ -183,6 +197,7 @@ class AudioRecorder {
     func stopRecording(completion: @escaping ([Float]?) -> Void) {
         stopCapture()
         NSLog("[AudioRecorder] Capturing stopped")
+        NotificationCenter.default.post(name: .voicePolishRecordingDidStop, object: self)
 
         let capturedBuffers = bufferQueue.sync { () -> [AVAudioPCMBuffer] in
             let captured = self.rawBuffers
@@ -200,6 +215,7 @@ class AudioRecorder {
             self.rawBuffers.removeAll(keepingCapacity: true)
         }
         NSLog("[AudioRecorder] Capturing canceled")
+        NotificationCenter.default.post(name: .voicePolishRecordingDidStop, object: self)
     }
 
     /// 轮询直到输入格式稳定（channelCount > 0 且 sampleRate > 0），最多等 timeoutMs。
@@ -546,8 +562,16 @@ class AudioRecorder {
         let outputFrameCount = AVAudioFrameCount(Double(totalFrames) * outputFormat.sampleRate / inputFormat.sampleRate)
         guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCount) else { return nil }
 
+        // 输入只给一次，之后报 endOfStream：重采样器有内部延迟，会再要输入。
+        // 再给同一块 merged 会把开头的音频拼到结尾；报结束它才把缓存的尾巴吐出来
         var error: NSError?
+        var didProvideInput = false
         converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+            if didProvideInput {
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+            didProvideInput = true
             outStatus.pointee = .haveData
             return merged
         }

@@ -47,6 +47,8 @@ class OverlayWindow {
     private var capsuleView: SiriCapsuleView?
     private var learnedWindow: NSWindow?
     private var learnedDismissTimer: Timer?
+    /// 录音中到来的提示条先排队（只留最新一条），hide() 收起录音胶囊时再显示。
+    private var pendingCapsuleBar: (() -> Void)?
     private var mousePassthroughTimer: Timer?
     /// 用显示器 ID 记住本次录音所在屏幕，屏幕排列变化后不复用旧坐标。
     private var recordingDisplayID: CGDirectDisplayID?
@@ -141,13 +143,9 @@ class OverlayWindow {
     func show(state: OverlayState) {
         switch state {
         case .learned(let description):
-            hideLearnedWindow()
-            hide()
             showLearnedCapsule(description: description)
             return
         case .learnSuggestion(let description):
-            hideLearnedWindow()
-            hide()
             showLearnSuggestionCapsule(description: description)
             return
         default:
@@ -197,6 +195,16 @@ class OverlayWindow {
         stopMousePassthroughTracking()
         capsuleView?.stopAnimations()
         window?.orderOut(nil)
+        // 录音中排队的提示条（如上一次输出后学会的术语），等录音胶囊收起后再弹。
+        if let pending = pendingCapsuleBar {
+            pendingCapsuleBar = nil
+            pending()
+        }
+    }
+
+    /// 录音胶囊正在屏上录音：提示条不能顶掉它（否则叉号、对勾、拖开取消都没了）。
+    private var isRecordingCapsuleVisible: Bool {
+        window?.isVisible == true && capsuleView?.recordingPillFrame != nil
     }
 
     func completeProgressOnly(completion: (() -> Void)? = nil) {
@@ -363,10 +371,13 @@ class OverlayWindow {
                                  CapsuleAction(title: "学习", primary: true, action: #selector(acceptLearnSuggestionTapped))])
     }
 
+    /// 取消后可撤销的时长：胶囊停留和 AppDelegate 暂存录音都按这个值，新功能引导里的文案也写这个数。
+    static let cancelUndoSeconds: TimeInterval = 5.0
+
     /// 「已取消」+ 白色圆形撤销按钮，不显示语义圆点；5 秒后自动消失（与音频暂存时长一致，Ray 2026-09-17：9 秒太长）。
     /// 点撤销箭头 → AppDelegate 用暂存的录音重新识别输出。
     func showCancelledCapsule() {
-        showCapsuleBar("已取消", accent: nil, seconds: 5.0,
+        showCapsuleBar("已取消", accent: nil, seconds: Self.cancelUndoSeconds,
                        actions: [CapsuleAction(title: "撤销取消", primary: true,
                                                action: #selector(undoCancelTapped), systemImage: "arrow.uturn.backward")])
     }
@@ -378,6 +389,14 @@ class OverlayWindow {
                                 accent: CapsuleAccent?,
                                 seconds: TimeInterval?,
                                 actions: [CapsuleAction] = []) {
+        if isRecordingCapsuleVisible {
+            pendingCapsuleBar = { [weak self] in
+                self?.showCapsuleBar(message, accent: accent, seconds: seconds, actions: actions)
+            }
+            return
+        }
+        // 新提示顶掉排队中的旧提示；先清掉，免得下面 hide() 里又弹出旧的那条。
+        pendingCapsuleBar = nil
         hideLearnedWindow()
         hide()
         guard let screen = preferredScreen() else { return }
@@ -1289,11 +1308,12 @@ class SiriCapsuleView: NSView {
     }
 
     private func soundWaveFrame(cx: CGFloat, cy: CGFloat) -> CGRect {
+        let tagExtra: CGFloat = languageTag == nil ? 0 : languageTagWidth + 6
         guard hasActionControls else {
-            return CGRect(x: cx - pillW / 2, y: cy - pillH / 2, width: pillW, height: pillH)
+            // 经典纯声波：声波铺满药丸，但要让出右侧语言标签的位置
+            return CGRect(x: cx - pillW / 2, y: cy - pillH / 2, width: pillW - tagExtra, height: pillH)
         }
         let pillLeft = cx - pillW / 2, pillRight = cx + pillW / 2
-        let tagExtra: CGFloat = languageTag == nil ? 0 : languageTagWidth + 6
         let left: CGFloat, right: CGFloat
         switch recordingControls {
         case .hidden:
@@ -1558,7 +1578,9 @@ extension SiriCapsuleView {
         cancelButton?.frame = actionButtonFrame(side: .left, cx: cx, cy: cy)
         finishButton?.frame = actionButtonFrame(side: .right, cx: cx, cy: cy)
         if let tag = languageTag, let bg = languageTagBackground, let text = languageTagLayer {
-            let rightInset: CGFloat = recordingControls == .cancelAndFinish ? actionButtonInset + actionButtonD + waveSideGap : 8
+            // 只有对勾真的显示时才给它让位；经典样式不显示按钮，标签贴右边
+            let finishShown = hasActionControls && recordingControls == .cancelAndFinish
+            let rightInset: CGFloat = finishShown ? actionButtonInset + actionButtonD + waveSideGap : 8
             let x = cx + pillW / 2 - rightInset - languageTagWidth
             bg.frame = CGRect(x: x, y: cy - 7, width: languageTagWidth, height: 14)
             text.frame = CGRect(x: x, y: cy - 6, width: languageTagWidth, height: 12)

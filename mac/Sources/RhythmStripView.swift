@@ -102,14 +102,23 @@ final class RhythmStripView: NSView {
             }
         }
 
-        // 周标签：每 7 天一个，居中；最后一组「本周」
-        let weeks = days.count / 7
+        // 周标签：按周一分组（和分隔线对齐），每组居中写一个；含今天的最后一组「本周」。
+        // 最左边那组可能不满 7 天，放不下标签就不写
+        var groups: [Range<Int>] = []
+        var start = 0
+        for (i, d) in days.enumerated() where d.weekday == 2 && i > 0 {
+            groups.append(start..<i)
+            start = i
+        }
+        groups.append(start..<days.count)
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.text3]
-        for w in 0..<weeks {
-            let text = w == weeks - 1 ? "本周" : "\(weeks - 1 - w) 周前"
+        for (g, range) in groups.enumerated() {
+            let text = g == groups.count - 1 ? "本周" : "\(groups.count - 1 - g) 周前"
             let s = NSAttributedString(string: text, attributes: attrs)
             let width = s.size().width
-            let x = slot * 7 * CGFloat(w) + slot * 3.5 - width / 2
+            let groupW = slot * CGFloat(range.count)
+            guard width <= groupW else { continue }
+            let x = slot * CGFloat(range.lowerBound) + (groupW - width) / 2
             s.draw(at: NSPoint(x: x, y: rowHeight + 1))
         }
 

@@ -17,9 +17,11 @@ enum LaunchAtLogin {
         SMAppService.mainApp.status == .enabled
     }
 
-    /// 开 / 关登录项（设置页开关回调）。成功返回 true；失败（极少见，如系统拒绝）返回 false。
+    /// 开 / 关登录项（设置页开关回调）。以操作后的系统真实状态为准：真的开上 / 关掉了才返回 true。
+    /// register() 不抛错也不代表开上了：用户在「系统设置 → 登录项」里关过，状态会停在 requiresApproval，
+    /// 这时返回 false，openSettingsIfNeedsApproval 为 true 就打开登录项设置让用户自己批准。
     @discardableResult
-    static func setEnabled(_ enabled: Bool) -> Bool {
+    static func setEnabled(_ enabled: Bool, openSettingsIfNeedsApproval: Bool = true) -> Bool {
         let service = SMAppService.mainApp
         do {
             if enabled {
@@ -27,17 +29,23 @@ enum LaunchAtLogin {
             } else {
                 if service.status == .enabled { try service.unregister() }
             }
-            return true
         } catch {
             return false
         }
+        if enabled && service.status == .requiresApproval && openSettingsIfNeedsApproval {
+            SMAppService.openSystemSettingsLoginItems()
+        }
+        return enabled ? service.status == .enabled : service.status != .enabled
     }
 
     /// 启动时调用：从未自动登记过 → 默认开机自启（登记一次）并打标记；已打过标记则什么都不做。
+    /// 登记抛错时不打标记，下次启动再试；要用户批准（requiresApproval）也算登记过，那是用户在系统设置里的决定，
+    /// 启动时不去弹系统设置。
     static func applyDefaultIfFirstLaunch() {
         let config = VoicePolishConfig.shared
         guard !config.bool(forKey: defaultAppliedKey, defaultValue: false) else { return }
-        setEnabled(true)
+        let ok = setEnabled(true, openSettingsIfNeedsApproval: false)
+        guard ok || SMAppService.mainApp.status == .requiresApproval else { return }
         config.save(bool: true, forKey: defaultAppliedKey)
     }
 }

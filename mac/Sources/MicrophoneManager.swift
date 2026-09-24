@@ -9,6 +9,8 @@ extension Notification.Name {
     static let voicePolishMicrophoneListDidChange = Notification.Name("VoicePolishMicrophoneListDidChange")
     static let voicePolishMicrophoneSelectionDidChange = Notification.Name("VoicePolishMicrophoneSelectionDidChange")
     static let voicePolishRecordingWillStart = Notification.Name("VoicePolishRecordingWillStart")
+    /// 录音结束（正常停、取消、启动失败都算）：录音期间让出麦克风的电平表可以重新开
+    static let voicePolishRecordingDidStop = Notification.Name("VoicePolishRecordingDidStop")
 }
 
 /// 麦克风枚举、选择、持久化、热插拔监听
@@ -32,7 +34,18 @@ final class MicrophoneManager {
     private let config = VoicePolishConfig.shared
 
     private(set) var devices: [Device] = []
-    private(set) var selectedUID: String = MicrophoneManager.systemDefaultUID
+    /// 用户选的麦克风（存盘的偏好）。设备暂时不在（没插、蓝牙断开、睡眠唤醒抖一下）时也不改它，插回来自动接着用
+    private(set) var preferredUID: String = MicrophoneManager.systemDefaultUID
+    /// 此刻实际生效的选择：选的设备不在就暂用系统默认，但不存盘
+    var selectedUID: String {
+        guard preferredUID != Self.systemDefaultUID,
+              devices.contains(where: { $0.uid == preferredUID }) else { return Self.systemDefaultUID }
+        return preferredUID
+    }
+    /// 选了具体设备但它现在没连着
+    var isPreferredDeviceMissing: Bool {
+        preferredUID != Self.systemDefaultUID && selectedUID == Self.systemDefaultUID
+    }
 
     private init() {
         loadSelection()
@@ -65,6 +78,7 @@ final class MicrophoneManager {
     func displayName() -> String {
         if selectedUID == Self.systemDefaultUID {
             let following = systemDefaultDeviceName ?? "未知"
+            if isPreferredDeviceMissing { return "所选麦克风未连接，暂用系统默认（\(following)）" }
             return "跟随系统默认（\(following)）"
         }
         return resolvedDevice?.name ?? "未知设备"
@@ -72,8 +86,8 @@ final class MicrophoneManager {
 
     /// 选择一个设备（uid == systemDefaultUID 表示跟随系统）
     func select(uid: String) {
-        guard uid != selectedUID else { return }
-        selectedUID = uid
+        guard uid != preferredUID else { return }
+        preferredUID = uid
         saveSelection()
         NotificationCenter.default.post(name: .voicePolishMicrophoneSelectionDidChange, object: nil)
     }
@@ -92,14 +106,14 @@ final class MicrophoneManager {
 
     private func loadSelection() {
         if let uid = config.loadConfig()[configKey] as? String, !uid.isEmpty {
-            selectedUID = uid
+            preferredUID = uid
         } else {
-            selectedUID = Self.systemDefaultUID
+            preferredUID = Self.systemDefaultUID
         }
     }
 
     private func saveSelection() {
-        config.save(values: [configKey: selectedUID])
+        config.save(values: [configKey: preferredUID])
     }
 
     // MARK: - 设备枚举
@@ -108,18 +122,20 @@ final class MicrophoneManager {
     func refreshDevices() {
         let newList = enumerateInputDevices()
         let changed = newList != devices
+        let previousUID = selectedUID
         devices = newList
         if changed {
-            // 如果选中的麦克风被拔掉了，回退到系统默认
-            if selectedUID != Self.systemDefaultUID,
-               !devices.contains(where: { $0.uid == selectedUID }) {
-                selectedUID = Self.systemDefaultUID
-                saveSelection()
+            // 选中的麦克风拔掉了就暂用系统默认，插回来再切回去；用户的选择不改、不存盘
+            if selectedUID != previousUID, didInitialScan {
                 NotificationCenter.default.post(name: .voicePolishMicrophoneSelectionDidChange, object: nil)
             }
             NotificationCenter.default.post(name: .voicePolishMicrophoneListDidChange, object: nil)
         }
+        didInitialScan = true
     }
+
+    /// 启动时第一次扫描不算「选择变了」：那时还没开始录音，也没人要重建引擎
+    private var didInitialScan = false
 
     /// 当前系统默认输入设备的名字（独立于用户的选择）
     var systemDefaultDeviceName: String? {

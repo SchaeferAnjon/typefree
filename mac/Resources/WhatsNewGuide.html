@@ -572,7 +572,7 @@
       },
     },
     {
-      name: '拖远：取消', dur: 8000, still: 3100, desc: '不想要这句：<b>往外拖远</b>，亮红光后松开。点错了 9 秒内可撤销。',
+      name: '拖远：取消', dur: 8000, still: 3100, desc: '不想要这句：<b>往外拖远</b>，亮红光后松开。点错了 5 秒内可撤销。',
       run(c) {
         c.reset(START);
         c.at(250, () => c.move(IN[0], IN[1], 850));
@@ -580,7 +580,7 @@
         c.at(1650, () => { c.held(); c.cap('rec'); });
         c.at(2600, () => { c.trailOn(IN[0], IN[1], 300, 92); c.move(300, 92, 750); c.step('不想要了：往外拖远'); });
         c.at(3100, () => { c.cap('rec', { glow: 'cancel' }); c.step('亮红光了，松开'); });
-        c.at(4300, () => { c.up(); c.focus(false); c.cap('hint', { text: '已取消', undo: true }); c.step('已取消，点错了 9 秒内可撤销'); });
+        c.at(4300, () => { c.up(); c.focus(false); c.cap('hint', { text: '已取消', undo: true }); c.step('已取消，点错了 5 秒内可撤销'); });
         c.at(6500, () => c.cap('hidden'));
         c.at(6800, () => c.move(START[0], START[1], 900));
       },

@@ -79,7 +79,8 @@ class TextDelivery {
         debugLog?("TextDelivery: pasteboard set chars=\(finalText.count)")
 
         // 2. Auto-paste only when Accessibility permission is available.
-        guard hasAccessibilityPermission(promptIfNeeded: true) else {
+        // 这里只检查不弹窗：要不要弹系统授权框由 AppDelegate 统一管（只弹一次），不然没授权时每说一句弹一次。
+        guard hasAccessibilityPermission() else {
             // 没有辅助功能权限时不会自动粘贴，需保留我们的文本供用户手动 ⌘V，故不还原。
             debugLog?("TextDelivery: accessibility missing, copied only")
             return .copiedOnlyNeedsAccessibility
@@ -89,14 +90,18 @@ class TextDelivery {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
             self.simulatePaste()
             self.debugLog?("TextDelivery: simulatePaste posted")
-            // 等粘贴被目标 App 读取后再还原用户原剪贴板。
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // 等粘贴被目标 App 读取后再还原用户原剪贴板。Electron / 浏览器 / Word 主线程忙时处理 ⌘V
+            // 常常要好几百毫秒，还原早了它读到的就是旧剪贴板，这次的文字丢了、粘进去的是上一次复制的东西。
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.restoreDelay) {
                 self.restorePasteboard(pasteboard, items: savedItems, expectedChangeCount: changeCountAfterSet)
             }
         }
 
         return .pasted
     }
+
+    /// 模拟 ⌘V 之后隔多久还原剪贴板。宁长勿短：还原晚了只是剪贴板里多留一会儿这次的文字。
+    private static let restoreDelay: TimeInterval = 0.8
 
     /// 快照当前剪贴板的全部条目（文字/图片/文件等所有类型），用独立副本保存以便稍后写回。
     private func snapshotPasteboard(_ pasteboard: NSPasteboard) -> [NSPasteboardItem] {

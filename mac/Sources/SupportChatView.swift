@@ -33,6 +33,10 @@ final class SupportChatView: NSView, NSTextViewDelegate {
     private var observer: NSObjectProtocol?
     private var mode: Mode = .list
     private var filterIndex = 0                  // 0 全部 · 1 处理中 · 2 已结束
+    /// 工单列表的同步结果：空列表时按它决定写「正在读取」「读取失败」还是「还没有工单」
+    private enum ListSync { case loading, done, failed }
+    private var listSync: ListSync = .loading
+    private var syncsInFlight = 0                 // 本页发出、还没回来的 sync 数
 
     // 当前画面
     private var screen: NSView?
@@ -70,7 +74,24 @@ final class SupportChatView: NSView, NSTextViewDelegate {
         observer = NotificationCenter.default.addObserver(forName: SupportChatService.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.reload()
         }
-        service.sync()
+        runSync()
+    }
+
+    /// 拉一次同步并记下结果，列表空的时候文案按结果写。
+    /// 服务层同一时刻只跑一个 sync，重复调会立刻回 false；所以只有本页发出的都回来了还没成功过，才算读取失败。
+    private func runSync(then extra: ((Bool) -> Void)? = nil) {
+        syncsInFlight += 1
+        service.sync { [weak self] ok in
+            guard let self else { return }
+            self.syncsInFlight -= 1
+            if ok {
+                self.listSync = .done
+            } else if self.syncsInFlight == 0, self.listSync != .done {
+                self.listSync = .failed
+            }
+            if case .list = self.mode { self.reloadList() }
+            extra?(ok)
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -79,7 +100,7 @@ final class SupportChatView: NSView, NSTextViewDelegate {
     /// 页面显示时：拉一次新回复；正看着某个工单就记已读；按钮按有没有转录可附刷新
     func pageDidAppear() {
         if case .detail(let id) = mode { service.markTicketSeen(id) }
-        service.sync { [weak self] _ in
+        runSync { [weak self] _ in
             guard let self, case .detail(let id) = self.mode else { return }
             self.service.markTicketSeen(id)
         }
@@ -237,9 +258,13 @@ final class SupportChatView: NSView, NSTextViewDelegate {
         case 1: listEmpty?.stringValue = "没有处理中的工单。"
         case 2: listEmpty?.stringValue = "还没有已结束的工单。"
         default:
-            listEmpty?.stringValue = service.hasThread && all.isEmpty
-                ? "正在读取工单…"
-                : "还没有工单。遇到问题或有建议，点右上角「提交工单」。"
+            if service.hasThread && all.isEmpty && listSync == .loading {
+                listEmpty?.stringValue = "正在读取工单…"
+            } else if service.hasThread && all.isEmpty && listSync == .failed {
+                listEmpty?.stringValue = "读取失败，检查网络后重新打开这一页。"
+            } else {
+                listEmpty?.stringValue = "还没有工单。遇到问题或有建议，点右上角「提交工单」。"
+            }
         }
     }
 
@@ -422,19 +447,22 @@ final class SupportChatView: NSView, NSTextViewDelegate {
         let followUp = outgoing("", image: pendingImage, audio: audio, asr: asr, polished: polished)
         let category = newCategory
         setSending(true, title: "提交中…")
-        service.createTicket(category: category, first) { [weak self] result in
+        service.createTicket(category: category, first) { [weak self, weak textView] result in
             guard let self else { return }
             switch result {
             case .failure(let err):
+                // 已离开这张提交表单：按钮和状态条都是别的画面的了，不去动
+                guard let textView, self.textView === textView else { return }
                 self.setSending(false, title: "提交")
                 self.showStatus(err.userMessage, isError: true)
             case .success(let created):
+                // 用户已经离开提交页（回了列表或打开了别的工单）就不强行跳过去
                 guard splitAttachments || created.attachmentsDropped else {
-                    self.show(.detail(created.ticket.id))
+                    if case .new = self.mode { self.show(.detail(created.ticket.id)) }
                     return
                 }
                 self.service.send(followUp, ticketId: created.ticket.id) { [weak self] r2 in
-                    guard let self else { return }
+                    guard let self, case .new = self.mode else { return }
                     self.show(.detail(created.ticket.id))
                     if case .failure(let err) = r2 {
                         self.showStatus("工单已提交，附件没发成功：\(err.userMessage)，可以在这里重新附上", isError: true)
@@ -667,12 +695,13 @@ final class SupportChatView: NSView, NSTextViewDelegate {
         }
         let (asr, polished, audio) = transcriptParts()
         setSending(true, title: "发送中…")
-        service.send(outgoing(text, image: pendingImage, audio: audio, asr: asr, polished: polished), ticketId: ticketId) { [weak self] result in
-            guard let self else { return }
+        service.send(outgoing(text, image: pendingImage, audio: audio, asr: asr, polished: polished), ticketId: ticketId) { [weak self, weak textView] result in
+            // 发送期间切到了别的画面（输入框已换掉）：不清别处的草稿，也不把状态显示到别的工单上
+            guard let self, let textView, self.textView === textView, self.detailTicketId == ticketId else { return }
             self.setSending(false, title: "发送")
             switch result {
             case .success:
-                self.textView?.string = ""
+                textView.string = ""
                 self.pendingImage = nil
                 self.transcriptAttached = false      // 转录只随这一条发；下次要带得再点一次
                 self.textDidChange(Notification(name: NSText.didChangeNotification))

@@ -118,8 +118,7 @@ public class AIPolisher {
         }
         switch provider {
         case "qwen":
-            let saved = config.string(forKey: "qwen_polish_model")
-            return PolishSelection(provider: "qwen", model: (saved?.isEmpty == false) ? saved! : "qwen3.6-flash")
+            return PolishSelection(provider: "qwen", model: qwenPolishModel(config: config))
         case "zhipu":
             return PolishSelection(provider: "zhipu", model: config.string(forKey: "zhipu_polish_model") ?? ZhipuEndpoint.defaultModel)
         case "deepseek":
@@ -424,17 +423,39 @@ public class AIPolisher {
         (0x4E00...0x9FFF).contains(Int(scalar.value))
     }
 
+    /// 千问润色用的模型：未选过 → 自动选择（质量优先 + 额度用完自动降级）；老用户手动选过的值原样保留。
+    /// 实际请求和反馈上报共用这一处，两边报的模型不会对不上。
+    static func qwenPolishModel(config: VoicePolishConfig) -> String {
+        let saved = config.string(forKey: "qwen_polish_model")
+        return (saved?.isEmpty == false) ? saved! : PolishModelRouter.autoValue
+    }
+
+    /// 润色用的通道。选了「不优化」返回 nil，不再落进 default 被当成豆包。
     private func polishProvider() -> (name: String, url: URL, model: String, apiKey: String)? {
+        let provider = VoicePolishConfig.shared.string(forKey: "polish_provider") ?? "qwen"
+        if Self.isPolishDisabled(provider: provider) { return nil }
+        return providerConfig(provider)
+    }
+
+    /// 问 AI 用的通道：平时和润色同一家；润色选了「不优化」时问 AI 照常可用，
+    /// 按千问、DeepSeek、智谱、豆包的顺序取第一个填了 Key 的。
+    private func askProvider() -> (name: String, url: URL, model: String, apiKey: String)? {
+        let provider = VoicePolishConfig.shared.string(forKey: "polish_provider") ?? "qwen"
+        guard Self.isPolishDisabled(provider: provider) else { return providerConfig(provider) }
+        for name in ["qwen", "deepseek", "zhipu", "doubao"] {
+            if let found = providerConfig(name) { return found }
+        }
+        return nil
+    }
+
+    private func providerConfig(_ provider: String) -> (name: String, url: URL, model: String, apiKey: String)? {
         let config = VoicePolishConfig.shared
-        let provider = config.string(forKey: "polish_provider") ?? "qwen"
 
         switch provider {
         case "qwen":
             guard let key = config.string(forKey: "dashscope_api_key", envKey: "DASHSCOPE_API_KEY"),
                   !key.isEmpty else { return nil }
-            let saved = config.string(forKey: "qwen_polish_model")
-            // 未选过 → 自动选择（质量优先 + 额度用完自动降级）；老用户手动选过的值原样保留。
-            let model = (saved?.isEmpty == false) ? saved! : PolishModelRouter.autoValue
+            let model = Self.qwenPolishModel(config: config)
             let url = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
             return ("qwen", url, model, key)
         case "deepseek":
@@ -718,7 +739,7 @@ public class AIPolisher {
     /// 这次提问能不能带屏幕内容。nil = 能带；非 nil = 不能带，字符串直接给用户看。
     /// 托管通道（试用 / 会员代理）的请求体由服务器放行，带不了图，不去改服务器协议。
     public func screenContextUnavailableReason() -> String? {
-        guard polishProvider() != nil else {
+        guard askProvider() != nil else {
             return "当前通道不支持看屏幕，在「模型」里填自己的 API Key 后可用。"
         }
         return nil
@@ -738,7 +759,7 @@ public class AIPolisher {
                        onThinking: (() -> Void)? = nil,
                        onStats: ((String) -> Void)? = nil,
                        completion: @escaping (Result<String, Error>) -> Void) {
-        let ownProvider = polishProvider()
+        let ownProvider = askProvider()
         let qwenKey = VoicePolishConfig.shared.string(forKey: "dashscope_api_key", envKey: "DASHSCOPE_API_KEY") ?? ""
         let searchProvider: (name: String, url: URL, model: String, apiKey: String)? = {
             guard !qwenKey.isEmpty, let url = AskVision.qwenChatCompletions else { return nil }
@@ -808,9 +829,9 @@ public class AIPolisher {
                 messages.append(["role": "assistant", "content": turn.answer])
             }
             messages.append(["role": "user", "content": question])
-            let providerSetting = VoicePolishConfig.shared.string(forKey: "polish_provider")
+            // 问 AI 不是润色：选了「不优化」也照常走托管问答
             let hostedRoute = HostedRoute.current(ownKeyConfigured: ownProvider != nil)
-            if !Self.isPolishDisabled(provider: providerSetting) && hostedRoute != .none {
+            if hostedRoute != .none {
                 // 托管问答（试用/会员）一律 qwen3.7-plus，与 owner 自用一致（Ray 2026-09-12）；联网与强制搜索由服务器放行
                 var body: [String: Any] = ["model": "qwen3.7-plus", "messages": messages, "top_p": 0.8, "temperature": 0.5,
                                            "result_format": "message", "enable_thinking": false, "enable_search": true]
@@ -830,7 +851,7 @@ public class AIPolisher {
                 }
                 return
             }
-            completion(.failure(PolishError.noAPIKey))
+            completion(.failure(PolishError.noAskAPIKey))
             return
         }
         answerDirectText(question: question, history: history, provider: provider, route: .direct,
@@ -946,7 +967,7 @@ public class AIPolisher {
                                   onThinking: (() -> Void)?,
                                   onStats: ((String) -> Void)?,
                                   completion: @escaping (Result<String, Error>) -> Void) {
-        let override = AskAtCursorSettings.visionModelOverride
+        let override = AskAtCursorSettings.visionOverride(provider: provider.name)
         // 联网这一问模型已经定死（AskVision.searchModel），不走视觉候选表
         let all = route == .qwenSearch
             ? [provider.model]
@@ -1119,7 +1140,7 @@ public class AIPolisher {
 
     /// 提问前预热与模型端点的连接：用户说话那几秒里把 TLS 握手做掉，首字能早几百毫秒。
     public func warmUpConnection() {
-        guard let provider = polishProvider() else { return }
+        guard let provider = askProvider() else { return }
         StreamHub.shared.warmUp(AskVision.visionEndpoint(provider: provider.name) ?? provider.url)
     }
 
@@ -1322,7 +1343,14 @@ public class AIPolisher {
     private func appendToPendingLog(_ entry: PolishLog) {
         // 「不保存数据」：文字不落盘，连刚生成的音频也一并删掉，避免留下孤儿文件
         if Self.currentHistoryRetention() == .off {
-            AudioClipStore.defaultStore().delete(fileName: entry.audioFile)
+            let audioStore = AudioClipStore.defaultStore()
+            audioStore.delete(fileName: entry.audioFile)
+            // 切到本项前的存量记录也在这里清掉：设置窗只在选项变化时裁剪一次，没打开设置窗就一直留着
+            if let logFile = Self.historyLogFileURL() {
+                Self.pruneLogFile(at: logFile, retention: .off) { removed in
+                    audioStore.delete(fileName: removed.audioFile)
+                }
+            }
             return
         }
 
@@ -1384,10 +1412,19 @@ public class AIPolisher {
             let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
             var keptLines: [String] = []
             var removedCount = 0
+            // 调用方没传解密器时，遇到第一条密文行再去钥匙串取默认密钥：
+            // 否则密文行一律解不开、当作「保留」，保留期和「不保存数据」对加密记录全都失效。
+            // 全是明文的文件（测试、旧数据）不碰钥匙串。
+            var enc = encryptor
+            var triedDefault = encryptor != nil
 
             for line in lines where !line.isEmpty {
                 let rawLine = String(line)
-                guard let log = HistoryCrypto.decodeLine(rawLine, enc: encryptor) else {
+                if enc == nil, !triedDefault, HistoryCrypto.isEncryptedLine(rawLine) {
+                    triedDefault = true
+                    enc = HistoryCrypto.defaultEncryptor()
+                }
+                guard let log = HistoryCrypto.decodeLine(rawLine, enc: enc) else {
                     keptLines.append(rawLine)
                     continue
                 }
@@ -1418,6 +1455,8 @@ public class AIPolisher {
 
     public enum PolishError: LocalizedError {
         case noAPIKey
+        /// 问 AI 没有可用通道：自己的 Key 一个都没填，也不在试用 / 会员期
+        case noAskAPIKey
         case noData
         case parseError
         case apiError(String)   // 服务端返回的业务错误（鉴权/限流等），带真实原因
@@ -1430,6 +1469,7 @@ public class AIPolisher {
         public var errorDescription: String? {
             switch self {
             case .noAPIKey: return "未配置润色模型的 API key"
+            case .noAskAPIKey: return "未配置问 AI 可用的模型 Key"
             case .noData: return "润色服务未返回数据"
             case .parseError: return "润色返回无法解析"
             case .apiError(let msg): return msg

@@ -102,13 +102,16 @@ public enum AskVision {
     ///   https://api-docs.deepseek.com/
     /// - qwen3-vl-flash 实测虽然 3.1 秒但答错（幻觉），所以放在候选表最后。
     public static func visionCandidates(provider: String, override: String? = nil) -> [String] {
-        if let override, !override.isEmpty { return [override] }
+        let defaults: [String]
         switch provider {
-        case "deepseek": return [DeepSeekEndpoint.defaultModel]
-        case "qwen": return ["qwen3.8-flash", "qwen3.7-flash", "qwen3.8-max", "qwen3-vl-flash"]
-        case "zhipu": return [ZhipuEndpoint.defaultModel]
-        default: return ["doubao-seed-2-1-turbo-260628", "doubao-seed-2-1-lite-260915", "doubao-seed-2-1-pro-260915"]
+        case "deepseek": defaults = [DeepSeekEndpoint.defaultModel]
+        case "qwen": defaults = ["qwen3.8-flash", "qwen3.7-flash", "qwen3.8-max", "qwen3-vl-flash"]
+        case "zhipu": defaults = [ZhipuEndpoint.defaultModel]
+        default: defaults = ["doubao-seed-2-1-turbo-260628", "doubao-seed-2-1-lite-260915", "doubao-seed-2-1-pro-260915"]
         }
+        // 手填的模型排第一，内置候选跟在后面：手填的那个额度用完时还能往下降
+        guard let override, !override.isEmpty else { return defaults }
+        return [override] + defaults.filter { $0 != override }
     }
 
     /// 默认视觉模型（候选表的头一个）

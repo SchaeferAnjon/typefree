@@ -19,7 +19,6 @@
 		CD03E0BD2E2F47ADBCE08AC6 /* AnswerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F928A01BD55141F79B0054CD /* AnswerPanel.swift */; };
 		C571D472F89E4029874F3EFD /* TextInputLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88449E5337249F8988EDE1E /* TextInputLocator.swift */; };
 		9497CA2B5BC5418094DAEE5E /* MouseHoldToTalkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D38326922E4210952087F4 /* MouseHoldToTalkManager.swift */; };
-		AC2026092100000000000001 /* AskAtCursorTrigger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2026092100000000000002 /* AskAtCursorTrigger.swift */; };
 		AC2026092100000000000003 /* ScreenSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2026092100000000000004 /* ScreenSnapshot.swift */; };
 		1A1B1C1D1E1F000000000002 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B1C1D1E1F000000000001 /* LaunchAtLogin.swift */; };
 		72623A4DCA036BC4FF8F55B9 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092D93934C4E338C9A3010FD /* main.swift */; };
@@ -59,7 +58,6 @@
 		F928A01BD55141F79B0054CD /* AnswerPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnswerPanel.swift; sourceTree = "<group>"; };
 		E88449E5337249F8988EDE1E /* TextInputLocator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextInputLocator.swift; sourceTree = "<group>"; };
 		C1D38326922E4210952087F4 /* MouseHoldToTalkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MouseHoldToTalkManager.swift; sourceTree = "<group>"; };
-		AC2026092100000000000002 /* AskAtCursorTrigger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskAtCursorTrigger.swift; sourceTree = "<group>"; };
 		AC2026092100000000000004 /* ScreenSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScreenSnapshot.swift; sourceTree = "<group>"; };
 		1A1B1C1D1E1F000000000001 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		D4E5F60718293041526C7D8E /* HotWordsAutoLearner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HotWordsAutoLearner.swift; sourceTree = "<group>"; };
@@ -134,7 +132,6 @@
 				F928A01BD55141F79B0054CD /* AnswerPanel.swift */,
 				E88449E5337249F8988EDE1E /* TextInputLocator.swift */,
 				C1D38326922E4210952087F4 /* MouseHoldToTalkManager.swift */,
-				AC2026092100000000000002 /* AskAtCursorTrigger.swift */,
 				AC2026092100000000000004 /* ScreenSnapshot.swift */,
 				1A1B1C1D1E1F000000000001 /* LaunchAtLogin.swift */,
 				7DD16C68DC13BE74C432E5BC /* OverlayWindow.swift */,
@@ -241,7 +238,6 @@
 				CD03E0BD2E2F47ADBCE08AC6 /* AnswerPanel.swift in Sources */,
 				C571D472F89E4029874F3EFD /* TextInputLocator.swift in Sources */,
 				9497CA2B5BC5418094DAEE5E /* MouseHoldToTalkManager.swift in Sources */,
-				AC2026092100000000000001 /* AskAtCursorTrigger.swift in Sources */,
 				AC2026092100000000000003 /* ScreenSnapshot.swift in Sources */,
 				1A1B1C1D1E1F000000000002 /* LaunchAtLogin.swift in Sources */,
 				0693E913A8E894340C94D06C /* OverlayWindow.swift in Sources */,

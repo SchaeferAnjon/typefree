@@ -184,10 +184,10 @@ final class HotWordsAutoLearner {
             debugLog?("ManualLearn: no learnable corrections found")
             return []
         }
-        _ = saveCorrections(corrections, requireConfirmation: false)
-        let descriptions = corrections.map { "\($0.variant) → \($0.target)" }
+        // 只报真存进去的：已经有的、因冲突跳过的不算，撤销时也不会去删它们。
+        // 不走 onLearned：展示由调用方负责，这里再回调一次浮窗会弹两遍
+        let descriptions = saveCorrections(corrections, requireConfirmation: false).added
         debugLog?("ManualLearn: learned count=\(descriptions.count)")
-        onLearned?(descriptions)
         return descriptions
     }
 
@@ -223,8 +223,11 @@ final class HotWordsAutoLearner {
             let target = parts[1].trimmingCharacters(in: .whitespaces)
 
             if let entryIndex = entries.firstIndex(where: { $0.target.caseInsensitiveCompare(target) == .orderedSame }) {
+                let before = entries[entryIndex].variants.count
                 entries[entryIndex].variants.removeAll { $0.caseInsensitiveCompare(variant) == .orderedSame }
-                if entries[entryIndex].variants.isEmpty {
+                guard entries[entryIndex].variants.count != before else { continue }
+                // 自动学来的词条删空了就整条去掉；用户手动加的词条保留，只去掉这条误写
+                if entries[entryIndex].variants.isEmpty && entries[entryIndex].source == "auto" {
                     entries.remove(at: entryIndex)
                 }
                 didChange = true
@@ -669,6 +672,11 @@ final class HotWordsAutoLearner {
     }
 
     private func finalizePendingCorrections(reason: String) {
+        // 监控期间用户在设置里关掉了自动学习：不再写候选或词库
+        guard config.bool(forKey: "term_corrections_auto_learn_enabled", defaultValue: true) else {
+            debugLog?("AutoLearn: finalize skipped: auto learn disabled")
+            return
+        }
         guard let delivered = deliveredText,
               let pendingEditedSegment = pendingEditedSegment else {
             return

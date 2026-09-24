@@ -218,10 +218,21 @@ private final class HotkeyRecorderView: AppearanceObservingView {
         hintLabel.stringValue = "继续按一个按键完成录入"
     }
 
+    /// 方向键、F1-F20、Home/End/PageUp/PageDown/向前删除/Help 的 keyCode
+    private static let keysWithImplicitFn: Set<UInt16> = [
+        123, 124, 125, 126,
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,
+        105, 107, 113, 106, 64, 79, 80, 90,
+        115, 119, 116, 121, 117, 114,
+    ]
+
     override func keyDown(with event: NSEvent) {
         guard !event.isARepeat else { return }
         let modifiers = RecordingHotkeyCustomShortcut.normalized(event.modifierFlags)
-        guard !modifiers.isEmpty else {
+        // 方向键、F 键、Home/End 这类键系统自己会带上 .function，不代表用户按了 fn，判断有没有修饰键时去掉它。
+        // 存的时候保留原样，matchesKeyDown 拿到的事件同样带着 .function，才对得上
+        let pressed = Self.keysWithImplicitFn.contains(event.keyCode) ? modifiers.subtracting(.function) : modifiers
+        guard !pressed.isEmpty else {
             shortcut = nil
             displayLabel.stringValue = "需要搭配修饰键"
             hintLabel.stringValue = "请至少按住 Option / Command / Control / Shift 中的一个"
@@ -381,7 +392,8 @@ final class PolishHistoryStore {
                     duration_ms: log.duration_ms,
                     input_tokens: log.input_tokens,
                     output_tokens: log.output_tokens,
-                    id: log.id, audioFile: log.audioFile
+                    id: log.id, audioFile: log.audioFile,
+                    kind: log.kind, thread: log.thread
                 )
                 if let s = HistoryCrypto.encodeLine(updated, enc: enc) {
                     lines[idx] = s
@@ -1131,6 +1143,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private var licenseKeyField: NSTextField?       // 激活码输入框
     private var licenseStatusLabel: NSTextField?    // 激活操作结果提示
     private var healthExpandedOverride: Bool?       // nil=按状态默认（全绿折叠/有问题展开）
+    private var lastHealthExpanded = false          // 健康卡上次渲染时是否展开，点摘要行时取反它
     private var asrTestButton: VPButton?
     private var polishTestButton: VPButton?
     private var autoLearnCheckbox: VPToggle?
@@ -1375,9 +1388,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
     }
 
+    /// 快捷键在首页、探索页、设置页都有按钮和撞键提示，任何一处改了三页都重画
     @objc private func hotkeyDidChange() {
         DispatchQueue.main.async { [weak self] in
-            self?.invalidate(.home)
+            self?.invalidate(.home, .explore, .settings)
         }
     }
 
@@ -1396,6 +1410,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     func windowWillClose(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
+        // block 形式的观察者要按 token 单独移除，removeObserver(self) 管不到它
+        if let o = supportObserver {
+            NotificationCenter.default.removeObserver(o)
+            supportObserver = nil
+        }
         Self.shared = nil
     }
 
@@ -2067,8 +2086,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     /// Drop the cached view for the given pages so they rebuild on next entry.
     /// If the currently-visible page is invalidated, rebuild it immediately.
     private func invalidate(_ pages: Page...) {
+        // 当前页重建后回到原来的滚动位置，否则在页面中间改个设置（或切回 App）就被弹回顶部
+        var savedOrigin: NSPoint?
         for p in pages {
             if let scroll = cachedScrolls.removeValue(forKey: p) {
+                if p == selectedPage { savedOrigin = scroll.contentView.bounds.origin }
                 if p == .history {
                     NotificationCenter.default.removeObserver(
                         self,
@@ -2083,6 +2105,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
         if pages.contains(selectedPage) {
             selectPage(selectedPage)
+            if let origin = savedOrigin, origin.y > 0, selectedPage != .support,
+               let scroll = cachedScrolls[selectedPage] {
+                contentHost.layoutSubtreeIfNeeded()
+                let docHeight = scroll.documentView?.frame.height ?? 0
+                let maxY = max(0, docHeight - scroll.contentView.bounds.height)
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: min(origin.y, maxY)))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
         }
     }
 
@@ -2210,8 +2240,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let descText = RecordingHotkeyShortcut.isDisabled
             ? "没有设置听写快捷键。在输入框里按住鼠标说话仍然可用；提问用下面两个快捷键。"
             : tapToggleEnabled
-            ? "\(shortcut.displayName) 长按时松开结束；单击时再次单击结束。结束后自动转写并粘贴。"
-            : "\(shortcut.displayName) 松开后自动转写，并粘贴到当前光标位置。"
+            ? "\(HotkeyArbiter.displayName(for: "recording", shortcut: shortcut)) 长按时松开结束；单击时再次单击结束。结束后自动转写并粘贴。"
+            : "\(HotkeyArbiter.displayName(for: "recording", shortcut: shortcut)) 松开后自动转写，并粘贴到当前光标位置。"
         let desc = label(descText,
                           size: 13, weight: .regular, color: theme.text3)
         desc.maximumNumberOfLines = 0
@@ -2395,8 +2425,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             } else {
                 isSelected = false
             }
+            // 别的行在用这颗键时标出来，选了会先问要不要把那一行清空
+            let owners = isSelected ? [] : hotkeyOwners(of: .modifier(modifier)).map(\.title)
+            let title = owners.isEmpty ? modifier.menuTitle
+                : "\(modifier.menuTitle)（「\(owners.joined(separator: "」「"))」在用）"
             addHotkeyMenuItem(to: menu,
-                              title: modifier.menuTitle,
+                              title: title,
                               representedObject: modifier.rawValue,
                               symbolName: modifier.symbolName,
                               isSelected: isSelected)
@@ -2456,7 +2490,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         guard let raw = sender.representedObject as? String else { return }
         if raw == "custom" {
             presentCustomHotkeyPanel()
-            invalidate(.home)
             return
         }
         if raw == "custom-current" {
@@ -2471,17 +2504,69 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             return
         }
         guard let modifier = RecordingHotkeyModifier(rawValue: raw) else { return }
+        if case .modifier(let current)? = hotkeyMenuTarget.current, current == modifier { return }   // 选的就是现在这颗
+        guard resolveHotkeyClash(.modifier(modifier)) else { return }
         switch hotkeyMenuTarget {
         case .recording: RecordingHotkeyShortcut.useModifier(modifier)
         case .ask(let hotkey): hotkey.useModifier(modifier)
         }
         applyHotkeyChange()
+        if modifier == .fn { warnIfGlobeKeyHasSystemAction() }
     }
 
-    /// 三套快捷键互相影响（撞键时谁让谁、Option 只认左边），任何一套变了都让所有监听重读，两页都重画
+    /// 除了正在设置的这一行，还有哪几行的快捷键和 shortcut 撞（相同或重叠）。clear 把那一行改成「不设置」
+    private func hotkeyOwners(of shortcut: RecordingHotkeyShortcut) -> [(title: String, clear: () -> Void)] {
+        var owners: [(title: String, clear: () -> Void)] = []
+        let target = hotkeyMenuTarget
+        if case .ask = target, !RecordingHotkeyShortcut.isDisabled,
+           RecordingHotkeyShortcut.current.overlaps(shortcut) {
+            owners.append(("开始说话", { RecordingHotkeyShortcut.disable() }))
+        }
+        for hotkey in [AskHotkey.screen, AskHotkey.plain] {
+            if case .ask(let mine) = target, mine.prefix == hotkey.prefix { continue }
+            if let current = hotkey.current, current.overlaps(shortcut) {
+                owners.append((hotkey.title, { hotkey.clear() }))
+            }
+        }
+        return owners
+    }
+
+    /// 新键被别的行占着：两行同一个键时只有一行会响应，所以保存前问一次，确认后把那一行清空。
+    /// 返回 false 表示用户取消，这次什么都不改
+    private func resolveHotkeyClash(_ shortcut: RecordingHotkeyShortcut) -> Bool {
+        let owners = hotkeyOwners(of: shortcut)
+        guard !owners.isEmpty else { return true }
+        let names = owners.map { "「\($0.title)」" }.joined(separator: "、")
+        let alert = NSAlert()
+        alert.messageText = "\(names)已经在用 \(shortcut.displayName)"
+        alert.informativeText = "同一个键只能给一个功能用。保存后\(names)会改成「不设置」，之后可以再给它选别的键。"
+        alert.addButton(withTitle: "保存并清空\(names)")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        owners.forEach { $0.clear() }
+        return true
+    }
+
+    /// 选了 Fn 当快捷键，而系统里「按下 🌐 键时」还设着切换输入法 / 表情与符号 / 听写：
+    /// 每按一次 Fn 系统动作也会跟着出来。说清楚去哪里改成「无操作」
+    private func warnIfGlobeKeyHasSystemAction() {
+        let usage = UserDefaults(suiteName: "com.apple.HIToolbox")?.object(forKey: "AppleFnUsageType") as? Int
+        guard usage != 0 else { return }
+        let alert = NSAlert()
+        alert.messageText = "把系统的 🌐 键动作关掉"
+        alert.informativeText = "系统设置里「按下 🌐 键时」现在不是「无操作」，每次按 Fn 录音时，系统也会切换输入法或弹出表情面板。到「系统设置 → 键盘」把它改成「无操作」。"
+        alert.addButton(withTitle: "打开键盘设置")
+        alert.addButton(withTitle: "知道了")
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// 三套快捷键互相影响（撞键时谁让谁、Option 只认左边），任何一套变了都让所有监听重读。
+    /// 页面重画在 hotkeyDidChange 里异步做，这时菜单和弹窗的回调已经返回，不会拆掉正在回调的按钮
     private func applyHotkeyChange() {
         NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
-        invalidate(.home, .explore)
     }
 
     private func presentCustomHotkeyPanel() {
@@ -2501,6 +2586,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         alert.addButton(withTitle: "恢复默认")
         alert.addButton(withTitle: "取消")
 
+        // 录键期间现有热键全部不响应：不然录 ⌥Space 时一按 ⌥ 就开了听写。
+        // 结束时（保存、取消、中途 return 都算）恢复，并发一次通知让各监听按实际按键状态重新同步、各页重画
+        HotkeyManager.isSuspended = true
+        defer {
+            HotkeyManager.isSuspended = false
+            applyHotkeyChange()
+        }
         let response = alert.runModal()
         switch response {
         case .alertFirstButtonReturn:
@@ -2511,18 +2603,24 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             if let warning = shortcut.conflictWarning, !confirmRiskyHotkey(warning) {
                 return
             }
+            guard resolveHotkeyClash(.custom(shortcut)) else { return }
             switch hotkeyMenuTarget {
             case .recording: RecordingHotkeyShortcut.useCustom(shortcut)
             case .ask(let hotkey): hotkey.useCustom(shortcut)
             }
-            applyHotkeyChange()
         case .alertSecondButtonReturn:
             switch hotkeyMenuTarget {
-            case .recording: RecordingHotkeyShortcut.useModifier(.option)
+            case .recording:
+                guard resolveHotkeyClash(.modifier(.option)) else { return }
+                RecordingHotkeyShortcut.useModifier(.option)
             case .ask(let hotkey):
-                if let modifier = hotkey.defaultModifier { hotkey.useModifier(modifier) } else { hotkey.clear() }
+                if let modifier = hotkey.defaultModifier {
+                    guard resolveHotkeyClash(.modifier(modifier)) else { return }
+                    hotkey.useModifier(modifier)
+                } else {
+                    hotkey.clear()
+                }
             }
-            applyHotkeyChange()
         default:
             break
         }
@@ -3524,6 +3622,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let failCount = rows.filter { !$0.2 }.count
         // 全绿默认折叠（这块没信息量），有问题默认展开；用户可手动点开/收起。
         let expanded = healthExpandedOverride ?? !allOK
+        lastHealthExpanded = expanded
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -3577,15 +3676,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return h
     }
 
-    private func healthAllOK() -> Bool {
-        let hosted = HostedRoute.current(ownKeyConfigured: false) != .none   // 会员/试用走托管通道，不算缺 Key
-        return micStatusInfo().ok && AXIsProcessTrusted()
-            && (CloudASRTranscriber().isConfigured() || hosted) && (isPolishConfigured() || hosted)
-    }
-
     @objc private func toggleHealthExpanded() {
-        let current = healthExpandedOverride ?? !healthAllOK()
-        healthExpandedOverride = !current
+        // 以卡片上次实际画出来的状态为准取反，不另算一遍全绿（两套判断对不上时第一次点击没反应）
+        healthExpandedOverride = !lastHealthExpanded
         invalidate(.home)
     }
 
@@ -4020,6 +4113,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc private func asrVersionChanged(_ sender: VPSegmentedControl) {
         let version = Self.asrVersion(forSegment: sender.selectedSegment)
         config.save(values: ["bigasr_version": version.rawValue])
+        invalidate(.home)   // 首页健康卡的「语音识别」按当前版本判断是否已配置
     }
 
     @objc private func asrProviderChanged(_ sender: VPSegmentedControl) {
@@ -4038,6 +4132,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if let seg = polishProviderControl {
             refreshPolishKeyField(for: polishProvider(forSegment: seg.selectedSegment))
         }
+        invalidate(.home)   // 换了服务商，首页健康卡的「语音识别」要按新服务商的 Key 重新判断
     }
 
     /// 按服务商刷新识别卡片的动态区（Key + 版本/模型），与「语音优化」同一范式。
@@ -4050,6 +4145,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             let keyField = makeSecureField(config.string(forKey: "bigasr_api_key"))
             keyField.delegate = self
             bigASRAPIKeyField = keyField
+            bailianKeyField = nil   // 旧的百炼框已移除，别让 persistModelFields 再读它
             let keyRow = makeFieldRow(label: "API Key", control: keyField, placeholder: "请输入豆包 API Key")
             container.addArrangedSubview(keyRow)
             keyRow.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
@@ -4082,6 +4178,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             let keyField = makeSecureField(config.string(forKey: "dashscope_api_key"))
             keyField.delegate = self
             bailianKeyField = keyField
+            bigASRAPIKeyField = nil   // 旧的火山框已移除
             let keyRow = makeFieldRow(label: "DashScope API Key", control: keyField, placeholder: "请输入 DashScope API Key")
             container.addArrangedSubview(keyRow)
             keyRow.widthAnchor.constraint(equalTo: container.widthAnchor).isActive = true
@@ -4872,6 +4969,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             action: #selector(polishModelSegmentChanged(_:)))
         modelSeg.identifier = NSUserInterfaceItemIdentifier(configKey)
         modelSeg.selectedSegment = selected
+        polishModelPresets[configKey] = presets
 
         let lbl = label("模型", size: 12.5, weight: .medium, color: theme.text2)
         let cap = label(caption, size: 11.5, weight: .regular, color: theme.text3)
@@ -4897,15 +4995,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return stack
     }
 
+    /// 各「模型」分段建行时的预设（configKey → presets），点分段时按它存，不在这里另写一份
+    private var polishModelPresets: [String: [String]] = [:]
+
     @objc private func polishModelSegmentChanged(_ sender: VPSegmentedControl) {
-        guard let key = sender.identifier?.rawValue else { return }
-        let presets: [String]
-        switch key {
-        case "doubao_polish_model":
-            presets = ["doubao-seed-2-0-pro-260215", "doubao-seed-1-6-flash-250828"]
-        default:
-            return
-        }
+        guard let key = sender.identifier?.rawValue,
+              let presets = polishModelPresets[key], !presets.isEmpty else { return }
         let index = max(0, min(sender.selectedSegment, presets.count - 1))
         let value = presets[index]
         config.save(value: value, forKey: key)
@@ -5419,6 +5514,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func testRecognitionConnection() {
+        // 先结束正在编辑的框：controlTextDidEndEditing 会把两处 DashScope Key 同步好，再保存
+        window?.makeFirstResponder(nil)
         persistModelFields()
         asrTestButton?.isEnabled = false
         asrTestResultLabel?.textColor = theme.text3
@@ -5453,6 +5550,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc private func testPolishConnection() {
         let provider = polishProviderControl.map { polishProvider(forSegment: $0.selectedSegment) } ?? "qwen"
         guard provider != "none" else { return }
+        window?.makeFirstResponder(nil)   // 同 testRecognitionConnection：先结束编辑再保存
         persistModelFields()
         polishTestButton?.isEnabled = false
         polishTestResultLabel?.textColor = theme.text3
@@ -5484,6 +5582,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if field.identifier?.rawValue == "askVisionModel" {
             config.save(value: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                         forKey: AskAtCursorSettings.visionModelKey)
+            // 记下填的时候用的是哪一家，换了服务商就不把这个模型名发给别家（见 visionOverride）
+            let provider = config.string(forKey: "polish_provider") ?? "qwen"
+            config.save(value: ["qwen", "deepseek", "zhipu", "doubao"].contains(provider) ? provider : "",
+                        forKey: AskAtCursorSettings.visionModelProviderKey)
             return
         }
         // 识别(百炼)与优化(通义千问)的 DashScope Key 框联动，保持一致
@@ -5529,33 +5631,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         config.save(bool: sender.isOn, forKey: MouseHoldToTalkSettings.enabledKey)
     }
 
-    @objc private func mouseHoldAskChanged(_ sender: VPToggle) {
-        config.save(bool: sender.isOn, forKey: MouseHoldToTalkSettings.askEnabledKey)
-    }
-
     // MARK: 指针问 AI
-
-    @objc private func askAtCursorEnabledChanged(_ sender: VPToggle) {
-        config.save(bool: sender.isOn, forKey: AskAtCursorSettings.enabledKey)
-        NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
-    }
 
     @objc private func askScreenshotChanged(_ sender: VPToggle) {
         config.save(bool: sender.isOn, forKey: AskAtCursorSettings.screenshotEnabledKey)
-    }
-
-    /// 指针问 AI：按住修饰键再点左键，指针在哪就问哪。
-    /// 和上面那张卡的区别是这次点击会被吞掉，所以按钮、链接、输入框、视频上都能问。
-    private func makeAskAtCursorCard() -> NSView {
-        let toggle = VPToggle(theme: theme, target: self, action: #selector(askAtCursorEnabledChanged(_:)))
-        toggle.setOn(AskAtCursorSettings.isEnabled, animated: false)
-        toggle.setAccessibilityLabel("指针问 AI")
-        return makeExploreCard(id: "askCursor", title: "修饰键 + 点击问 AI",
-                               summary: "按住修饰键点一下鼠标来提问。默认关闭：开着时 Typefree 要接管全系统的鼠标点击，一般用上面的快捷键就够了。",
-                               control: toggle,
-                               rows: [makeAskCursorModifierRow(), makeAskCursorModeRow()]) {
-            self.makeAskAtCursorHelp()
-        }
     }
 
     /// 问 AI 的两个键盘快捷键。只旁听键盘、不拦任何事件，是推荐的提问方式
@@ -5570,7 +5649,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                                makeAskImagesRow(),
                                makeAskThinkingToggleRow(),
                                makeAskThinkingEffortRow()]) {
-            self.makeExploreHelp("""
+            self.makeAskHotkeyHelp("""
             怎么用：按住快捷键说出问题，松开就提问；不想一直按着，就轻点一下开始、说完再点一下结束。按住期间按 Esc 取消。回答显示在屏幕右上角，按住回答面板继续说话可以追问。
 
             看屏幕问：按下快捷键那一刻截鼠标所在的那块屏幕，在鼠标位置画一个红色圆环，连同一张整屏缩略图一起发给模型。问题和屏幕无关时模型会忽略截图，照常回答。截图只用于这一次提问，不保存、不写进历史记录。
@@ -5580,6 +5659,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             联网：DeepSeek、智谱、豆包的接口都不能联网，只有千问可以。同时填了千问 Key 时，需要最新信息的问题模型会自己判断、自动转给千问联网回答；也可以用「搜一下……」开头直接联网。
 
             撞键：三个快捷键（开始说话、看屏幕问、只提问）设成同一个时，按这个顺序前面的优先，后面的不响应。听写用 Option、看屏幕问用右 Option 时，听写只认左边那颗 Option。
+
+            看屏幕问用的模型：按「模型」里选的那一家，自动换成同一家支持读图的模型。免费额度用完会自动降到同一家的下一个候选。想换别的填下面这一栏。
             """)
         }
     }
@@ -5592,49 +5673,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         button.toolTip = "设置「\(hotkey.title)」的快捷键"
         let note = hotkey.conflict.map { "⚠️ \($0)，现在不会响应。" } ?? desc
         return makeAskCursorRow(title: hotkey.title, desc: note, control: button)
-    }
-
-    private func makeAskCursorModifierRow() -> NSView {
-        // 单键在前，常用组合在后。组合更不容易误触，但按起来费手，所以不做默认。
-        let combos: [AskCursorModifierCombo] = AskCursorModifier.displayOrder.compactMap { AskCursorModifierCombo([$0]) }
-            + [AskCursorModifierCombo([.leftControl, .leftOption]),
-               AskCursorModifierCombo([.leftControl, .leftShift]),
-               AskCursorModifierCombo([.leftOption, .leftShift])].compactMap { $0 }
-        var items = combos.map { VPDropdown.Item(value: $0.configValue, title: $0.displayName) }
-        let current = AskAtCursorSettings.combo.configValue
-        // 用户手改过配置、填了列表里没有的组合：把它也列出来，免得下拉把设置改掉
-        if !items.contains(where: { $0.value == current }) {
-            items.append(VPDropdown.Item(value: current, title: AskAtCursorSettings.combo.displayName))
-        }
-        let popup = VPDropdown(items: items, selectedValue: current,
-                               trackBg: theme.card,
-                               trackBorder: Self.dropdownBorder,
-                               textColor: theme.text, chevronColor: theme.text3)
-        popup.onSelect = { [weak self] value in
-            self?.config.save(value: value, forKey: AskAtCursorSettings.modifierKey)
-            NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
-        }
-        popup.widthAnchor.constraint(equalToConstant: 210).isActive = true
-        return makeAskCursorRow(title: "触发键",
-                                desc: "按住它再点鼠标左键就开始提问。分左右，按住的必须是选中的那一边。",
-                                control: popup)
-    }
-
-    private func makeAskCursorModeRow() -> NSView {
-        let items = AskCursorListenMode.allCases.map { VPDropdown.Item(value: $0.rawValue, title: $0.displayName) }
-        let current = AskAtCursorSettings.listenMode.rawValue
-        let popup = VPDropdown(items: items, selectedValue: current,
-                               trackBg: theme.card,
-                               trackBorder: Self.dropdownBorder,
-                               textColor: theme.text, chevronColor: theme.text3)
-        popup.onSelect = { [weak self] value in
-            self?.config.save(value: value, forKey: AskAtCursorSettings.listenModeKey)
-            NotificationCenter.default.post(name: .voicePolishAskAtCursorDidChange, object: nil)
-        }
-        popup.widthAnchor.constraint(equalToConstant: 200).isActive = true
-        return makeAskCursorRow(title: "倾听模式",
-                                desc: "用触控板时选「点一下开始」更省力，不用一直按着。",
-                                control: popup)
     }
 
     /// 设置页「问 AI」栏：回答前要不要先思考、想多深
@@ -5664,6 +5702,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     @objc private func askImagesChanged(_ sender: VPToggle) {
         config.save(bool: sender.isOn, forKey: ImageSearch.settingKey)
+        invalidateOtherAskSettingsPage()
+    }
+
+    /// 「联网回答附图」「思考强度」在设置页和探索页各有一份：改了一处，只重建另一页。
+    /// 当前页的控件已经显示新值，不拆它，免得开关动画被打断、页面跳动
+    private func invalidateOtherAskSettingsPage() {
+        invalidate(selectedPage == .settings ? .explore : .settings)
     }
 
     private func makeAskThinkingToggleRow() -> NSView {
@@ -5683,6 +5728,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                                textColor: theme.text, chevronColor: theme.text3)
         popup.onSelect = { [weak self] value in
             self?.config.save(value: value, forKey: AskThinkingSettings.effortKey)
+            self?.invalidateOtherAskSettingsPage()
         }
         popup.widthAnchor.constraint(equalToConstant: 120).isActive = true
         popup.alphaValue = AskThinkingSettings.isEnabled ? 1 : 0.45
@@ -5732,54 +5778,32 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return row
     }
 
-    /// 展开的使用说明 + 视觉模型手填框
-    private func makeAskAtCursorHelp() -> NSView {
+    /// 问 AI 快捷键卡片展开后的说明 + 视觉模型手填框（看屏幕问会读这一项）
+    private func makeAskHotkeyHelp(_ text: String) -> NSView {
         let column = NSStackView()
         column.orientation = .vertical
         column.alignment = .leading
         column.spacing = 12
 
-        let help = makeExploreHelp("""
-        开始提问：按住触发键（默认左 Control）再点鼠标左键，指针指着什么就问什么。按钮、链接、输入框、视频上都能用，这一下点击不会传给底下的软件，所以不会误点开链接。按住左 Control 时的点击会被 Typefree 接管，不再弹出右键菜单；触控板双指点按当右键不受影响。
-
-        结束提问：选「点一下开始」时，再点一次鼠标就结束并提问，按 Esc 取消，录满 60 秒会自动结束。选「按住说话」时，松开左键即结束。
-
-        AI 看到什么：触发那一刻截指针所在的那块屏幕，在指针位置画一个红色圆环，连同一张整屏缩略图一起发给模型，告诉它「用户问的是圆环那里」。截图只用于这一次提问，不保存、不写进历史记录，追问时也不会重复发。
-
-        没有屏幕录制权限、或者用的是会员/试用通道时：这次提问退回只用语音，原因会写在回答浮窗里，不会默默失败。
-
-        所用模型：按「模型」里选的那一家，自动换成同一家支持读图的模型（千问 qwen3.8-flash，智谱 glm-5.3-flash，豆包 doubao-seed-2-1-turbo）。免费额度用完会自动降到同一家的下一个候选。想换别的填下面这一栏。
-        """)
+        let help = makeExploreHelp(text)
         column.addArrangedSubview(help)
         help.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
 
         let field = makeTextField(config.string(forKey: AskAtCursorSettings.visionModelKey), mono: true)
-        field.placeholderString = "留空 = 用上面那几个默认值"
+        field.placeholderString = "留空 = 用默认的读图模型"
         field.identifier = NSUserInterfaceItemIdentifier("askVisionModel")
         field.delegate = self
         field.widthAnchor.constraint(equalToConstant: 260).isActive = true
         column.addArrangedSubview(makeAskCursorRow(title: "视觉模型（可选）",
-                                                   desc: "官方换代时自己填新名字，不用等 Typefree 发版。",
+                                                   desc: "官方换代时自己填新名字，不用等 Typefree 发版。只对填写时选的那一家生效。",
                                                    control: field))
         column.arrangedSubviews.last?.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
         return column
     }
 
-    /// 长按问 AI：在正文、空白处长按 → 问题交给 AI，答案弹在旁边
-    private func makeMouseHoldAskCard() -> NSView {
-        let toggle = VPToggle(theme: theme, target: self, action: #selector(mouseHoldAskChanged(_:)))
-        toggle.setOn(MouseHoldToTalkSettings.isAskEnabled, animated: false)
-        toggle.setAccessibilityLabel("随时问 AI")
-        return makeExploreCard(id: "ask", title: "空白处长按问 AI",
-                               summary: "不按任何键，在空白处按住说话就能提问。", control: toggle, demo: .ask) {
-            self.makeExploreHelp("开始提问：在页面空白处按住鼠标左键说出问题，松开后显示回答。这条路径不拦截点击，所以输入框、按钮和链接上不触发；想在它们上面提问，用上面的「问 AI 快捷键」。\n\n继续追问：按住回答面板继续说话，AI 会结合当前话题回答。\n\n管理浮窗：点图钉可固定回答；未固定时，点外面会收起，鼠标移回可展开。回答支持复制。\n\n查看记录：对话保存在「历史记录」中，同一话题的多轮问答合并展示。\n\nAI 看到什么：开着「让 AI 看屏幕」时，这条路径同样会把指针所在的那块屏幕一起发给模型。\n\n所用模型：使用「模型」中配置的润色模型；千问支持联网搜索。")
-        }
-    }
-
     @objc private func tapToggleChanged(_ sender: VPToggle) {
         config.save(bool: sender.isOn, forKey: RecordingHotkeyBehavior.tapToggleConfigKey)
-        NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
-        invalidate(.home)
+        NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)   // hotkeyDidChange 里重画各页
     }
 
     @objc private func launchAtLoginChanged(_ sender: VPToggle) {
@@ -6054,12 +6078,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return card
     }
 
-    /// 同一话题（thread）的全部记录下标
+    /// 和 index 在同一张卡上的记录下标。规则与 appendNextHistoryBatch 合并卡片一致：
+    /// 只取相邻且 thread 相同的问 AI 记录，同一话题中间夹了听写就是两张卡，删除 / 复制各管各的
     private func askThreadIndices(containing index: Int) -> [Int] {
         guard allHistoryEntries.indices.contains(index) else { return [] }
         let e = allHistoryEntries[index]
         guard e.isAsk, let t = e.thread else { return [index] }
-        return allHistoryEntries.indices.filter { allHistoryEntries[$0].isAsk && allHistoryEntries[$0].thread == t }
+        func same(_ k: Int) -> Bool { allHistoryEntries[k].isAsk && allHistoryEntries[k].thread == t }
+        var lo = index, hi = index
+        while lo > 0, same(lo - 1) { lo -= 1 }
+        while hi + 1 < allHistoryEntries.count, same(hi + 1) { hi += 1 }
+        return Array(lo...hi)
     }
 
     @objc private func copyAskAnswer(_ sender: NSButton) {
@@ -6101,6 +6130,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func deleteAskThread(_ sender: NSMenuItem) {
+        guard processingIndex == nil else { return }   // 同 deleteHistoryEntry
         let indices = askThreadIndices(containing: sender.tag)
         guard !indices.isEmpty else { return }
         let alert = NSAlert()
@@ -6158,13 +6188,31 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         cardOutputLabels[index]?.textColor = theme.text3
     }
 
-    /// 结束就地处理：恢复按钮 + 用最新文本刷新正文（重新润色用，结构不变）。
-    private func endInlineProcessingRepolish(index: Int) {
+    /// 这条记录是否还在原来的下标上。处理要跑几秒，期间删了别的记录会重建页面、下标整体错位，
+    /// 结束时先按这个确认，不对就整页重建，不往别的卡上写
+    private func historyEntry(_ entry: AIPolisher.PolishLog, isAt index: Int) -> Bool {
+        guard allHistoryEntries.indices.contains(index) else { return false }
+        let e = allHistoryEntries[index]
+        if let a = e.id, let b = entry.id, !a.isEmpty, !b.isEmpty { return a == b }
+        return e.time == entry.time && e.app == entry.app && e.asr == entry.asr && e.output == entry.output
+    }
+
+    /// 结束就地处理：恢复按钮 + 用新输出刷新正文（重新润色用，结构不变）。newOutput 为 nil 表示文本不变。
+    /// 只改内存里这一条，不整表重载：重载会把期间新增的记录插到最前，所有卡片的下标都对不上
+    private func endInlineProcessingRepolish(index: Int, entry: AIPolisher.PolishLog, newOutput: String?) {
         processingIndex = nil
-        allHistoryEntries = historyStore.load(limit: 500)
-        historyEntries = allHistoryEntries
-        if allHistoryEntries.indices.contains(index) {
-            cardOutputLabels[index]?.stringValue = allHistoryEntries[index].output
+        guard historyEntry(entry, isAt: index) else {
+            invalidate(.history)
+            return
+        }
+        if let newOutput {
+            allHistoryEntries[index] = AIPolisher.PolishLog(
+                time: entry.time, app: entry.app, asr: entry.asr, output: newOutput,
+                duration_ms: entry.duration_ms, input_tokens: entry.input_tokens,
+                output_tokens: entry.output_tokens, id: entry.id, audioFile: entry.audioFile,
+                kind: entry.kind, thread: entry.thread)
+            historyEntries = allHistoryEntries
+            cardOutputLabels[index]?.stringValue = newOutput
         }
         cardOutputLabels[index]?.textColor = theme.text
         if let actions = cardActionContainers[index] {
@@ -6298,7 +6346,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         allHistoryEntries[index] = AIPolisher.PolishLog(
             time: entry.time, app: entry.app, asr: entry.asr, output: edited,
             duration_ms: entry.duration_ms, input_tokens: entry.input_tokens,
-            output_tokens: entry.output_tokens, id: entry.id, audioFile: entry.audioFile)
+            output_tokens: entry.output_tokens, id: entry.id, audioFile: entry.audioFile,
+            kind: entry.kind, thread: entry.thread)
         historyEntries = allHistoryEntries
         refreshHistoryCardInPlace(index: index)
 
@@ -6327,9 +6376,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                 case .success(let polished):
                     let newOutput = polished.isEmpty ? entry.asr : polished
                     _ = self.historyStore.updateEntry(matching: entry, newASR: nil, newOutput: newOutput)
-                    self.endInlineProcessingRepolish(index: index)
+                    self.endInlineProcessingRepolish(index: index, entry: entry, newOutput: newOutput)
                 case .failure(let err):
-                    self.endInlineProcessingRepolish(index: index)  // 恢复按钮（文本不变）
+                    self.endInlineProcessingRepolish(index: index, entry: entry, newOutput: nil)  // 恢复按钮（文本不变）
                     self.presentHistoryActionResult(success: false, message: "重新润色失败：\(err.localizedDescription)")
                 }
             }
@@ -6376,7 +6425,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             guard let self = self else { return }
             guard let samples = self.audioStore.loadSamples(fileName: audioFile), !samples.isEmpty else {
                 DispatchQueue.main.async {
-                    self.endInlineProcessingRepolish(index: index)
+                    self.endInlineProcessingRepolish(index: index, entry: entry, newOutput: nil)
                     self.presentHistoryActionResult(success: false, message: "音频已不存在，无法重新转写。")
                 }
                 return
@@ -6405,7 +6454,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             case .failure(let err):
                 log("History retry: 识别失败 \(err.localizedDescription)")
                 DispatchQueue.main.async {
-                    self.endInlineProcessingRepolish(index: index)
+                    self.endInlineProcessingRepolish(index: index, entry: entry, newOutput: nil)
                     self.presentHistoryActionResult(success: false, message: "重新转写失败：\(err.localizedDescription)")
                 }
             case .success(let rawText):
@@ -6423,14 +6472,18 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                     DispatchQueue.main.async {
                         _ = self.historyStore.updateEntry(matching: entry, newASR: rawText, newOutput: corrected)
                         // 同步内存里这条，再就地换这张卡——不整页重建，保住用户的滚动位置与已加载批次。
-                        if self.allHistoryEntries.indices.contains(index) {
-                            let e = self.allHistoryEntries[index]
-                            self.allHistoryEntries[index] = AIPolisher.PolishLog(
-                                time: e.time, app: e.app, asr: rawText, output: corrected,
-                                duration_ms: e.duration_ms, input_tokens: e.input_tokens,
-                                output_tokens: e.output_tokens, id: e.id, audioFile: e.audioFile)
-                        }
                         self.processingIndex = nil
+                        // 期间页面重建过、下标已不指向这条，就整页重建，不把新文字拼到别的记录上
+                        guard self.historyEntry(entry, isAt: index) else {
+                            self.invalidate(.history)
+                            return
+                        }
+                        self.allHistoryEntries[index] = AIPolisher.PolishLog(
+                            time: entry.time, app: entry.app, asr: rawText, output: corrected,
+                            duration_ms: entry.duration_ms, input_tokens: entry.input_tokens,
+                            output_tokens: entry.output_tokens, id: entry.id, audioFile: entry.audioFile,
+                            kind: entry.kind, thread: entry.thread)
+                        self.historyEntries = self.allHistoryEntries
                         self.refreshHistoryCardInPlace(index: index)
                     }
                 }
@@ -6446,6 +6499,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func deleteHistoryEntry(_ sender: NSMenuItem) {
+        guard processingIndex == nil else { return }   // 有一条在重试时不重建页面，免得它结束时下标错位
         guard allHistoryEntries.indices.contains(sender.tag) else { return }
         let entry = allHistoryEntries[sender.tag]
         let alert = NSAlert()
@@ -6954,7 +7008,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             probe = view.superview
         }
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
-        field.becomeFirstResponder()
+        // 焦点要经气泡自己的窗口给，且等气泡窗口显示出来之后
+        DispatchQueue.main.async { field.window?.makeFirstResponder(field) }
     }
 
     /// 气泡里的错法 chip：词 + ✕ 删除
@@ -7542,6 +7597,12 @@ private final class MicrophonePickerSheet: NSObject, NSWindowDelegate {
             name: .voicePolishRecordingWillStart,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(recordingDidStop),
+            name: .voicePolishRecordingDidStop,
+            object: nil
+        )
 
         host.beginSheet(sheet) { [weak self] _ in
             self?.teardown()
@@ -7564,6 +7625,14 @@ private final class MicrophonePickerSheet: NSObject, NSWindowDelegate {
         stopMeter()
     }
 
+    /// 录音让出的麦克风还回来：面板还开着就把电平表接着跑，不然录完一句话电平条就一直不动
+    @objc private func recordingDidStop() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.sheet != nil else { return }
+            self.startMeterForCurrentSelection()
+        }
+    }
+
     private func rebuildList() {
         guard let listStack else { return }
         listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -7573,7 +7642,8 @@ private final class MicrophonePickerSheet: NSObject, NSWindowDelegate {
         listStack.addArrangedSubview(makeRow(
             uid: MicrophoneManager.systemDefaultUID,
             primary: "跟随系统默认（\(followingName)）",
-            secondary: "随系统输入设置切换",
+            // 选的设备拔掉了，勾暂时落在这一行：写明原因，插回来会自动切回去
+            secondary: mgr.isPreferredDeviceMissing ? "所选麦克风未连接，暂用这个；插回来会自动切回去" : "随系统输入设置切换",
             isSelected: mgr.selectedUID == MicrophoneManager.systemDefaultUID,
             isRecommended: false
         ))

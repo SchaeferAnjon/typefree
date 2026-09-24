@@ -160,7 +160,13 @@ final class AskVisionTests: XCTestCase {
         for provider in ["qwen", "zhipu", "doubao", "unknown"] {
             XCTAssertFalse(AskVision.visionCandidates(provider: provider).isEmpty)
         }
-        XCTAssertEqual(AskVision.visionCandidates(provider: "qwen", override: "my-model"), ["my-model"])
+        let withOverride = AskVision.visionCandidates(provider: "qwen", override: "my-model")
+        XCTAssertEqual(withOverride.first, "my-model")
+        XCTAssertEqual(Array(withOverride.dropFirst()), AskVision.visionCandidates(provider: "qwen"))
+        // 手填的正好是内置候选之一：不重复
+        let dup = AskVision.visionCandidates(provider: "qwen", override: "qwen3.7-flash")
+        XCTAssertEqual(dup.first, "qwen3.7-flash")
+        XCTAssertEqual(dup.filter { $0 == "qwen3.7-flash" }.count, 1)
         XCTAssertEqual(AskVision.visionModel(provider: "zhipu"), "glm-5.3-flash")
     }
 

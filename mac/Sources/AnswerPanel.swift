@@ -19,6 +19,7 @@ final class AnswerPanel {
     private var mouseUpMonitor: Any?
     private var outsideClickMonitor: Any?
     private var appearanceObserver: NSObjectProtocol?
+    private var hotkeyObserver: NSObjectProtocol?
     // 「点外面缩成小框」：小框静止 4s 后 1s 淡出；鼠标停留 150ms 回满；再离开重新倒计时
     private static let collapsedWidth: CGFloat = 320
     private var dismissTimer: Timer?
@@ -47,7 +48,11 @@ final class AnswerPanel {
     /// 续聊松手（cancelled = 拖开取消）
     var onFollowUpEnd: ((_ cancelled: Bool) -> Void)?
 
-    var isVisible: Bool { panel?.isVisible ?? false }
+    /// 正在滑出的面板不算在屏上（马上就收起了）
+    var isVisible: Bool { (panel?.isVisible ?? false) && !isHiding }
+    /// 滑出动画进行中；动画回调只在这一轮没被新的 present 打断时才 orderOut
+    private var isHiding = false
+    private var hideGeneration = 0
     /// 当前话题 id（写历史用；新话题换新 id）
     private(set) var threadID = UUID().uuidString
     var isPinned: Bool { model.pinned }
@@ -170,7 +175,10 @@ final class AnswerPanel {
     }
 
     func hide() {
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible, !isHiding else { return }
+        isHiding = true
+        hideGeneration += 1
+        let generation = hideGeneration
         removeEscMonitor()
         removeMouseUpMonitor()
         removeOutsideClickMonitor()
@@ -185,7 +193,10 @@ final class AnswerPanel {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().setFrame(out, display: true)
             panel.animator().alphaValue = 0.2
-        }, completionHandler: { [weak panel] in
+        }, completionHandler: { [weak self, weak panel] in
+            // 滑出途中又弹出了新回答：这次收起作废，别把新面板藏掉
+            guard let self, self.hideGeneration == generation, self.isHiding else { return }
+            self.isHiding = false
             panel?.orderOut(nil)
             panel?.alphaValue = 1
         })
@@ -196,6 +207,7 @@ final class AnswerPanel {
     private func present() {
         if panel == nil { createPanel() }
         applyAppearance()   // 兜底：万一漏了切换通知，每次弹出时再核对一次
+        refreshHotkeyHint()
         guard let panel, let hosting else { return }
         refreshViewsForNewContent()
         let screen = Self.screenUnderMouse()
@@ -208,7 +220,11 @@ final class AnswerPanel {
         let vf = screen.visibleFrame
         let final = NSRect(x: vf.maxX - size.width - Self.margin, y: vf.maxY - size.height - Self.margin,
                            width: size.width, height: size.height)
-        if panel.isVisible {
+        if isHiding {
+            // 正在滑出：作废那次收起，下面按全新弹出走（重新滑入、重装 Esc / 点外面的监听）
+            isHiding = false
+            hideGeneration += 1
+        } else if panel.isVisible {
             // 面板已在屏上（固定着、或上一题还没收）：内容整体换新，窗口直接定到新高度。
             // 若走动画，旧窗口比新内容高的那 0.2 秒里内容会贴底、顶上露一块空底。
             panel.setFrame(final, display: true)
@@ -295,6 +311,17 @@ final class AnswerPanel {
             forName: MainWindowAppearance.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.applyAppearance() }
         applyAppearance()
+        // 底栏「再按 X 继续追问」跟着设置里的问 AI 快捷键走
+        hotkeyObserver = NotificationCenter.default.addObserver(
+            forName: .voicePolishHotkeyDidChange, object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshHotkeyHint() }
+    }
+
+    /// 底栏提示里写实际生效的问 AI 快捷键（优先看屏幕问那套，底栏一行放不下两个）；
+    /// 两套都没设或都被占了，就不提快捷键
+    private func refreshHotkeyHint() {
+        let hint = [AskHotkey.screen, AskHotkey.plain].first(where: \.isActive)?.displayName ?? ""
+        if model.hotkeyHint != hint { model.hotkeyHint = hint }
     }
 
     private func applyAppearance() {
@@ -681,6 +708,8 @@ final class AnswerModel: ObservableObject {
     @Published var copied = false
     enum FooterState { case idle, listening, processing, noSpeech, cancelled }
     @Published var footer: FooterState = .idle
+    /// 生效中的问 AI 快捷键名（如「右 Option」）；空 = 没有可用的快捷键，底栏只提长按
+    @Published var hotkeyHint = ""
     let wave = PanelWaveClock()
     @Published var maxContentHeight: CGFloat = 400
     /// 标题栏显示第几轮的问题（跟着滚动走：哪一轮的问句块滚出顶部，标题就换成哪一轮）
@@ -824,7 +853,9 @@ struct AnswerView: View {
         HStack(spacing: 4) {
             switch model.footer {
             case .idle:
-                Text("再按快捷键或长按这里继续追问 · 点 ✕ 结束这个话题")
+                Text(model.hotkeyHint.isEmpty
+                     ? "长按这里继续追问 · 点 ✕ 结束这个话题"
+                     : "再按 \(model.hotkeyHint) 或长按这里继续追问 · 点 ✕ 结束这个话题")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             case .listening:
