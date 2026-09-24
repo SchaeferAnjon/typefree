@@ -1,4 +1,5 @@
 import Cocoa
+import Combine
 import AudioToolbox
 import AVFoundation
 import ApplicationServices
@@ -545,6 +546,16 @@ private final class SidebarRow: NSView {
         onClick?(page)
     }
 
+    // 辅助功能：整行当一个按钮，读屏和自动化能认出是哪一页并「按下」切过去（原先只认鼠标）
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .button }
+    override func accessibilityLabel() -> String? { titleLabel.stringValue }
+    override func isAccessibilitySelected() -> Bool { isSelected }
+    override func accessibilityPerformPress() -> Bool {
+        onClick?(page)
+        return true
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
@@ -855,11 +866,16 @@ final class VPDropdown: NSControl {
 
     @objc private func pick(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String else { return }
+        setSelectedValue(value)
+        onSelect?(value)
+    }
+
+    /// 改显示的选中项（不触发 onSelect）。别处改了同一个设置时用来同步
+    func setSelectedValue(_ value: String) {
         selectedValue = value
         let picked = items.first { $0.value == value }
         titleLabel.stringValue = picked?.title ?? value
         titleLabel.textColor = (picked?.warn == true) ? selectedWarnColor : normalTextColor
-        onSelect?(value)
     }
 }
 
@@ -1146,7 +1162,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private var asrTestButton: VPButton?
     private var polishTestButton: VPButton?
     private var autoLearnCheckbox: VPToggle?
-    private var tapToggleCheckbox: VPToggle?
     private var outputLanguagePhraseFields: [String: NSTextField] = [:]
     private var outputLanguageAddNameField: NSTextField?
     private var outputLanguageAddPhrasesField: NSTextField?
@@ -1280,12 +1295,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(hotkeyDidChange),
-            name: .voicePolishHotkeyDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
             selector: #selector(updateStateDidChange),
             name: .typefreeUpdateStateDidChange,
             object: nil
@@ -1384,13 +1393,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc private func microphoneSelectionDidChange() {
         DispatchQueue.main.async { [weak self] in
             self?.invalidate(.settings, .home)
-        }
-    }
-
-    /// 快捷键在首页、探索页、设置页都有按钮和撞键提示，任何一处改了三页都重画
-    @objc private func hotkeyDidChange() {
-        DispatchQueue.main.async { [weak self] in
-            self?.invalidate(.home, .explore, .settings)
         }
     }
 
@@ -2217,12 +2219,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private func makeHomeHero() -> NSView {
         let card = makeCard()
 
-        let tapToggleEnabled = RecordingHotkeyBehavior.isTapToggleEnabled
-        let shortcut = RecordingHotkeyShortcut.current
-        let titlePrefix = label(tapToggleEnabled ? "长按或单击" : "长按",
-                                size: 24, weight: .semibold, color: theme.text)
+        // 「长按或单击」和下面那行说明跟着快捷键、单击开关变，订阅 store 就地改字
+        let titlePrefix = label("", size: 24, weight: .semibold, color: theme.text)
+        titlePrefix.subscribe(SettingsStore.shared.$hotkeys.map(\.tapToggleEnabled).removeDuplicates()) { view, tapToggle in
+            view.stringValue = tapToggle ? "长按或单击" : "长按"
+        }
         let titleSuffix = label("开始说话", size: 24, weight: .semibold, color: theme.text)
-        let hotkeyPicker = makeHotkeyPickerButton()
+        let hotkeyPicker = makeHotkeyPickerButton(for: .recording)
 
         titlePrefix.setContentCompressionResistancePriority(.required, for: .horizontal)
         titleSuffix.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -2236,15 +2239,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         titleRow.addArrangedSubview(titleSuffix)
         titleRow.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        let descText = RecordingHotkeyShortcut.isDisabled
-            ? "没有设置听写快捷键。在输入框里按住鼠标说话仍然可用；提问用下面两个快捷键。"
-            : tapToggleEnabled
-            ? "\(HotkeyArbiter.displayName(for: "recording", shortcut: shortcut)) 长按时松开结束；单击时再次单击结束。结束后自动转写并粘贴。"
-            : "\(HotkeyArbiter.displayName(for: "recording", shortcut: shortcut)) 松开后自动转写，并粘贴到当前光标位置。"
-        let desc = label(descText,
-                          size: 13, weight: .regular, color: theme.text3)
+        let desc = label("", size: 13, weight: .regular, color: theme.text3)
         desc.maximumNumberOfLines = 0
         desc.lineBreakMode = .byWordWrapping
+        desc.subscribe(SettingsStore.shared.$hotkeys) { view, hotkeys in
+            view.stringValue = hotkeys.recording == nil
+                ? "没有设置听写快捷键。在输入框里按住鼠标说话仍然可用；提问用下面两个快捷键。"
+                : hotkeys.tapToggleEnabled
+                ? "\(hotkeys.recordingTitle) 长按时松开结束；单击时再次单击结束。结束后自动转写并粘贴。"
+                : "\(hotkeys.recordingTitle) 松开后自动转写，并粘贴到当前光标位置。"
+        }
 
         let leftStack = NSStackView()
         leftStack.orientation = .vertical
@@ -2337,13 +2341,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private func makeAskHotkeyHomeRow(_ hotkey: AskHotkey, suffix: String, note: String) -> NSView {
         let prefixLabel = label("长按或单击", size: 15, weight: .medium, color: theme.text)
         let suffixLabel = label(suffix, size: 15, weight: .medium, color: theme.text)
-        let picker = makeHotkeyPickerButton(compact: true)
-        picker.title = "\(hotkey.displayName)  ▾"
+        let picker = makeHotkeyPickerButton(for: .ask(hotkey), compact: true)
         picker.font = .systemFont(ofSize: 14, weight: .semibold)
-        picker.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
-        picker.toolTip = "设置「\(hotkey.title)」的快捷键"
-        let noteLabel = label(hotkey.conflict.map { "⚠️ \($0)，现在不会响应" } ?? note,
-                              size: 12, weight: .regular, color: theme.text3)
+        let noteLabel = label(note, size: 12, weight: .regular, color: theme.text3)
+        noteLabel.subscribe(SettingsStore.shared.$hotkeys.map { $0.conflict(of: hotkey) }.removeDuplicates()) { view, conflict in
+            view.stringValue = conflict.map { "⚠️ \($0)，现在不会响应" } ?? note
+        }
         for view in [prefixLabel, suffixLabel] { view.setContentCompressionResistancePriority(.required, for: .horizontal) }
 
         let row = NSStackView()
@@ -2358,10 +2361,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         return row
     }
 
-    private func makeHotkeyPickerButton(compact: Bool = false) -> NSButton {
-        let button = NSButton(title: "\(HotkeyArbiter.displayName(for: "recording", shortcut: RecordingHotkeyShortcut.isDisabled ? nil : RecordingHotkeyShortcut.current))  ▾",
-                              target: self,
-                              action: #selector(showHotkeyMenu(_:)))
+    /// 三套快捷键共用的选择按钮。标题订阅 store：任何一页改了键，各页的按钮当场换字，不重建页面
+    private func makeHotkeyPickerButton(for target: HotkeyMenuTarget, compact: Bool = false) -> NSButton {
+        let button = NSButton(title: "", target: self, action: #selector(showHotkeyMenu(_:)))
         button.translatesAutoresizingMaskIntoConstraints = false
         button.isBordered = false
         button.font = .systemFont(ofSize: 18, weight: .semibold)
@@ -2374,10 +2376,25 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         button.layer?.setAppearanceBackground(theme.cardAlt)
         button.layer?.masksToBounds = true
         button.setButtonType(.momentaryChange)
-        button.toolTip = "设置开始说话快捷键"
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: compact ? 112 : 134).isActive = true
         button.heightAnchor.constraint(equalToConstant: compact ? 30 : 38).isActive = true
+        // identifier 告诉 showHotkeyMenu 这是哪一套；无障碍标签让读屏和自动化能认出是哪个键的按钮
+        switch target {
+        case .recording:
+            button.toolTip = "设置开始说话快捷键"
+            button.setAccessibilityLabel("开始说话快捷键")
+            button.subscribe(SettingsStore.shared.$hotkeys.map(\.recordingTitle).removeDuplicates()) { button, title in
+                button.title = "\(title)  ▾"
+            }
+        case .ask(let hotkey):
+            button.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
+            button.toolTip = "设置「\(hotkey.title)」的快捷键"
+            button.setAccessibilityLabel("\(hotkey.title)快捷键")
+            button.subscribe(SettingsStore.shared.$hotkeys.map { $0.title(of: hotkey) }.removeDuplicates()) { button, title in
+                button.title = "\(title)  ▾"
+            }
+        }
         return button
     }
 
@@ -2563,9 +2580,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     /// 三套快捷键互相影响（撞键时谁让谁、Option 只认左边），任何一套变了都让所有监听重读。
-    /// 页面重画在 hotkeyDidChange 里异步做，这时菜单和弹窗的回调已经返回，不会拆掉正在回调的按钮
+    /// 各页的按钮和撞键提示订阅了 SettingsStore，在这里当场换字，不重建页面
     private func applyHotkeyChange() {
-        NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)
+        SettingsStore.shared.hotkeysDidChange()
     }
 
     private func presentCustomHotkeyPanel() {
@@ -2586,7 +2603,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         alert.addButton(withTitle: "取消")
 
         // 录键期间现有热键全部不响应：不然录 ⌥Space 时一按 ⌥ 就开了听写。
-        // 结束时（保存、取消、中途 return 都算）恢复，并发一次通知让各监听按实际按键状态重新同步、各页重画
+        // 结束时（保存、取消、中途 return 都算）恢复，并发一次通知让各监听按实际按键状态重新同步、各页按钮换字
         HotkeyManager.isSuspended = true
         defer {
             HotkeyManager.isSuspended = false
@@ -5310,7 +5327,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         column.spacing = 12
         column.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
 
-        let recordingPicker = makeHotkeyPickerButton(compact: true)
+        let recordingPicker = makeHotkeyPickerButton(for: .recording, compact: true)
         recordingPicker.font = .systemFont(ofSize: 14, weight: .semibold)
         let rows: [NSView] = [
             makeAskCursorRow(title: "开始说话", desc: "听写：说的话整理好后粘贴到光标处。", control: recordingPicker),
@@ -5333,8 +5350,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         desc.maximumNumberOfLines = 0
 
         let toggle = VPToggle(theme: theme, target: self, action: #selector(tapToggleChanged(_:)))
-        toggle.setOn(RecordingHotkeyBehavior.isTapToggleEnabled, animated: false)
-        tapToggleCheckbox = toggle
+        toggle.setAccessibilityLabel("单击快捷键开始/停止录音")
+        bindToggle(toggle, to: SettingsStore.shared.$hotkeys.map(\.tapToggleEnabled))
 
         let textStack = NSStackView()
         textStack.orientation = .vertical
@@ -5665,13 +5682,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     private func makeAskHotkeyRow(_ hotkey: AskHotkey, desc: String) -> NSView {
-        let button = makeHotkeyPickerButton(compact: true)
-        button.title = "\(hotkey.displayName)  ▾"
+        let button = makeHotkeyPickerButton(for: .ask(hotkey), compact: true)
         button.font = .systemFont(ofSize: 14, weight: .semibold)
-        button.identifier = NSUserInterfaceItemIdentifier(hotkey.prefix)
-        button.toolTip = "设置「\(hotkey.title)」的快捷键"
-        let note = hotkey.conflict.map { "⚠️ \($0)，现在不会响应。" } ?? desc
-        return makeAskCursorRow(title: hotkey.title, desc: note, control: button)
+        return makeAskCursorRow(title: hotkey.title, desc: desc, control: button) { descLabel in
+            // 和别的键撞了就把说明换成撞键提示，改好了换回来
+            descLabel.subscribe(SettingsStore.shared.$hotkeys.map { $0.conflict(of: hotkey) }.removeDuplicates()) { view, conflict in
+                view.stringValue = conflict.map { "⚠️ \($0)，现在不会响应。" } ?? desc
+            }
+        }
     }
 
     /// 设置页「问 AI」栏：回答前要不要先思考、想多深
@@ -5692,28 +5710,31 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     private func makeAskImagesRow() -> NSView {
         let toggle = VPToggle(theme: theme, target: self, action: #selector(askImagesChanged(_:)))
-        toggle.setOn(ImageSearch.isEnabled, animated: false)
         toggle.setAccessibilityLabel("联网回答附图")
+        bindToggle(toggle, to: SettingsStore.shared.$askImagesEnabled)
         return makeAskCursorRow(title: "联网回答附图",
                                 desc: "需要联网的问题，回答下方附 3 张相关图片（DuckDuckGo 图片搜索，不用 Key），点一张在浏览器里看原图。",
                                 control: toggle)
     }
 
+    /// 「联网回答附图」「回答前先思考」「思考强度」在设置页和探索页各有一份，都订阅 store：
+    /// 改了一处，另一页的控件跟着变；当前这个控件已经是新值，订阅回来时不再动它，开关动画不会被打断
     @objc private func askImagesChanged(_ sender: VPToggle) {
-        config.save(bool: sender.isOn, forKey: ImageSearch.settingKey)
-        invalidateOtherAskSettingsPage()
+        SettingsStore.shared.setAskImagesEnabled(sender.isOn)
     }
 
-    /// 「联网回答附图」「思考强度」在设置页和探索页各有一份：改了一处，只重建另一页。
-    /// 当前页的控件已经显示新值，不拆它，免得开关动画被打断、页面跳动
-    private func invalidateOtherAskSettingsPage() {
-        invalidate(selectedPage == .settings ? .explore : .settings)
+    /// 开关订阅一个布尔值：值和开关当前状态不一样时才拨过去（带动画），用户刚拨的那个开关不会被重播动画
+    private func bindToggle<P: Publisher>(_ toggle: VPToggle, to publisher: P) where P.Output == Bool, P.Failure == Never {
+        toggle.subscribe(publisher.removeDuplicates()) { toggle, on in
+            guard toggle.isOn != on else { return }
+            toggle.setOn(on, animated: toggle.window != nil)
+        }
     }
 
     private func makeAskThinkingToggleRow() -> NSView {
         let toggle = VPToggle(theme: theme, target: self, action: #selector(askThinkingChanged(_:)))
-        toggle.setOn(AskThinkingSettings.isEnabled, animated: false)
         toggle.setAccessibilityLabel("回答前先思考")
+        bindToggle(toggle, to: SettingsStore.shared.$askThinkingEnabled)
         return makeAskCursorRow(title: "回答前先思考",
                                 desc: "关着最快（约 1 秒出字）。打开后要看图推理、要计算的难题答得更准，每问多等 1 到 3 秒，难题更久。联网查询的那一问不受影响。",
                                 control: toggle)
@@ -5721,26 +5742,35 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     private func makeAskThinkingEffortRow() -> NSView {
         let items = AskThinkingEffort.allCases.map { VPDropdown.Item(value: $0.rawValue, title: $0.displayName) }
-        let popup = VPDropdown(items: items, selectedValue: AskThinkingSettings.effort.rawValue,
+        let store = SettingsStore.shared
+        let popup = VPDropdown(items: items, selectedValue: store.askThinkingEffort.rawValue,
                                trackBg: theme.card,
                                trackBorder: Self.dropdownBorder,
                                textColor: theme.text, chevronColor: theme.text3)
-        popup.onSelect = { [weak self] value in
-            self?.config.save(value: value, forKey: AskThinkingSettings.effortKey)
-            self?.invalidateOtherAskSettingsPage()
-        }
+        popup.setAccessibilityLabel("思考强度")
         popup.widthAnchor.constraint(equalToConstant: 120).isActive = true
-        popup.alphaValue = AskThinkingSettings.isEnabled ? 1 : 0.45
-        return makeAskCursorRow(title: "思考强度",
-                                desc: AskThinkingSettings.isEnabled
-                                    ? "越高想得越久、越细。最多等它想 8 / 15 / 30 秒（低 / 高 / 最高），到点还没答就直接给一个不思考的快答案。"
-                                    : "打开「回答前先思考」后生效。",
-                                control: popup)
+        popup.onSelect = { value in
+            guard let effort = AskThinkingEffort(rawValue: value) else { return }
+            store.setAskThinkingEffort(effort)
+        }
+        popup.subscribe(store.$askThinkingEffort.removeDuplicates()) { popup, effort in
+            if popup.selectedValue != effort.rawValue { popup.setSelectedValue(effort.rawValue) }
+        }
+        // 没开「回答前先思考」时这一行变淡、说明换成提示
+        popup.subscribe(store.$askThinkingEnabled.removeDuplicates()) { popup, enabled in
+            popup.alphaValue = enabled ? 1 : 0.45
+        }
+        return makeAskCursorRow(title: "思考强度", desc: "", control: popup) { descLabel in
+            descLabel.subscribe(store.$askThinkingEnabled.removeDuplicates()) { view, enabled in
+                view.stringValue = enabled
+                    ? "越高想得越久、越细。最多等它想 8 / 15 / 30 秒（低 / 高 / 最高），到点还没答就直接给一个不思考的快答案。"
+                    : "打开「回答前先思考」后生效。"
+            }
+        }
     }
 
     @objc private func askThinkingChanged(_ sender: VPToggle) {
-        config.save(bool: sender.isOn, forKey: AskThinkingSettings.enabledKey)
-        invalidate(.settings, .explore)
+        SettingsStore.shared.setAskThinkingEnabled(sender.isOn)   // 两页的「思考强度」行跟着变淡或恢复
     }
 
     private func makeAskScreenshotRow() -> NSView {
@@ -5752,10 +5782,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
                                 control: toggle)
     }
 
-    private func makeAskCursorRow(title: String, desc: String, control: NSView) -> NSView {
+    /// bindDesc：说明文字要跟着设置变时，在这里拿到说明标签去订阅 store
+    private func makeAskCursorRow(title: String, desc: String, control: NSView,
+                                  bindDesc: ((NSTextField) -> Void)? = nil) -> NSView {
         let titleLabel = label(title, size: 13, weight: .medium, color: theme.text)
         let descLabel = label(desc, size: 12, weight: .regular, color: theme.text3)
         descLabel.maximumNumberOfLines = 0
+        bindDesc?(descLabel)
 
         let textStack = NSStackView()
         textStack.orientation = .vertical
@@ -5801,8 +5834,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     }
 
     @objc private func tapToggleChanged(_ sender: VPToggle) {
-        config.save(bool: sender.isOn, forKey: RecordingHotkeyBehavior.tapToggleConfigKey)
-        NotificationCenter.default.post(name: .voicePolishHotkeyDidChange, object: nil)   // hotkeyDidChange 里重画各页
+        SettingsStore.shared.setTapToggleEnabled(sender.isOn)   // 首页「长按或单击」和说明跟着换字
     }
 
     @objc private func launchAtLoginChanged(_ sender: VPToggle) {

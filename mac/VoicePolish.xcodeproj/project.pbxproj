@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AF2026091000000000000001 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2026091000000000000002 /* AppAppearance.swift */; };
+		AF2026092400000000000001 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2026092400000000000002 /* SettingsStore.swift */; };
 		0693E913A8E894340C94D06C /* OverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD16C68DC13BE74C432E5BC /* OverlayWindow.swift */; };
 		35BD140E249225353E2DD47E /* TextDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502CD7DBBAD698B6BCA49515 /* TextDelivery.swift */; };
 		529BFDD97BE1DD8CFF292F1F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94DBE5DD4FC3B467E0FBD0F5 /* AppDelegate.swift */; };
@@ -38,6 +39,7 @@
 
 /* Begin PBXFileReference section */
 		AF2026091000000000000002 /* AppAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
+		AF2026092400000000000002 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		092D93934C4E338C9A3010FD /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		3AF574D65ABA315E5CB849D5 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		502CD7DBBAD698B6BCA49515 /* TextDelivery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextDelivery.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				7DD16C68DC13BE74C432E5BC /* OverlayWindow.swift */,
 				69C4DD4BE515831340317DBE /* StatusBarController.swift */,
 				62A1F4D9C8B44754B1170002 /* SettingsWindowController.swift */,
+				AF2026092400000000000002 /* SettingsStore.swift */,
 				AF2026091000000000000002 /* AppAppearance.swift */,
 				AF2026091500000000000002 /* WhatsNewGuideView.swift */,
 				AF2026091600000000000002 /* SupportChatView.swift */,
@@ -243,6 +246,7 @@
 				0693E913A8E894340C94D06C /* OverlayWindow.swift in Sources */,
 				62478C68C32205037BB7D360 /* StatusBarController.swift in Sources */,
 				62A1F4D9C8B44754B1170001 /* SettingsWindowController.swift in Sources */,
+				AF2026092400000000000001 /* SettingsStore.swift in Sources */,
 				AF2026091000000000000001 /* AppAppearance.swift in Sources */,
 				AF2026091500000000000001 /* WhatsNewGuideView.swift in Sources */,
 				AF2026091600000000000001 /* SupportChatView.swift in Sources */,
