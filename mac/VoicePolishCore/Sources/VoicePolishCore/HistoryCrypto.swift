@@ -163,7 +163,7 @@ public enum HistoryCrypto {
         #if os(iOS)
         return KeychainSecretStore(accessGroup: "NHC4C4K7X7.com.voicepolish.shared")
         #else
-        return KeychainSecretStore.shared
+        return AppIdentity.defaultSecretStore()
         #endif
     }
 }

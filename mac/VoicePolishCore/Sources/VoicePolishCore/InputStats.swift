@@ -58,8 +58,7 @@ public final class InputStats {
                 .containerURL(forSecurityApplicationGroupIdentifier: "group.com.voicepolish.shared")?
                 .appendingPathComponent("input_stats.json")
             #else
-            let configDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/voicepolish")
+            let configDir = AppIdentity.macConfigDirectory
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
             self.fileURL = configDir.appendingPathComponent("input_stats.json")
             #endif

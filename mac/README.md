@@ -43,6 +43,20 @@ bash scripts/install_app.sh      # 安装到 /Applications，然后自己 open �
 cd mac/VoicePolishCore && swift test
 ```
 
+### 开发版（Typefree Dev）
+
+改界面想马上看效果，又不想动正在用的正式版，用开发版：
+
+```bash
+bash mac/scripts/dev_run.sh -openPage settings   # 构建并启动，直接打开设置页
+bash mac/scripts/dev_run.sh --no-build           # 不重编，直接重启上次的开发版
+bash mac/scripts/dev_run.sh --stop               # 结束开发版
+```
+
+开发版的 bundle id 是 `com.voicepolish.app.dev`，配置在 `~/.config/voicepolish-dev`，日志在 `~/Library/Logs/VoicePolish-dev.log`。它不读写钥匙串，密钥存在开发版配置目录的 `dev_secrets.json` 里，终端里设置的 `ARK_API_KEY`、`DASHSCOPE_API_KEY`、`ZHIPU_API_KEY` 等会自动带进去。开发版不自动更新，不登记开机自启动，产物放在 `/private/tmp/typefree-dev-dd`，不装进 `/Applications`。
+
+`-openPage` 可选 `home`、`history`、`support`、`vocabulary`、`models`、`explore`、`settings`、`about`。脚本默认加上 `-skipOnboarding`，启动时不弹首次引导和系统授权框；要看引导就加 `--onboarding`。`local.build.env` 里配了 `DEVELOPER_ID_IDENTITY` 就用它签名，否则 ad hoc 签名。
+
 ## 目录
 
 - `Sources/` — macOS 状态栏 App（AppKit + SwiftUI）

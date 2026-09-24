@@ -1327,8 +1327,7 @@ public class AIPolisher {
 
     public static func historyLogFileURL() -> URL? {
         #if os(macOS)
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/voicepolish/polish_log.jsonl")
+        return AppIdentity.macConfigDirectory.appendingPathComponent("polish_log.jsonl")
         #else
         return pendingLogFileURL()
         #endif

@@ -5,7 +5,8 @@ public enum ProcessingMode: String, CaseIterable {
     case omni = "omni"
 
     public static let userDefaultsKey = "voicepolish.processingMode"
-    public static let appGroupSuiteName = "group.com.voicepolish.shared"
+    /// 开发版（Typefree Dev）用独立 suite，见 AppIdentity。
+    public static var appGroupSuiteName: String { AppIdentity.sharedDefaultsSuiteName }
 
     public var menuTitle: String {
         switch self {

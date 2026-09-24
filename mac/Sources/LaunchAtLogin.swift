@@ -14,7 +14,8 @@ enum LaunchAtLogin {
 
     /// 当前是否已是登录项。以系统状态为准，这样设置开关能如实反映用户在系统设置里的手动改动。
     static var isEnabled: Bool {
-        SMAppService.mainApp.status == .enabled
+        guard !AppIdentity.isDevBuild else { return false }
+        return SMAppService.mainApp.status == .enabled
     }
 
     /// 开 / 关登录项（设置页开关回调）。以操作后的系统真实状态为准：真的开上 / 关掉了才返回 true。
@@ -22,6 +23,8 @@ enum LaunchAtLogin {
     /// 这时返回 false，openSettingsIfNeedsApproval 为 true 就打开登录项设置让用户自己批准。
     @discardableResult
     static func setEnabled(_ enabled: Bool, openSettingsIfNeedsApproval: Bool = true) -> Bool {
+        // 开发版（Typefree Dev）不登记登录项，免得开机时多起一个测试版
+        guard !AppIdentity.isDevBuild else { return false }
         let service = SMAppService.mainApp
         do {
             if enabled {
@@ -42,6 +45,7 @@ enum LaunchAtLogin {
     /// 登记抛错时不打标记，下次启动再试；要用户批准（requiresApproval）也算登记过，那是用户在系统设置里的决定，
     /// 启动时不去弹系统设置。
     static func applyDefaultIfFirstLaunch() {
+        guard !AppIdentity.isDevBuild else { return }
         let config = VoicePolishConfig.shared
         guard !config.bool(forKey: defaultAppliedKey, defaultValue: false) else { return }
         let ok = setEnabled(true, openSettingsIfNeedsApproval: false)

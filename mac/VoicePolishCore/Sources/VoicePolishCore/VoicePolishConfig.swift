@@ -29,9 +29,8 @@ public final class VoicePolishConfig {
                   secrets: KeychainSecretStore(accessGroup: "NHC4C4K7X7.com.voicepolish.shared"))
         #else
         // macOS：使用用户主目录（钥匙串不设 access group）
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/voicepolish")
-        self.init(configDir: dir)
+        // 开发版（Typefree Dev）用 ~/.config/voicepolish-dev 与文件密钥存储，见 AppIdentity
+        self.init(configDir: AppIdentity.macConfigDirectory, secrets: AppIdentity.defaultSecretStore())
         #endif
     }
 

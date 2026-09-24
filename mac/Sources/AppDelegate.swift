@@ -18,6 +18,30 @@ enum AppLinks {
     static let appcastURL = "https://typefree.app/appcast.xml"
 }
 
+/// 启动参数（mac/scripts/dev_run.sh 透传）：
+/// - `-openPage <home|history|support|vocabulary|models|explore|settings|about>`：启动后打开主窗口并切到该页，正式版也认
+/// - `-skipOnboarding`：不弹首次引导、新功能演示和系统授权框，只在开发版（Typefree Dev）生效
+enum DevLaunchOptions {
+    private static let arguments = ProcessInfo.processInfo.arguments
+
+    static let openPage: SettingsWindowController.Page? = {
+        guard let i = arguments.firstIndex(of: "-openPage"), i + 1 < arguments.count else { return nil }
+        switch arguments[i + 1].lowercased() {
+        case "home": return .home
+        case "history": return .history
+        case "support", "feedback": return .support
+        case "vocabulary": return .vocabulary
+        case "models", "model": return .model
+        case "explore": return .explore
+        case "settings": return .settings
+        case "about": return .about
+        default: return nil
+        }
+    }()
+
+    static let skipOnboarding: Bool = AppIdentity.isDevBuild && arguments.contains("-skipOnboarding")
+}
+
 extension Bundle {
     /// 展示用版本号（CFBundleShortVersionString），取不到时为空串。
     var appVersionString: String {
@@ -988,7 +1012,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
     /// 菜单栏「检查更新…」转发到 Sparkle。
     @objc func checkForUpdates(_ sender: Any?) {
-        guard !AppBuild.isSelfBuilt else { return }
+        guard !AppBuild.isSelfBuilt, !AppIdentity.isDevBuild else { return }
         updateUserDriver.beginUserInitiatedCheck()
         updater.checkForUpdates()
     }
@@ -1065,8 +1089,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     }
 
     func debugLog(_ message: String) {
-        let logFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/VoicePolish.log")
+        let logFile = AppIdentity.debugLogFileURL
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss.SSS"
         let timestamp = formatter.string(from: Date())
@@ -1108,8 +1131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
     private func removeLegacyPlaintextDebugLogIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: debugLogPrivacyMigrationKey) else { return }
-        let logFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/VoicePolish.log")
+        let logFile = AppIdentity.debugLogFileURL
         let fileManager = FileManager.default
         do {
             if fileManager.fileExists(atPath: logFile.path) {
@@ -1146,9 +1168,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         // （之前只能靠右键菜单粘贴）。
         setupMainMenu()
 
-        // 自编版不接官方更新：一更新，自己的改动就被官方包盖掉了
-        if AppBuild.isSelfBuilt {
-            debugLog("Self-built: Sparkle updater not started")
+        // 自编版不接官方更新：一更新，自己的改动就被官方包盖掉了；开发版（Typefree Dev）同理
+        if AppBuild.isSelfBuilt || AppIdentity.isDevBuild {
+            debugLog("Self-built or dev build: Sparkle updater not started")
         } else {
             do {
                 try updater.start()
@@ -1167,7 +1189,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         // 启动时只在「从未问过」时申请；已拒绝的不自动跳系统设置——
         // 配合开机自启，每次登录都被弹到「系统设置」体验极差，且用户无法关掉。
         // 已拒绝的用户在引导页 / 首页健康卡里点击时再跳（onboardingRequestMicrophone / openMicrophoneSettings）。
-        requestMicrophonePermissionIfUndetermined()
+        // 开发版带 -skipOnboarding 启动：不弹任何系统授权框（麦克风 / 辅助功能），方便 agent 无人值守实测
+        if DevLaunchOptions.skipOnboarding {
+            debugLog("Dev launch: skipping onboarding and permission prompts")
+            WhatsNewGuide.markSeen()
+            didPromptForAccessibility = true
+            didReportMissingAccessibility = true
+        } else {
+            requestMicrophonePermissionIfUndetermined()
+        }
 
         // 授权联网复核：退款/被找回页重置的设备，几天内自动退出激活（没网照常用）
         LicenseManager.shared.startRevalidation(appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
@@ -1248,7 +1278,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
         // 首次运行展示引导。先于 updateAppReadiness() 呈现，
         // 这样辅助功能未授权时由引导负责索要权限，不会再额外弹独立的错误提示。
-        if !VoicePolishConfig.shared.bool(forKey: "onboarding_completed") {
+        if DevLaunchOptions.skipOnboarding {
+            // 开发版无人值守启动：不弹引导，也不自动弹新功能演示
+        } else if !VoicePolishConfig.shared.bool(forKey: "onboarding_completed") {
             debugLog("First run: presenting onboarding")
             showOnboarding()
         } else if !WhatsNewGuide.hasSeen, !UserDefaults.standard.bool(forKey: "WhatsNewGuideAutoShown_\(WhatsNewGuide.version)") {
@@ -1268,6 +1300,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
         // 没配 key 且未激活 → 自动进入/刷新免费试用（需 cloudTranscriber 已初始化）。
         maybeStartTrial()
+
+        // 启动参数 -openPage <页名>：启动后直接打开主窗口并切到该页（开发实测用）
+        if let page = DevLaunchOptions.openPage {
+            debugLog("Launch argument: opening page \(page)")
+            SettingsWindowController.show(delegate: self, initialPage: page)
+        }
     }
 
     /// 没配 key 且未激活 → 自动进入/刷新免费试用（owner 出 API 费）。断网静默，不阻塞启动。
@@ -2342,7 +2380,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
 
     /// 最近 120 行调试日志（不含用户说的内容：日志里只有字数、耗时、软件名这类元信息）
     func debugLogTail() -> String {
-        let logFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/VoicePolish.log")
+        let logFile = AppIdentity.debugLogFileURL
         guard let data = try? Data(contentsOf: logFile), let text = String(data: data, encoding: .utf8) else { return "" }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
         let tail = lines.suffix(120).joined(separator: "\n")

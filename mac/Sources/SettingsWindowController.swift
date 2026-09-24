@@ -294,8 +294,7 @@ private final class HotkeyRecorderView: AppearanceObservingView {
 final class PolishHistoryStore {
     private let logFileURL: URL
 
-    init(logFileURL: URL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/voicepolish/polish_log.jsonl")) {
+    init(logFileURL: URL = AppIdentity.macConfigDirectory.appendingPathComponent("polish_log.jsonl")) {
         self.logFileURL = logFileURL
     }
 
