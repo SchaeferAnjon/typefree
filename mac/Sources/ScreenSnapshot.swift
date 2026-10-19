@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 import VoicePolishCore
 #endif
 
-/// 触发瞬间的屏幕快照：一张整屏上下文图 + 一张指针附近的放大图，两张都在指针位置画了红色圆环。
+/// 触发瞬间的屏幕快照：一张整屏上下文图 + 一张指针附近的放大图，两张都用细红框框住了指针附近。
 /// 模型认画出来的标记比认坐标数字可靠得多，所以只画标记、不给坐标。
 struct ScreenSnapshot {
     let overviewJPEG: Data
@@ -58,6 +58,11 @@ enum ScreenSnapshotCapturer {
     /// 弹一次系统的屏幕录制授权请求（只在第一次触发、且确实没权限时调）
     @discardableResult
     static func requestPermission() -> Bool { CGRequestScreenCaptureAccess() }
+
+    /// 用户主动点「屏幕录制」：第一次弹系统授权框（同时把 Typefree 登记进系统设置的列表），之后系统不再弹，直接打开设置页
+    static func requestOrOpenSettings() {
+        if !requestPermission() { openSettings() }
+    }
 
     static func openSettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
@@ -150,7 +155,7 @@ enum ScreenSnapshotCapturer {
         guard let overview = draw(image: image,
                                   source: CGRect(origin: .zero, size: full),
                                   outputScale: overviewScale,
-                                  markerAt: cursorPixel),
+                                  markerAt: cursorPixel, scale: scale),
               let overviewData = jpeg(overview, quality: AskVision.overviewQuality) else { return nil }
 
         // 清晰图：指针所在的整个窗口（太大就取指针周围一块），小字才认得出来
@@ -159,14 +164,14 @@ enum ScreenSnapshotCapturer {
         guard let closeUp = draw(image: image,
                                  source: cropRect,
                                  outputScale: closeUpScale,
-                                 markerAt: cursorPixel),
+                                 markerAt: cursorPixel, scale: scale),
               let closeUpData = jpeg(closeUp, quality: AskVision.closeUpQuality) else { return nil }
 
         return (overviewData, closeUpData)
     }
 
-    /// 把 source 这块（原图像素坐标、原点左上）画成一张新图，并在指针处画标记。
-    private static func draw(image: CGImage, source: CGRect, outputScale: CGFloat, markerAt cursorPixel: CGPoint) -> CGImage? {
+    /// 把 source 这块（原图像素坐标、原点左上）画成一张新图，并用细红框框住指针附近。
+    private static func draw(image: CGImage, source: CGRect, outputScale: CGFloat, markerAt cursorPixel: CGPoint, scale: CGFloat) -> CGImage? {
         let width = max(1, Int((source.width * outputScale).rounded()))
         let height = max(1, Int((source.height * outputScale).rounded()))
         guard let ctx = CGContext(data: nil, width: width, height: height,
@@ -179,35 +184,20 @@ enum ScreenSnapshotCapturer {
         ctx.interpolationQuality = .medium
         ctx.draw(piece, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
 
-        // 指针在这张输出图里的位置。CGContext 原点在左下，所以 y 要翻过来。
-        let x = (cursorPixel.x - source.minX) * outputScale
-        let yTopDown = (cursorPixel.y - source.minY) * outputScale
-        drawMarker(in: ctx, at: CGPoint(x: x, y: CGFloat(height) - yTopDown),
-                   radius: max(14, CGFloat(max(width, height)) * 0.022))
+        // 框在输出图里的位置。CGContext 原点在左下，所以 y 要翻过来。
+        let box = AskVision.markerBox(center: cursorPixel, scale: scale)
+        let rect = CGRect(x: (box.minX - source.minX) * outputScale,
+                          y: CGFloat(height) - (box.maxY - source.minY) * outputScale,
+                          width: box.width * outputScale, height: box.height * outputScale)
+        drawMarker(in: ctx, rect: rect.insetBy(dx: 1, dy: 1))
         return ctx.makeImage()
     }
 
-    /// 红色圆环 + 四根朝内的短线，圆心留空不挡内容；外面再描一圈白，深色背景上也看得见。
-    private static func drawMarker(in ctx: CGContext, at point: CGPoint, radius: CGFloat) {
-        let ring = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
-        ctx.setLineCap(.round)
-
-        ctx.setLineWidth(radius * 0.42)
-        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.9))
-        ctx.strokeEllipse(in: ring)
-
-        ctx.setLineWidth(radius * 0.24)
+    /// 细红线矩形：只描边不填充，框里框外的内容都不挡（用户 2026-10-19：大准星 + 粗圆圈把旁边的东西挡住了）
+    private static func drawMarker(in ctx: CGContext, rect: CGRect) {
+        ctx.setLineWidth(2)
         ctx.setStrokeColor(CGColor(red: 1, green: 0.13, blue: 0.13, alpha: 1))
-        ctx.strokeEllipse(in: ring)
-
-        let inner = radius * 1.28
-        let outer = radius * 2.0
-        for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
-            ctx.move(to: CGPoint(x: point.x + CGFloat(dx) * outer, y: point.y + CGFloat(dy) * outer))
-            ctx.addLine(to: CGPoint(x: point.x + CGFloat(dx) * inner, y: point.y + CGFloat(dy) * inner))
-        }
-        ctx.setLineWidth(radius * 0.24)
-        ctx.strokePath()
+        ctx.stroke(rect)
     }
 
     private static func jpeg(_ image: CGImage, quality: CGFloat) -> Data? {

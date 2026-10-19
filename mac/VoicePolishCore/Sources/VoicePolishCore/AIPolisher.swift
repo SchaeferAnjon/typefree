@@ -773,16 +773,7 @@ public class AIPolisher {
         func askQwenSearch(_ provider: (name: String, url: URL, model: String, apiKey: String), decidedMs: Int?, query: String?) {
             debugLog?("Ask route=qwen-search model=\(provider.model) decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") hasQuery=\(query?.isEmpty == false)")
             onRouteNote?(AskSearch.searchingNotice)
-            // 联网的问题顺便找几张图，和千问的回答并行；搜索词优先用模型写的（它看过屏幕），没有就用问题本身
-            if ImageSearch.isEnabled, let onImages {
-                let imageQuery = (query?.isEmpty == false) ? query! : AskSearch.stripExplicitSearchPrefix(question)
-                let started = ProcessInfo.processInfo.systemUptime
-                ImageSearch.search(imageQuery) { [weak self] images in
-                    let ms = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
-                    self?.debugLog?("Ask images: \(images.count) in \(ms)ms")
-                    DispatchQueue.main.async { onImages(images) }
-                }
-            }
+            searchImages(query: query, question: question, onImages: onImages)
             var announced = false
             let partial: (String) -> Void = { text in
                 if !announced { announced = true; onRouteNote?(AskSearch.searchedNotice) }
@@ -796,19 +787,68 @@ public class AIPolisher {
                              onThinking: onThinking, onStats: stats, completion: completion)
         }
 
-        // 用户明说要联网（「搜一下……」）：不用问模型，直接走千问
+        // DeepSeek 自己搜（DeepSeekSearch），把结果连同原问题和截图交回它作答。
+        // 搜索失败不硬编：照常回答，但面板上写明这次没查成、答案凭记忆。
+        func askDeepSeekSearch(_ provider: (name: String, url: URL, model: String, apiKey: String), decidedMs: Int?, query: String?) {
+            let q = (query?.isEmpty == false) ? query! : AskSearch.stripExplicitSearchPrefix(question)
+            onRouteNote?(AskSearch.searchingNotice)
+            searchImages(query: query, question: question, onImages: onImages)
+            let started = ProcessInfo.processInfo.systemUptime
+            DeepSeekSearch.search(query: q, apiKey: provider.apiKey) { [weak self] result in
+                guard let self else { return }
+                let searchMs = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
+                var context: String?
+                switch result {
+                case .success(let results):
+                    self.debugLog?("Ask route=deepseek-search decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") results=\(results.count) in \(searchMs)ms")
+                    context = DeepSeekSearch.promptSection(query: q, results: results)
+                case .failure(let err):
+                    self.debugLog?("Ask deepseek-search failed in \(searchMs)ms: \(err.localizedDescription)")
+                    onRouteNote?("联网查询失败（\(err.localizedDescription)），下面是模型凭记忆的回答，可能过时。")
+                }
+                var announced = context == nil
+                let partial: (String) -> Void = { text in
+                    if !announced { announced = true; onRouteNote?(AskSearch.searchedNotice) }
+                    onPartial?(text)
+                }
+                let stats: (String) -> Void = { line in
+                    onStats?("decide=\(decidedMs.map { "\($0)ms" } ?? "explicit") webSearch=\(searchMs)ms " + line)
+                }
+                if let screen {
+                    self.answerWithScreen(question: question, history: history, screen: screen, provider: provider,
+                                          route: .deepseekSearch, offerSearchTool: false, searchContext: context,
+                                          onPartial: partial, onThinking: onThinking, onStats: stats, completion: completion)
+                } else {
+                    self.answerDirectText(question: question, history: history, provider: provider,
+                                          route: .deepseekSearch, offerSearchTool: false, searchContext: context,
+                                          onPartial: partial, onThinking: onThinking, onStats: stats, completion: completion)
+                }
+            }
+        }
+
+        // 用户明说要联网（「搜一下……」）：不用问模型，DeepSeek 自己搜，其他家直接走千问
+        if let ownProvider, ownProvider.name == "deepseek", AskSearch.hasExplicitSearchPrefix(question) {
+            askDeepSeekSearch(ownProvider, decidedMs: nil, query: nil)
+            return
+        }
         if let searchProvider, ownProvider?.name != "qwen", AskSearch.hasExplicitSearchPrefix(question) {
             askQwenSearch(searchProvider, decidedMs: nil, query: nil)
             return
         }
 
         // 其余问题带一个 web_search 函数工具让当前模型自己判断：它一调用，这条流就被掐掉、
-        // 以 needsWebSearch 失败返回，这里接住转千问；它直接回答则和平时完全一样，不多花时间。
+        // 以 needsWebSearch 失败返回，这里接住去搜（DeepSeek 自己搜，其他家转千问）；它直接回答则和平时完全一样，不多花时间。
         let offerTool = AskSearch.shouldOfferTool(provider: ownProvider?.name, hasQwenKey: searchProvider != nil)
         let routed: (Result<String, Error>) -> Void = { result in
-            if case .failure(let err) = result, case PolishError.needsWebSearch(let ms, let query) = err, let searchProvider {
-                askQwenSearch(searchProvider, decidedMs: ms, query: query)
-                return
+            if case .failure(let err) = result, case PolishError.needsWebSearch(let ms, let query) = err {
+                if let ownProvider, ownProvider.name == "deepseek" {
+                    askDeepSeekSearch(ownProvider, decidedMs: ms, query: query)
+                    return
+                }
+                if let searchProvider {
+                    askQwenSearch(searchProvider, decidedMs: ms, query: query)
+                    return
+                }
             }
             completion(result)
         }
@@ -859,6 +899,18 @@ public class AIPolisher {
                          onStats: onStats, completion: routed)
     }
 
+    /// 联网的问题顺便找几张图，和回答并行；搜索词优先用模型写的（它看过屏幕），没有就用问题本身
+    private func searchImages(query: String?, question: String, onImages: (([AskImage]) -> Void)?) {
+        guard ImageSearch.isEnabled, let onImages else { return }
+        let imageQuery = (query?.isEmpty == false) ? query! : AskSearch.stripExplicitSearchPrefix(question)
+        let started = ProcessInfo.processInfo.systemUptime
+        ImageSearch.search(imageQuery) { [weak self] images in
+            let ms = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
+            self?.debugLog?("Ask images: \(images.count) in \(ms)ms")
+            DispatchQueue.main.async { onImages(images) }
+        }
+    }
+
     /// 纯文字提问（不带屏幕内容）：用指定通道流式回答。
     /// 千问联网默认由模型自己判断要不要搜，它觉得会答的就不搜、答案可能过期；
     /// 问题里带时效词时强制搜，其他问题维持智能判断。
@@ -869,12 +921,14 @@ public class AIPolisher {
                                   provider: (name: String, url: URL, model: String, apiKey: String),
                                   route: AskVision.AskRoute,
                                   offerSearchTool: Bool,
+                                  searchContext: String? = nil,
                                   allowThinking: Bool = true,
                                   onPartial: ((String) -> Void)?,
                                   onThinking: (() -> Void)?,
                                   onStats: ((String) -> Void)?,
                                   completion: @escaping (Result<String, Error>) -> Void) {
         let system = Self.askSystemPrompt + (offerSearchTool ? AskSearch.toolPromptSuffix : "") + "\n" + Self.askTimeLine()
+            + (searchContext ?? "")
         var messages: [[String: Any]] = [["role": "system", "content": system]]
         for turn in history.suffix(6) {
             messages.append(["role": "user", "content": turn.question])
@@ -904,6 +958,10 @@ public class AIPolisher {
                 AskVision.applyThinkingSettings(in: &body, provider: provider.name, model: model, thinking: thinking)
             }
             if offerSearchTool { body["tools"] = AskSearch.tools() }
+            if let choice = AskSearch.forcedToolChoice(provider: provider.name, question: question,
+                                                       offered: offerSearchTool, thinking: thinking != nil) {
+                body["tool_choice"] = choice
+            }
             return body
         }
         // 联网这一问模型已经定死，不走自动路由
@@ -922,7 +980,7 @@ public class AIPolisher {
                        thinkingDeadline: thinking?.deadline,
                        onStats: { reasoningChars, firstTokenMs in
                            let first = firstTokenMs.map { "\($0)ms" } ?? "n/a"
-                           onStats?("route=\(route.rawValue) model=\(model) vision=0 search=\(search ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
+                           onStats?("route=\(route.rawValue) model=\(model) vision=0 search=\(search || searchContext != nil ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
                        }) { [weak self] result in
                 switch result {
                 case .success(let text):
@@ -933,7 +991,8 @@ public class AIPolisher {
                         // 开着思考时偶发：想了一大段却没有正文。关掉思考重问一次，保证用户拿得到答案
                         self.debugLog?("Ask: \(err.localizedDescription) → 关思考重问")
                         self.answerDirectText(question: question, history: history, provider: provider, route: route,
-                                              offerSearchTool: offerSearchTool, allowThinking: false, onPartial: onPartial,
+                                              offerSearchTool: offerSearchTool, searchContext: searchContext,
+                                              allowThinking: false, onPartial: onPartial,
                                               onThinking: onThinking, onStats: onStats, completion: completion)
                         return
                     }
@@ -962,6 +1021,7 @@ public class AIPolisher {
                                   provider: (name: String, url: URL, model: String, apiKey: String),
                                   route: AskVision.AskRoute,
                                   offerSearchTool: Bool,
+                                  searchContext: String? = nil,
                                   allowThinking: Bool = true,
                                   onPartial: ((String) -> Void)?,
                                   onThinking: (() -> Void)?,
@@ -982,7 +1042,7 @@ public class AIPolisher {
 
         var messages: [[String: Any]] = [
             ["role": "system", "content": Self.askSystemPrompt + AskVision.screenPromptSuffix
-                + (offerSearchTool ? AskSearch.toolPromptSuffix : "") + "\n" + Self.askTimeLine()]
+                + (offerSearchTool ? AskSearch.toolPromptSuffix : "") + "\n" + Self.askTimeLine() + (searchContext ?? "")]
         ]
         for turn in history.suffix(6) {
             messages.append(["role": "user", "content": turn.question])
@@ -1007,6 +1067,10 @@ public class AIPolisher {
                 body["search_options"] = ["forced_search": true]
             }
             if offerSearchTool { body["tools"] = AskSearch.tools() }
+            if let choice = AskSearch.forcedToolChoice(provider: provider.name, question: question,
+                                                       offered: offerSearchTool, thinking: thinking != nil) {
+                body["tool_choice"] = choice
+            }
             return body
         }
 
@@ -1026,7 +1090,7 @@ public class AIPolisher {
                        thinkingDeadline: thinking?.deadline,
                        onStats: { reasoningChars, firstTokenMs in
                            let first = firstTokenMs.map { "\($0)ms" } ?? "n/a"
-                           onStats?("route=\(route.rawValue) model=\(model) vision=1 search=\(search ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
+                           onStats?("route=\(route.rawValue) model=\(model) vision=1 search=\(search || searchContext != nil ? 1 : 0) reasoning=\(reasoningChars)ch firstToken=\(first)")
                        }) { [weak self] result in
                 switch result {
                 case .success(let text):
@@ -1036,7 +1100,8 @@ public class AIPolisher {
                     if case PolishError.emptyAnswer = err, thinking != nil, let self {
                         self.debugLog?("Ask vision: \(err.localizedDescription) → 关思考重问")
                         self.answerWithScreen(question: question, history: history, screen: screen, provider: provider,
-                                              route: route, offerSearchTool: offerSearchTool, allowThinking: false,
+                                              route: route, offerSearchTool: offerSearchTool, searchContext: searchContext,
+                                              allowThinking: false,
                                               onPartial: onPartial, onThinking: onThinking, onStats: onStats, completion: completion)
                         return
                     }

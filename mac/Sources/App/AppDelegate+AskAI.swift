@@ -93,6 +93,22 @@ extension AppDelegate {
         }
     }
 
+    /// 启动参数 -askText：在指针处截屏，把这句话当成识别出的问题发出去（开发实测用，跳过录音和识别）
+    func devAsk(_ question: String) {
+        debugLog("Launch argument: ask \(question.count) chars")
+        askTiming = AskTiming()
+        startAskScreenCapture(at: CGEvent(source: nil)?.location ?? .zero)
+        askRound += 1
+        let round = askRound
+        answerPanel.startThread(question: question)
+        // 真实使用时截图和说话并行；这里没有说话那几秒，先等 3 秒再取图
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            self.resolveAskScreen { screen, note in
+                self.sendAsk(question: question, history: [], screen: screen, screenNote: note, round: round)
+            }
+        }
+    }
+
     /// 把问题（可能带屏幕内容）发给模型，逐字流进面板。
     /// screenNote 非空 = 这次没能带屏幕内容，原因直接写在面板上，不静默。
     private func sendAsk(question: String,
@@ -106,6 +122,7 @@ extension AppDelegate {
         // 问题已经发出，回答在面板里流式显示：放开录音，别让所有快捷键在回答的十几秒里都没反应
         finishAsk()
         if let screenNote { answerPanel.setNote(screenNote) }
+        if let screen { answerPanel.setScreenshot(overviewJPEG: screen.overviewJPEG, closeUpJPEG: screen.closeUpJPEG) }
 
         // 首字迟迟不来就在面板里说一声，别让用户盯着「正在思考…」干等
         askSlowHintWork?.cancel()
@@ -299,7 +316,8 @@ extension AppDelegate {
         guard ScreenSnapshotCapturer.hasPermission else {
             askTiming.fallback = "noPermission"
             pendingAskScreenNote = ScreenSnapshotError.noPermission.userMessage
-            if !didPromptForScreenCapture {
+            // 开发版 -skipOnboarding（agent 实测）不弹授权框：权限要用户先在系统设置里给好
+            if !didPromptForScreenCapture, !DevLaunchOptions.skipOnboarding {
                 didPromptForScreenCapture = true
                 debugLog("AC: screen recording permission missing → prompting once")
                 // 第一次调会弹系统授权框；之前拒过就直接返回 false，这时才帮用户打开系统设置
@@ -314,7 +332,10 @@ extension AppDelegate {
         pendingAskScreen = pending
         ScreenSnapshotCapturer.capture(at: point) { [weak self, weak pending] result in
             pending?.complete(result)
-            if case .failure(let error) = result {
+            switch result {
+            case .success(let snapshot):
+                self?.debugLog("AC: captured in \(snapshot.captureMs)+\(snapshot.encodeMs)ms (\(snapshot.sizeSummary))")
+            case .failure(let error):
                 self?.debugLog("AC: capture failed (\(error.debugName))")
             }
         }

@@ -66,6 +66,15 @@ public enum AskVision {
         return CGRect(x: x, y: y, width: want.width, height: want.height)
     }
 
+    /// 指针标记框的大小（点）：大约框住一两行字或一个按钮，指针在正中
+    public static let markerPointSize = CGSize(width: 320, height: 90)
+
+    /// 标记框（原图像素坐标，原点左上），以指针为中心
+    public static func markerBox(center: CGPoint, scale: CGFloat) -> CGRect {
+        let w = markerPointSize.width * scale, h = markerPointSize.height * scale
+        return CGRect(x: center.x - w / 2, y: center.y - h / 2, width: w, height: h)
+    }
+
     /// 以指针为中心的裁剪框（像素坐标，原点左上）。
     /// 贴到屏幕边缘时整体平移回图内而不是缩小，保证放大图始终是同一个尺寸、同一个清晰度；
     /// 整张图比裁剪框还小（小屏）就直接取整张。
@@ -145,15 +154,17 @@ public enum AskVision {
         case direct
         /// 时效问题改走千问 + 联网搜索
         case qwenSearch = "qwen-search"
+        /// DeepSeek 自己搜（DeepSeekSearch），结果交回同一个模型作答
+        case deepseekSearch = "deepseek-search"
     }
 
 }
 
 /// 联网路由。
 ///
-/// 三家能自带 Key 的提供方里只有千问能真的联网（DeepSeek 的 API 不认 web_search 工具，
-/// 智谱 Coding Plan 的 web_search 工具不报错但实际不搜）。所以做法是：给当前模型带一个
-/// web_search 函数工具，让它自己判断这一问要不要查；它一调用就把整问转给千问联网回答。
+/// 千问自己能联网；DeepSeek 有单独的搜索接口（DeepSeekSearch）；智谱 Coding Plan 的 web_search 工具不报错但实际不搜。
+/// 所以做法是：给当前模型带一个 web_search 函数工具，让它自己判断这一问要不要查。
+/// 它一调用：DeepSeek 就用自家搜索查完把结果交回它作答；其他家把整问转给千问联网回答。
 ///
 /// 不用关键词表判断，因为关键词表一定会漏：「Claude 现在最强的模型是哪个」里没有任何时效词。
 /// 2026-09-21 用 deepseek-flash 实测 12 题全对（6 题该搜的全发起了工具调用，6 题该直答的全直答），
@@ -189,6 +200,15 @@ public enum AskSearch {
     你的训练知识有截止日期，可能已经过时。凡是答案可能随时间变化的问题（最新的产品/版本/模型、现任职务、价格、汇率、天气、新闻、赛事结果、近两年发生的事），必须调用 web_search，不要凭记忆回答；常识、概念解释、语言、数学、针对用户屏幕内容的问题直接回答。
     """
 
+    /// 问题带时效词（最新、现在、价格…）时让 DeepSeek 必须先调 web_search，不给它凭记忆答的机会。
+    /// 光靠提示词不够：指着屏幕问「这个软件最新版本是多少」，它按「屏幕内容的问题直接回答」处理，没搜就答了
+    /// （2026-10-19 实测）。用 tool_choice 而不是直接拿原话去搜：搜索词由看过屏幕的模型来写，才知道「这个」是什么。
+    /// 开着思考时不加：思考模式下强制指定工具不保证可用。
+    public static func forcedToolChoice(provider: String, question: String, offered: Bool, thinking: Bool) -> [String: Any]? {
+        guard offered, !thinking, provider == "deepseek", AIPolisher.isTimeSensitive(question) else { return nil }
+        return ["type": "function", "function": ["name": toolName]]
+    }
+
     /// 用户明说要联网：不用问模型，直接走千问。前缀词留在问题里无妨，搜索引擎不在乎。
     public static let explicitPrefixes = ["联网", "上网查", "上网搜", "搜一下", "查一下", "帮我搜", "帮我查", "搜索一下"]
 
@@ -217,11 +237,13 @@ public enum AskSearch {
         provider == "deepseek" || provider == "zhipu"
     }
 
-    /// 这一问要不要带工具：当前提供方不是千问（千问自己就能搜）、认 tools、且用户配了千问 Key。
+    /// 这一问要不要带工具：DeepSeek 自己能搜（DeepSeekSearch），一律带；
+    /// 其余不是千问（千问自己就能搜）的，要认 tools、且用户配了千问 Key 才带（调用后转千问）。
     /// provider 为 nil = 走托管通道，那边服务器自己开了联网，不用带。
     public static func shouldOfferTool(provider: String?, hasQwenKey: Bool) -> Bool {
-        guard let provider, provider != "qwen", hasQwenKey else { return false }
-        return supportsFunctionTools(provider: provider)
+        guard let provider, provider != "qwen" else { return false }
+        if provider == "deepseek" { return true }
+        return hasQwenKey && supportsFunctionTools(provider: provider)
     }
 }
 
@@ -279,7 +301,7 @@ extension AskVision {
     /// 后半段是给速度用的：慢的是生成，不是上传，压住输出长度首字才来得快。
     public static let screenPromptSuffix = """
 
-    这次提问附带两张用户屏幕的截图：第一张是整个屏幕（已缩小，用来看全局上下文），第二张是指针所在窗口的清晰图（窗口特别大时是指针周围那一块）。两张图上都画了一个红色圆环标记，那是用户此刻指着的位置。用户的问题默认是针对标记处的内容提的；标记处看不出所指时，再结合整屏内容理解。不要描述标记本身，也不要提「截图」「图片」这些字眼，直接回答问题。
+    这次提问附带两张用户屏幕的截图：第一张是整个屏幕（已缩小，用来看全局上下文），第二张是指针所在窗口的清晰图（窗口特别大时是指针周围那一块）。两张图上都用一个红色细线方框框住了用户此刻指着的地方（指针在方框正中）。用户的问题默认是针对方框里的内容提的；方框里看不出所指时，再结合方框周围和整屏内容理解。图上的字看不清、或看不出用户指的是什么时，直说看不清，不要猜着答。不要描述标记本身，也不要提「截图」「图片」这些字眼，直接回答问题。
     先用一两句话把结论说完，需要展开再补两三点，全部加起来控制在 200 字以内。用户明确要求「详细」「展开说」时才可以更长。
     """
 

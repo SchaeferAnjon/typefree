@@ -132,6 +132,15 @@ final class AnswerPanel {
         relayout()
     }
 
+    /// 这一轮发给模型的两张截图（指针附近已用细红框框出）：挂在回答上方，让用户知道它看到的是什么
+    func setScreenshot(overviewJPEG: Data, closeUpJPEG: Data) {
+        guard let last = model.turns.indices.last,
+              let overview = NSImage(data: overviewJPEG), let closeUp = NSImage(data: closeUpJPEG) else { return }
+        model.turns[last].screenshot = AskScreenshot(closeUp: closeUp, overview: overview,
+                                                     closeUpJPEG: closeUpJPEG, overviewJPEG: overviewJPEG)
+        relayoutAfterStateChange()
+    }
+
     /// 联网找到的图到了：挂在当前这一轮下面
     func setImages(_ images: [AskImage]) {
         guard let last = model.turns.indices.last, !images.isEmpty else { return }
@@ -698,6 +707,15 @@ struct AnswerTurn: Identifiable {
     var note: String?
     /// 联网回答附的图（回答下方一排小图，点开看大图）。不进历史
     var images: [AskImage] = []
+    /// 这一轮发给模型的截图（回答上方）。不进历史
+    var screenshot: AskScreenshot?
+}
+
+struct AskScreenshot {
+    let closeUp: NSImage
+    let overview: NSImage
+    let closeUpJPEG: Data
+    let overviewJPEG: Data
 }
 
 final class AnswerModel: ObservableObject {
@@ -961,6 +979,7 @@ struct TurnsView: View {
 
     @ViewBuilder private func answerBody(_ turn: AnswerTurn) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let shot = turn.screenshot { AskScreenshotRow(shot: shot) }
             if let note = turn.note, !note.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "info.circle")
@@ -993,6 +1012,40 @@ struct TurnsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// 回答上方的截图：左边是指针所在窗口的清晰图，右边是整屏，细红框框住的是发问时指针所在的地方。
+/// 高度固定，图到了不用重排浮窗；点一张用「预览」打开原图。
+struct AskScreenshotRow: View {
+    let shot: AskScreenshot
+    private static let height: CGFloat = 96
+
+    var body: some View {
+        HStack(spacing: 8) {
+            thumb(shot.closeUp, jpeg: shot.closeUpJPEG, name: "closeup")
+            thumb(shot.overview, jpeg: shot.overviewJPEG, name: "screen")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func thumb(_ image: NSImage, jpeg: Data, name: String) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: AnswerPanel.contentWidth * 0.6, maxHeight: Self.height)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.12)))
+            .help("发给 AI 的画面，红框框住的是你指着的地方。点开看原图")
+            .onTapGesture {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("typefree-ask-\(name).jpg")
+                do {
+                    try jpeg.write(to: url)
+                    NSWorkspace.shared.open(url)
+                } catch {
+                    AnswerPanel.log?("ASK screenshot open failed: \(error.localizedDescription)")
+                }
+            }
     }
 }
 

@@ -392,15 +392,17 @@ extension SettingsWindowController {
     }
 
     /// 权限行的说明文字，建卡和切回 App 就地刷新共用
-    private func permissionSubTexts() -> (mic: String, accessibility: String) {
+    private func permissionSubTexts() -> (mic: String, accessibility: String, screen: String) {
         (micStatusInfo().ok ? "已允许，可录音" : "未允许，请到系统设置开启",
-         AXIsProcessTrusted() ? "已允许，可自动粘贴" : "未允许，只能复制到剪贴板")
+         AXIsProcessTrusted() ? "已允许，可自动粘贴" : "未允许，只能复制到剪贴板",
+         ScreenSnapshotCapturer.hasPermission ? "已允许，问 AI 能看到指针所在的屏幕" : "未允许，问 AI 只听语音（开完重启 Typefree）")
     }
 
     func updatePermissionsCardInPlace() {
         let texts = permissionSubTexts()
         micPermissionSubLabel?.stringValue = texts.mic
         accessibilityPermissionSubLabel?.stringValue = texts.accessibility
+        screenPermissionSubLabel?.stringValue = texts.screen
     }
 
     private func makePermissionsCard() -> NSView {
@@ -409,6 +411,7 @@ extension SettingsWindowController {
         let rows: [(String, String, Selector)] = [
             ("麦克风", texts.mic, #selector(openMicrophoneSettings)),
             ("辅助功能", texts.accessibility, #selector(openAccessibilitySettings)),
+            ("屏幕录制", texts.screen, #selector(openScreenRecordingSettings)),
         ]
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -419,7 +422,11 @@ extension SettingsWindowController {
             stack.addArrangedSubview(row)
             let subLabel = row.subviews.compactMap { $0 as? NSStackView }.first?
                 .arrangedSubviews.compactMap { $0 as? NSTextField }.last
-            if i == 0 { micPermissionSubLabel = subLabel } else { accessibilityPermissionSubLabel = subLabel }
+            switch i {
+            case 0: micPermissionSubLabel = subLabel
+            case 1: accessibilityPermissionSubLabel = subLabel
+            default: screenPermissionSubLabel = subLabel
+            }
             if i < rows.count - 1 {
                 stack.addArrangedSubview(makeHairline(insetH: 18))
             }
@@ -486,5 +493,9 @@ extension SettingsWindowController {
 
     @objc private func openMicrophoneSettings() {
         settingsDelegate?.openMicrophoneSettings()
+    }
+
+    @objc private func openScreenRecordingSettings() {
+        ScreenSnapshotCapturer.requestOrOpenSettings()
     }
 }

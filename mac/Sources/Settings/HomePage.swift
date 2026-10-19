@@ -276,6 +276,7 @@ extension SettingsWindowController {
         let card = makeCard()
         let micStatus = micStatusInfo()
         let accessOK = AXIsProcessTrusted()
+        let screenOK = ScreenSnapshotCapturer.hasPermission
         let asrOK = CloudASRTranscriber().isConfigured()
         let polishOK = isPolishConfigured()
         let polishOff = (config.string(forKey: "polish_provider") ?? "qwen") == "none"
@@ -290,7 +291,7 @@ extension SettingsWindowController {
         let asrHosted = hostedRow(ownKey: asrOK)
         let polishHosted = hostedRow(ownKey: polishOK)
 
-        let rows: [(String, String, Bool, String, Selector?)] = [
+        var rows: [(String, String, Bool, String, Selector?)] = [
             ("麦克风", micStatus.sub, micStatus.ok, micStatus.tail,
              micStatus.ok ? nil : #selector(healthMicRowTapped)),
             ("辅助功能", accessOK ? "可自动粘贴" : "未开启只能复制到剪贴板，点击去系统设置开启",
@@ -309,6 +310,12 @@ extension SettingsWindowController {
                         ? ("AI 润色", "可整理文本", true, "已配置", nil)
                         : ("AI 润色", "请填写润色 Key", false, "未配置", nil),
         ]
+        // 关了「提问时附带屏幕」就用不到这项权限，不拿它把首页标红
+        if AskAtCursorSettings.isScreenshotEnabled {
+            rows.insert(("屏幕录制", screenOK ? "问 AI 能看到指针所在的屏幕" : "未开启问 AI 只听语音，点击开启（开完重启 Typefree）",
+                         screenOK, screenOK ? "已允许" : "未允许",
+                         screenOK ? nil : #selector(healthScreenRowTapped)), at: 2)
+        }
 
         let allOK = rows.allSatisfy { $0.2 }
         let failCount = rows.filter { !$0.2 }.count
@@ -386,6 +393,10 @@ extension SettingsWindowController {
         default:
             break
         }
+    }
+
+    @objc private func healthScreenRowTapped() {
+        ScreenSnapshotCapturer.requestOrOpenSettings()
     }
 
     @objc private func healthAccessibilityRowTapped() {

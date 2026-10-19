@@ -21,6 +21,7 @@ enum AppLinks {
 /// 启动参数（mac/scripts/dev_run.sh 透传）：
 /// - `-openPage <home|history|support|vocabulary|models|explore|settings|about>`：启动后打开主窗口并切到该页，正式版也认
 /// - `-skipOnboarding`：不弹首次引导、新功能演示和系统授权框，只在开发版（Typefree Dev）生效
+/// - `-askText <问题>`：启动 3 秒后在指针处截屏并问这句话，走的是看屏幕问 AI 的整条流程、只跳过说话，只在开发版生效
 enum DevLaunchOptions {
     private static let arguments = ProcessInfo.processInfo.arguments
 
@@ -40,6 +41,11 @@ enum DevLaunchOptions {
     }()
 
     static let skipOnboarding: Bool = AppIdentity.isDevBuild && arguments.contains("-skipOnboarding")
+
+    static let askText: String? = {
+        guard AppIdentity.isDevBuild, let i = arguments.firstIndex(of: "-askText"), i + 1 < arguments.count else { return nil }
+        return arguments[i + 1]
+    }()
 }
 
 extension Bundle {
@@ -226,6 +232,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
             didReportMissingAccessibility = true
         } else {
             requestMicrophonePermissionIfUndetermined()
+            // 看屏幕问 AI 要屏幕录制：启动就申请，别等第一次提问才弹。系统只在第一次真的弹框，之后调用无声返回
+            if AskAtCursorSettings.isScreenshotEnabled, !ScreenSnapshotCapturer.hasPermission {
+                ScreenSnapshotCapturer.requestPermission()
+            }
         }
 
         // 授权联网复核：退款/被找回页重置的设备，几天内自动退出激活（没网照常用）
@@ -334,6 +344,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SettingsWindowDelegate, SPUU
         if let page = DevLaunchOptions.openPage {
             debugLog("Launch argument: opening page \(page)")
             SettingsWindowController.show(delegate: self, initialPage: page)
+        }
+        if let question = DevLaunchOptions.askText {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.devAsk(question) }
         }
     }
 

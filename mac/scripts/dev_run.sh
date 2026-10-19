@@ -1,7 +1,7 @@
 #!/bin/bash
 # 构建并启动开发版 Typefree Dev（bundle id com.voicepolish.app.dev），不打扰正式版：
 # - 配置在 ~/.config/voicepolish-dev，密钥存该目录下的 dev_secrets.json，不读写钥匙串
-# - 不装进 /Applications，不自动更新，不登记登录项，不碰正在运行的正式版
+# - 装在 ~/Applications（不碰 /Applications 里的正式版），不自动更新，不登记登录项，不碰正在运行的正式版
 #
 # 用法：
 #   bash mac/scripts/dev_run.sh [选项] [App 启动参数...]
@@ -9,7 +9,7 @@
 #         --onboarding 不自动加 -skipOnboarding（要看首次引导时用）
 #         --stop       只结束正在运行的开发版
 #   App 启动参数原样透传，例如 -openPage settings
-#   环境变量里的 API Key（ARK_API_KEY、DASHSCOPE_API_KEY、ZHIPU_API_KEY 等）会带进开发版。
+#   环境变量里的 API Key（ARK_API_KEY、DASHSCOPE_API_KEY、ZHIPU_API_KEY、DEEPSEEK_API_KEY 等）会带进开发版。
 set -euo pipefail
 
 MAC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +18,8 @@ SCHEME="VoicePolish"
 # 不放 ~/Documents 下：那里的 iCloud 扩展属性会让 codesign 失败
 DERIVED_DATA_PATH="/private/tmp/typefree-dev-dd"
 BUILT_APP="$DERIVED_DATA_PATH/Build/Products/Debug/Typefree.app"
-DEV_APP="$DERIVED_DATA_PATH/Typefree Dev.app"
+# 装在 ~/Applications：访达和系统设置的「+」里都找得到，给屏幕录制等权限时不用翻隐藏目录
+DEV_APP="$HOME/Applications/Typefree Dev.app"
 DEV_BUNDLE_ID="com.voicepolish.app.dev"
 DEV_BINARY="$DEV_APP/Contents/MacOS/Typefree"
 
@@ -95,6 +96,7 @@ if [ "$DO_BUILD" = "1" ]; then
 
     stop_dev_app
     rm -rf "$DEV_APP"
+    mkdir -p "$(dirname "$DEV_APP")"
     ditto "$BUILT_APP" "$DEV_APP"
 
     # 开发版身份：独立 bundle id 与显示名；Info.plist 写死了正式版 id，这里在拷贝上改
@@ -128,7 +130,7 @@ if [ "$SKIP_ONBOARDING" = "1" ]; then
 fi
 
 ENV_ARGS=()
-for name in ARK_API_KEY DASHSCOPE_API_KEY ZHIPU_API_KEY \
+for name in ARK_API_KEY DASHSCOPE_API_KEY ZHIPU_API_KEY DEEPSEEK_API_KEY \
             BIGASR_API_KEY BIGASR_ACCESS_TOKEN BIGASR_APP_ID BIGASR_VERSION; do
     if [ -n "${!name:-}" ]; then
         ENV_ARGS+=(--env "$name=${!name}")

@@ -153,7 +153,8 @@ extension AppDelegate {
                 debugLog("Accessibility not granted yet; onboarding owns the prompt")
                 return
             }
-            if !didPromptForAccessibility {
+            // 开发版 -skipOnboarding（agent 实测）一律不弹：启动早期这里可能先于 didPromptForAccessibility 的置位跑到
+            if !didPromptForAccessibility, !DevLaunchOptions.skipOnboarding {
                 _ = textDelivery.hasAccessibilityPermission(promptIfNeeded: true)
                 didPromptForAccessibility = true
             }

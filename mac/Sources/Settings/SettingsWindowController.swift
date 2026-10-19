@@ -129,6 +129,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     var launchAtLoginCheckbox: VPToggle?
     weak var micPermissionSubLabel: NSTextField?
     weak var accessibilityPermissionSubLabel: NSTextField?
+    weak var screenPermissionSubLabel: NSTextField?
     /// 上次切回 App 时看到的权限和统计，用来判断这次要不要刷新页面
     private var lastExternalState: ExternalState?
 
@@ -353,10 +354,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
     }
 
-    /// 切回 App 时首页和设置页要看的外部状态：两项权限 + 首页统计。和上次画页面时一样就什么都不做
+    /// 切回 App 时首页和设置页要看的外部状态：三项权限 + 首页统计。和上次画页面时一样就什么都不做
     private struct ExternalState: Equatable {
         var micStatus: AVAuthorizationStatus
         var accessibility: Bool
+        var screenRecording: Bool
         var statsDay: String
         var statsChars: Int
         var statsSessions: Int
@@ -365,6 +367,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             let total = InputStats.shared.allTimeTotal()
             return ExternalState(micStatus: AVCaptureDevice.authorizationStatus(for: .audio),
                                  accessibility: AXIsProcessTrusted(),
+                                 screenRecording: ScreenSnapshotCapturer.hasPermission,
                                  statsDay: InputStats.shared.today().date,
                                  statsChars: total.chars,
                                  statsSessions: total.sessions)
@@ -379,7 +382,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         lastExternalState = now
         guard let before, before != now else { return }
         if before.micStatus != now.micStatus { rebuildSidebar() }
-        if before.micStatus != now.micStatus || before.accessibility != now.accessibility {
+        if before.micStatus != now.micStatus || before.accessibility != now.accessibility
+            || before.screenRecording != now.screenRecording {
             updatePermissionsCardInPlace()
         }
         invalidate(.home)

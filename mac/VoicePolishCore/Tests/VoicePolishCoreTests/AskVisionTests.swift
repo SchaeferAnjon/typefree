@@ -180,8 +180,10 @@ final class AskVisionTests: XCTestCase {
     func testSearchToolIsOfferedOnlyWhenItCanBeUsed() {
         XCTAssertTrue(AskSearch.shouldOfferTool(provider: "deepseek", hasQwenKey: true))
         XCTAssertTrue(AskSearch.shouldOfferTool(provider: "zhipu", hasQwenKey: true))
-        // 没有千问 Key：带了工具也没处转
-        XCTAssertFalse(AskSearch.shouldOfferTool(provider: "deepseek", hasQwenKey: false))
+        // DeepSeek 自己能搜，不靠千问 Key
+        XCTAssertTrue(AskSearch.shouldOfferTool(provider: "deepseek", hasQwenKey: false))
+        // 智谱没有千问 Key：带了工具也没处转
+        XCTAssertFalse(AskSearch.shouldOfferTool(provider: "zhipu", hasQwenKey: false))
         // 千问自己就能搜；豆包没验证过认不认 tools；托管通道服务器自己开了联网
         XCTAssertFalse(AskSearch.shouldOfferTool(provider: "qwen", hasQwenKey: true))
         XCTAssertFalse(AskSearch.shouldOfferTool(provider: "doubao", hasQwenKey: true))
